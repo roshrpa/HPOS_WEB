@@ -22,6 +22,7 @@ header.top{display:flex;align-items:center;gap:14px;padding:8px 18px;background:
 .logo{height:46px;width:auto;flex:none;display:block}
 .brand{font-weight:700;font-size:19px;margin-right:auto;line-height:1.15}
 .brand small{display:block;font-size:12px;font-weight:500;color:var(--muted)}
+.chkpill{border-radius:99px;padding:6px 14px;font-size:12px;font-weight:700;background:var(--pink);color:#fff;min-height:32px}
 .syncpill{border-radius:99px;padding:6px 12px 6px 22px;font-size:12px;font-weight:600;background:#f1eef0;color:var(--muted);position:relative;min-height:32px}
 .syncpill::before{content:'';position:absolute;left:9px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:#b8b3b8}
 .syncpill.ok{color:var(--done);background:var(--done-bg)} .syncpill.ok::before{background:var(--done)}
@@ -433,7 +434,7 @@ function invVar(){
     var missCups = c.lines.filter(function(l){ return l.cup && l.diff < 0; });
     var cupUnits = missCups.reduce(function(a,l){ return a - l.diff; }, 0), est = missCups.reduce(function(a,l){ return a - l.diff * l.avg; }, 0);
     var loss = c.lines.filter(function(l){ return l.diff < 0; }).reduce(function(a,l){ return a - l.diff * l.cost; }, 0);
-    return '<div class="tbl"><h3>Count of '+fdate(c.t)+'</h3>'
+    return '<div class="tbl"><h3>Count of '+fdate(c.t)+(c.kind ? ' \u00b7 '+(c.kind === 'close' ? 'closing count' : 'opening check') : '')+(c.by ? ' \u00b7 '+esc(c.by) : '')+'</h3>'
       + (cupUnits ? '<div style="padding:12px 16px;background:var(--warn-bg);color:var(--warn);font-weight:600">'+num(cupUnits)+' cups or plates are missing compared with what the sales used. That is about AED '+money(est)+' of sales that may not have been rung up.</div>' : '')
       + '<table><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th><th class="n">Difference</th><th class="n">Cost of shortage</th></tr></thead><tbody>'+rows+'</tbody></table>'
       + '<div style="padding:10px 16px;font-weight:600">Shortage at cost: AED '+money(loss)+'</div></div>';
@@ -459,7 +460,7 @@ function invMat(){
       + '<td><input class="inp" style="width:70px;text-align:left" data-f="munit" data-m="'+m.id+'" value="'+esc(m.unit)+'" aria-label="Unit"></td>'
       + '<td class="n"><input class="inp" type="number" min="0" step="any" data-f="mcost" data-m="'+m.id+'" value="'+m.cost+'" aria-label="Cost per unit"></td>'
       + '<td class="n"><input class="inp" type="number" min="0" step="any" data-f="mmin" data-m="'+m.id+'" value="'+m.min+'" aria-label="Low stock level"></td>'
-      + '<td><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-f="mcup" data-m="'+m.id+'"'+(m.cup?' checked':'')+'> cup / plate</label></td>'
+      + '<td><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-f="mcup" data-m="'+m.id+'"'+(m.cup?' checked':'')+'> cup / plate (counted daily)</label></td>'
       + '<td class="n">'+(S.matDel===m.id?'<button class="btn primary sm" data-act="matdelyes" data-id="'+m.id+'">Delete</button> <button class="btn ghost sm" data-act="matdelno">Keep</button>':'<button class="btn ghost sm" data-act="matdel" data-id="'+m.id+'">Delete</button>')+'</td></tr>';
   }).join('');
   return '<p style="color:var(--muted);margin:0 0 10px">Everything you buy and use up. Mark the cups and plates so the Variance tab can turn missing ones into missing sales. Cost is per unit and updates when you add a purchase.</p>'
@@ -613,7 +614,7 @@ function applyRemote(events){
 function tabletOrders(){ return (db.tOrders || []).filter(function(o){ return o.status === 'new'; }).sort(function(a, b){ return b.t - a.t; }); }
 function tOrderLabel(o){ return (o.dev ? o.dev + '-' : '') + o.no; }
 
-var S = {xt:'list', xm:today().slice(0, 7), xc:'', xf:null, xedit:null, xdel:null, wt:'over', wf:{key:'', qty:'', unit:'pcs', to:'wh', loc:'wh', dir:'-', reason:'Damaged', note:'', cost:''}, fromOrder:null, tabOpen:false, closeDate:null, unlocked:false, gateErr:false, gateTry:'', disc:null, discForm:null, voidForm:null, inv:'daily', cnt:{}, lastCount:null, recCat:null, matDel:null, edCat:null, del:null, resetAsk:false, imgTarget:null, tab:'sale', cat:menu[0].id, cart:[], sheet:null, pay:null, tendered:'', receipt:null, range:'today', voidAsk:null};
+var S = {ccnt:{}, ocnt:{}, cname:'', ccRedo:false, xt:'list', xm:today().slice(0, 7), xc:'', xf:null, xedit:null, xdel:null, wt:'over', wf:{key:'', qty:'', unit:'pcs', to:'wh', loc:'wh', dir:'-', reason:'Damaged', note:'', cost:''}, fromOrder:null, tabOpen:false, closeDate:null, unlocked:false, gateErr:false, gateTry:'', disc:null, discForm:null, voidForm:null, inv:'daily', cnt:{}, lastCount:null, recCat:null, matDel:null, edCat:null, del:null, resetAsk:false, imgTarget:null, tab:'sale', cat:menu[0].id, cart:[], sheet:null, pay:null, tendered:'', receipt:null, range:'today', voidAsk:null};
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function byId(a, id){ return a.filter(function(x){ return x.id === id; })[0]; }
 function src(x){ return x ? (IMGS[x] || x) : ''; }
@@ -782,6 +783,66 @@ function closeText(date){
   if (R.note) L.push('', 'Note: ' + R.note);
   return L.join('\n');
 }
+
+/* ---------- Daily cup and plate count (closing count and next morning check) ---------- */
+function dailyMats(){ return db.inv.materials.filter(function(m){ return m.cup; }); }
+function recordCount(kind, by, day, vals, fill){
+  var E = expectedMap(), lines = [], now = Date.now();
+  dailyMats().forEach(function(m){
+    var v = vals[m.id], cnt;
+    if (v === undefined || v === ''){ if (!fill) return; cnt = E[m.id].exp; } else { cnt = parseFloat(v); if (isNaN(cnt)) return; }
+    lines.push({m:m.id, expected:E[m.id].exp, counted:cnt, diff:cnt - E[m.id].exp, cost:m.cost, cup:m.cup, avg:m.cup ? avgPriceForCup(m.id) : 0});
+    db.inv.base[m.id] = {t:now, q:cnt};
+  });
+  if (!lines.length) return null;
+  var rec = {id:now, t:now, kind:kind, by:by, day:day, lines:lines};
+  db.inv.counts.push(rec); queueEvent('stock_count', rec); db.lastStaff = by; return rec;
+}
+function countRec(id){ return id ? byId(db.inv.counts, id) : null; }
+function countShort(rec){ return rec ? rec.lines.filter(function(l){ return num(l.diff) < 0; }).length : 0; }
+function countLoss(rec){ return rec ? rec.lines.filter(function(l){ return l.cup && num(l.diff) < 0; }).reduce(function(a, l){ return a - l.diff * l.avg; }, 0) : 0; }
+function lastCloseCount(){
+  var ks = Object.keys(db.days || {}).filter(function(k){ return k < today() && db.days[k].closeCount; }).sort();
+  return ks.length ? {day:ks[ks.length - 1], rec:countRec(db.days[ks[ks.length - 1]].closeCount.id)} : null;
+}
+function openCheckPending(){
+  if (!dailyMats().length) return false;
+  var t = (db.days || {})[today()]; if (t && t.openCheck) return false;
+  var lc = lastCloseCount(); return !!(lc && lc.rec);
+}
+function countTable(rec){
+  if (!rec) return '';
+  var rows = rec.lines.map(function(l){ var m = mat(l.m), d = num(l.diff);
+    return '<tr><td>'+esc(m ? m.name : l.m)+'</td><td class="n">'+num(l.expected)+'</td><td class="n">'+num(l.counted)+'</td><td class="n" style="'+(d < 0 ? 'color:var(--pink-dk);font-weight:700' : (d > 0 ? 'color:var(--done);font-weight:700' : ''))+'">'+(d > 0 ? '+' : '')+d+'</td></tr>'; }).join('');
+  return '<table style="margin-top:8px"><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th><th class="n">Difference</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+function countSummary(rec){
+  var sh = countShort(rec), loss = countLoss(rec);
+  return 'Counted by <b>'+esc(rec.by || '-')+'</b> at '+fdate(rec.t)+' · '+(sh ? '<span style="color:var(--pink-dk);font-weight:700">'+sh+' items short</span>' : 'everything matches')+(loss > 0 ? ' · possible unbilled sales about AED '+money(loss) : '');
+}
+function vCloseCount(date){
+  var R = dayRec(date), rec = countRec(R.closeCount && R.closeCount.id), E = expectedMap();
+  if (!dailyMats().length) return '';
+  if (rec && !S.ccRedo) return '<div class="card"><h3>Stock count at closing</h3><div>'+countSummary(rec)+'</div>'+countTable(rec)+'<div class="btns"><button class="btn ghost sm" data-act="ccredo">Count again</button></div></div>';
+  var rows = dailyMats().map(function(m){
+    return '<tr><td>'+esc(m.name)+'</td><td class="n">'+num(E[m.id].exp)+' '+esc(m.unit)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cc" data-m="'+m.id+'" placeholder="count" value="'+esc(S.ccnt[m.id] === undefined ? '' : S.ccnt[m.id])+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
+  return '<div class="card"><h3>Stock count at closing</h3><p style="color:var(--muted);margin:0 0 8px">Count the cups and plates on the shelf and type them in. Tomorrow morning the staff check the same numbers. A row left empty is not counted.</p>'
+    + '<table><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap"><label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(S.cname || db.lastStaff || '')+'" autocomplete="off"></label><button class="btn plum sm" data-act="ccsave">Save count</button></div></div>';
+}
+function vOpenCheck(date){
+  if (date !== today() || !dailyMats().length) return '';
+  var R = (db.days || {})[date], done = R && R.openCheck ? countRec(R.openCheck.id) : null;
+  if (done) return '<div class="card"><h3>Opening stock check</h3><div>'+countSummary(done)+'</div>'+(countShort(done) ? countTable(done) : '')+'</div>';
+  var lc = lastCloseCount(); if (!lc || !lc.rec) return '';
+  var E = expectedMap();
+  var rows = dailyMats().map(function(m){
+    var cl = lc.rec.lines.filter(function(l){ return l.m === m.id; })[0];
+    return '<tr><td>'+esc(m.name)+'</td><td class="n">'+(cl ? num(cl.counted) : '-')+'</td><td class="n">'+num(E[m.id].exp)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="oc" data-m="'+m.id+'" placeholder="'+num(E[m.id].exp)+'" value="'+esc(S.ocnt[m.id] === undefined ? '' : S.ocnt[m.id])+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
+  return '<div class="card" style="border:2px solid var(--pink)"><h3>Opening stock check</h3><p style="color:var(--muted);margin:0 0 8px">Check the cups and plates in the shop against the count at closing ('+esc(lc.day)+', counted by '+esc(lc.rec.by || '-')+'). If a number is right, leave it empty. If it is different, type what you really see. Do this when you are free.</p>'
+    + '<table><thead><tr><th>Material</th><th class="n">Closing count</th><th class="n">In the system now</th><th class="n">Counted now</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap"><label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(S.cname || db.lastStaff || '')+'" autocomplete="off"></label><button class="btn primary sm" data-act="ocsave">Confirm check</button></div></div>';
+}
 function printHtml(h){
   var w = document.getElementById('xprint'); if (!w){ w = document.createElement('div'); w.id = 'xprint'; document.body.appendChild(w); }
   w.innerHTML = h; document.body.classList.add('px');
@@ -826,6 +887,12 @@ function dayReportHtml(date){
     + sec('Expenses of the day') + tbl(['Category','Paid to / note','Paid from','>AED'], expRows, 'No expenses entered.')
     + (dayExp.length ? '<div style="font-size:11px;text-align:right;margin-top:3px">Total AED '+money(T.all)+' · counter cash '+money(T.cash)+' · bank '+money(T.bank)+'</div>' : '')
     + (useRows ? sec('Cups, lids and plates used') + tbl(['Material','>Used'], useRows, '') : '')
+    + (function(){ var cr = countRec(R.closeCount && R.closeCount.id), orr = countRec(R.openCheck && R.openCheck.id), h = '';
+        function ct(rec){ return tbl(['Material','>Should be','>Counted','>Difference'], rec.lines.map(function(l){ var m = mat(l.m), d = num(l.diff); return '<tr><td style="'+td+'">'+esc(m ? m.name : l.m)+'</td><td style="'+tr+'">'+num(l.expected)+'</td><td style="'+tr+'">'+num(l.counted)+'</td><td style="'+tr+(d < 0 ? ';font-weight:700' : '')+'">'+(d > 0 ? '+' : '')+d+'</td></tr>'; }).join(''), ''); }
+        function cl(rec){ return '<div style="font-size:11px;margin-bottom:3px">Counted by '+esc(rec.by || '-')+' at '+esc(fdate(rec.t))+' \u00b7 '+(countShort(rec) ? countShort(rec)+' items short' : 'everything matches')+(countLoss(rec) > 0 ? ' \u00b7 possible unbilled sales about AED '+money(countLoss(rec)) : '')+'</div>'; }
+        if (cr) h += sec('Cups and plates count at closing') + cl(cr) + ct(cr);
+        if (orr) h += sec('Opening check this morning') + cl(orr) + ct(orr);
+        return h; })()
     + sec('All bills') + tbl(['No.','Time','>Items','Payment','>AED'], billRows, 'No bills.')
     + (R.note ? sec('Note') + '<div style="font-size:12px">'+esc(R.note)+'</div>' : '')
     + '<div style="display:flex;justify-content:space-between;margin-top:34px;font-size:11px"><span>Prepared by: ____________________</span><span>Checked by: ____________________</span><span>Partner: ____________________</span></div></div>';
@@ -846,6 +913,7 @@ function vClose(){
   var fl = function(label, html){ return '<label class="fld">'+label+html+'</label>'; };
   return '<div class="page" style="max-width:900px"><div class="bar"><label class="fld" style="flex-direction:row;align-items:center;gap:8px">Day <input id="cdate" class="inp" type="date" style="width:170px" value="'+date+'"></label><span class="sp"></span>'
     + (R.closed ? '<span class="pill cash">Closed '+fdate(R.closed.t)+'</span>' : '<span class="pill void">Not closed</span>') + '</div>'
+    + vOpenCheck(date)
     + '<div class="tiles">'+tiles+'</div>'
     + '<div class="card"><h3>Cash drawer</h3><div class="fgrid">'+fl('Opening cash in drawer (AED)'+((R.opening === '' && auto !== null) ? '<span style="font-weight:400;color:var(--muted)"> \u00b7 from the last day close</span>' : ''),'<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="opening" placeholder="'+(auto !== null ? money(auto) : '')+'" value="'+esc(R.opening)+'">')
     + fl('Cash counted now (AED)','<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="counted" value="'+esc(R.counted)+'">')
@@ -859,6 +927,7 @@ function vClose(){
     + '<button class="btn plum sm" data-act="addout">Add</button></div>'+((outs||ecs)?'<table style="margin-top:10px"><tbody>'+outs+ecs+'</tbody></table>':'')+'<p style="margin:10px 0 0;color:var(--muted);font-size:13px">Shop expenses paid from counter cash are added in the Expenses tab and counted here automatically.</p></div>'
     + '<div class="card"><h3>Card</h3><div class="fgrid">'+fl('Card machine total for the day (AED)','<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="cardMachine" value="'+esc(R.cardMachine)+'">')+'</div>'
     + '<table style="margin-top:10px"><tbody><tr><td>Card sales in the POS ('+D.ok.filter(function(s){ return s.pay==='card'; }).length+' bills)</td><td class="n">'+money(D.card)+'</td></tr><tr><td><b>Difference</b></td><td class="n"><b id="nCardDiff" style="'+diffStyle(N.cardDiff)+'">'+diffText(N.cardDiff)+'</b></td></tr></tbody></table></div>'
+    + vCloseCount(date)
     + '<div class="tbl"><h3>Sales by category</h3><table><thead><tr><th>Category</th><th class="n">Items</th><th class="n">AED</th></tr></thead><tbody>'+(cats||'<tr><td colspan="3">No sales on this day.</td></tr>')+'</tbody>'
     + (cats ? '<tfoot><tr><td>Gross</td><td class="n">'+D.units+'</td><td class="n">'+money(D.gross)+'</td></tr>'+(D.disc>0?'<tr><td>Discounts</td><td></td><td class="n">−'+money(D.disc)+'</td></tr>':'')+'<tr><td><b>Net sales</b></td><td></td><td class="n"><b>'+money(D.net)+'</b></td></tr></tfoot>' : '')+'</table></div>'
     + '<div class="tbl"><h3>Items sold</h3><table><thead><tr><th>Item</th><th class="n">Qty</th><th class="n">AED</th></tr></thead><tbody>'+(items||'<tr><td colspan="3">No sales on this day.</td></tr>')+'</tbody></table></div>'
@@ -879,7 +948,7 @@ function closeRefresh(){
 
 function vHeader(){
   function tab(id, label){ return '<button data-act="tab" data-v="'+id+'" aria-current="'+(S.tab===id)+'">'+label+'</button>'; }
-  return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button><nav class="tabs">'
+  return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+'<nav class="tabs">'
     + tab('sale','Sale') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Stock') + tab('exp','Expenses') + tab('menu','Menu') + tab('settings','Settings') + '</nav></header>';
 }
 
@@ -1212,7 +1281,8 @@ function vSheets(){
       + '<p>Check the numbers. Press Yes only when the shop is done for the day.</p>'
       + '<table><tbody>'+crow('Net sales', 'AED '+money(cn2.D.net))+crow('Cash that should be in the drawer', money(cn2.expected))+crow('Cash counted', noCount ? '<span style="color:var(--pink-dk)">not entered</span>' : money(parseFloat(cn2.R.counted)))
       + (!noCount ? crow('Difference', '<span style="'+diffStyle(cn2.cashDiff)+'">'+diffText(cn2.cashDiff)+'</span>') : '')
-      + (setg().carryOpen ? crow('Left in the counter for tomorrow', money(cn2.kept)) : '')+'</tbody></table>'
+      + (setg().carryOpen ? crow('Left in the counter for tomorrow', money(cn2.kept)) : '')
+      + (dailyMats().length ? crow('Cups and plates count', cn2.R.closeCount ? 'done by '+esc(cn2.R.closeCount.by) : '<span style="color:var(--pink-dk)">not done</span>') : '')+'</tbody></table>'
       + (noCount ? '<p style="color:var(--pink-dk);margin:10px 0 0">You have not entered the cash counted. The drawer cash will not be checked.</p>' : '')
       + '<div class="btns"><button class="btn ghost" data-act="closeno">Not yet</button><button class="btn primary" data-act="closeyes">Yes, '+(cn2.R.closed ? 'update' : 'close the day')+'</button></div></div></div>';
   }
@@ -1317,6 +1387,9 @@ document.addEventListener('input', function(e){
   if (f === 'sync'){ sync[t.dataset.k] = t.value.trim(); saveSync(); paintSync(); return; }
   if (f === 'set'){ var kk = t.dataset.k; db.settings[kk] = (kk === 'rate' || kk === 'lowAt') ? (parseFloat(t.value) || 0) : t.value; save(); return; }
   if (t.id === 'whq'){ var wq0 = t.value.trim().toLowerCase(); document.querySelectorAll('tr[data-n]').forEach(function(r){ r.style.display = (!wq0 || r.dataset.n.indexOf(wq0) >= 0) ? '' : 'none'; }); return; }
+  if (f === 'cc'){ if (t.value === '') delete S.ccnt[t.dataset.m]; else S.ccnt[t.dataset.m] = t.value; return; }
+  if (f === 'oc'){ if (t.value === '') delete S.ocnt[t.dataset.m]; else S.ocnt[t.dataset.m] = t.value; return; }
+  if (f === 'ccname'){ S.cname = t.value; return; }
   if (f === 'xf'){ S.xf[t.dataset.k] = t.value; return; }
   if (f === 'xcn'){ xCat(t.dataset.c).name = t.value; save(); return; }
   if (f === 'xsn'){ xSub(xCat(t.dataset.c), t.dataset.s).name = t.value; save(); return; }
@@ -1406,6 +1479,18 @@ document.addEventListener('click', function(e){
     case 'delout': var drr = dayRec(S.closeDate || today()); drr.cashOut = drr.cashOut.filter(function(c){ return String(c.id) !== d.id; }); save(); break;
     case 'saveclose': S.closeAsk = true; break;
     case 'closeno': S.closeAsk = false; break;
+    case 'ccredo': S.ccRedo = true; break;
+    case 'ccsave':
+      var ccd = S.closeDate || today(), ccn = (S.cname || db.lastStaff || '').trim();
+      if (!ccn){ toast('Type your name'); return; }
+      var ccr = recordCount('close', ccn, ccd, S.ccnt, false); if (!ccr){ toast('Type at least one count'); return; }
+      dayRec(ccd).closeCount = {id:ccr.id, t:ccr.t, by:ccn}; S.ccnt = {}; S.ccRedo = false; S.cname = ccn; save(); toast('Count saved'); break;
+    case 'ocsave':
+      var ocn = (S.cname || db.lastStaff || '').trim();
+      if (!ocn){ toast('Type your name'); return; }
+      var ocr = recordCount('open', ocn, today(), S.ocnt, true); if (!ocr){ toast('Nothing to check'); return; }
+      dayRec(today()).openCheck = {id:ocr.id, t:ocr.t, by:ocn}; S.ocnt = {}; S.cname = ocn; save(); toast(countShort(ocr) ? 'Check saved. ' + countShort(ocr) + ' items are short' : 'Check saved. Everything matches'); break;
+    case 'opencheck': S.tab = 'close'; S.closeDate = today(); break;
     case 'dayprint': printHtml(dayReportHtml(S.closeDate || today())); return;
     case 'closeyes':
       S.closeAsk = false;
