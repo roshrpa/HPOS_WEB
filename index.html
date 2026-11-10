@@ -397,13 +397,10 @@ function invOver(){
 }
 function invBuy(){
   var buy = db.inv.purchases.slice(-12).reverse().map(function(p){ var m = mat(p.m);
-    return '<tr><td>'+fdate(p.t)+'</td><td>'+esc(m?m.name:'?')+'</td><td class="n">+'+num(p.q)+'</td><td class="n">'+money(p.cost)+'</td><td>'+esc(p.supplier||'')+'</td><td class="n"><button class="btn ghost sm" data-act="delbuy" data-id="'+p.id+'">Delete</button></td></tr>'; }).join('');
+    return '<tr><td>'+fdate(p.t)+'</td><td>'+esc(m?m.name:'?')+'</td><td class="n">+'+num(p.q)+'</td><td class="n">'+money(p.cost)+'</td><td>'+esc(p.supplier||'')+'</td><td class="n">'+(p.wh ? '' : '<button class="btn ghost sm" data-act="delbuy" data-id="'+p.id+'">Delete</button>')+'</td></tr>'; }).join('');
   var waste = db.inv.waste.slice(-12).reverse().map(function(w){ var m = mat(w.m);
-    return '<tr><td>'+fdate(w.t)+'</td><td>'+esc(m?m.name:'?')+'</td><td class="n">−'+num(w.q)+'</td><td>'+esc(w.reason)+'</td><td class="n"><button class="btn ghost sm" data-act="delwaste" data-id="'+w.id+'">Delete</button></td></tr>'; }).join('');
-  return '<div class="tbl"><h3>Stock in (purchase)</h3><div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end">'
-    + '<label class="fld">Material<select id="pm" class="inp">'+matOpts()+'</select></label><label class="fld">Quantity<input id="pq" class="inp" type="number" min="0" step="any" inputmode="decimal"></label>'
-    + '<label class="fld">Total cost (AED)<input id="pc" class="inp" type="number" min="0" step="any" inputmode="decimal"></label><label class="fld">Supplier<input id="ps" class="inp"></label>'
-    + '<button class="btn primary sm" data-act="addbuy">Add stock</button></div><table><tbody>'+(buy||'<tr><td>No purchases yet.</td></tr>')+'</tbody></table></div>'
+    return '<tr><td>'+fdate(w.t)+'</td><td>'+esc(m?m.name:'?')+'</td><td class="n">−'+num(w.q)+'</td><td>'+esc(w.reason)+'</td><td class="n">'+(w.wh ? '' : '<button class="btn ghost sm" data-act="delwaste" data-id="'+w.id+'">Delete</button>')+'</td></tr>'; }).join('');
+  return '<div class="card" style="margin-bottom:14px">New stock arrives in the <b>Warehouse</b> first. Use <b>Stock \u2192 Stock in</b>, then <b>Transfer</b> it to the shop. Spoiled or damaged shop stock is recorded below.</div><div class="tbl"><h3>Moved to the shop</h3><table><tbody>'+(buy||'<tr><td>No purchases yet.</td></tr>')+'</tbody></table></div>'
     + '<div class="tbl"><h3>Stock out (waste, spoiled, staff use)</h3><div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end">'
     + '<label class="fld">Material<select id="wm" class="inp">'+matOpts()+'</select></label><label class="fld">Quantity<input id="wq" class="inp" type="number" min="0" step="any" inputmode="decimal"></label>'
     + '<label class="fld">Reason<select id="wr" class="inp"><option>Spoiled</option><option>Damaged</option><option>Staff meal</option><option>Sample or free</option><option>Other</option></select></label>'
@@ -612,7 +609,7 @@ function applyRemote(events){
 function tabletOrders(){ return (db.tOrders || []).filter(function(o){ return o.status === 'new'; }).sort(function(a, b){ return b.t - a.t; }); }
 function tOrderLabel(o){ return (o.dev ? o.dev + '-' : '') + o.no; }
 
-var S = {fromOrder:null, tabOpen:false, closeDate:null, unlocked:false, gateErr:false, gateTry:'', disc:null, discForm:null, voidForm:null, inv:'daily', cnt:{}, lastCount:null, recCat:null, matDel:null, edCat:null, del:null, resetAsk:false, imgTarget:null, tab:'sale', cat:menu[0].id, cart:[], sheet:null, pay:null, tendered:'', receipt:null, range:'today', voidAsk:null};
+var S = {wt:'over', wf:{key:'', qty:'', unit:'pcs', loc:'wh', dir:'-', reason:'Damaged', note:'', cost:''}, fromOrder:null, tabOpen:false, closeDate:null, unlocked:false, gateErr:false, gateTry:'', disc:null, discForm:null, voidForm:null, inv:'daily', cnt:{}, lastCount:null, recCat:null, matDel:null, edCat:null, del:null, resetAsk:false, imgTarget:null, tab:'sale', cat:menu[0].id, cart:[], sheet:null, pay:null, tendered:'', receipt:null, range:'today', voidAsk:null};
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function byId(a, id){ return a.filter(function(x){ return x.id === id; })[0]; }
 function src(x){ return x ? (IMGS[x] || x) : ''; }
@@ -820,7 +817,7 @@ function closeRefresh(){
 function vHeader(){
   function tab(id, label){ return '<button data-act="tab" data-v="'+id+'" aria-current="'+(S.tab===id)+'">'+label+'</button>'; }
   return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button><nav class="tabs">'
-    + tab('sale','Sale') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Item stock') + tab('menu','Menu') + tab('settings','Settings') + '</nav></header>';
+    + tab('sale','Sale') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Stock') + tab('menu','Menu') + tab('settings','Settings') + '</nav></header>';
 }
 
 function vSale(){
@@ -887,17 +884,104 @@ function vSales(){
     + '<div class="tbl"><h3>Bills</h3><table><thead><tr><th>No.</th><th>Time</th><th>Items</th><th>Payment</th><th class="n">AED</th><th></th></tr></thead><tbody>'+(rows||'<tr><td colspan="6">No bills yet.</td></tr>')+'</tbody></table></div></div>';
 }
 
+/* ---------- Warehouse and shop stock ---------- */
+if (!db.wh) db.wh = {qty:{}, carton:{}, log:[]};
+function whItems(){
+  var out = [];
+  menu.forEach(function(c){ c.items.forEach(function(it){ out.push({key:'i:'+skey(c.name, it.name), name:it.name, group:c.name, kind:'i', sk:skey(c.name, it.name)}); }); });
+  db.inv.materials.forEach(function(m){ out.push({key:'m:'+m.id, name:m.name, group:'Cups, lids, plates and other materials', kind:'m', mid:m.id}); });
+  return out;
+}
+function whFind(key){ return whItems().filter(function(x){ return x.key === key; })[0]; }
+function whQty(key){ return +db.wh.qty[key] || 0; }
+function whCtn(key){ return parseInt(db.wh.carton[key], 10) || 0; }
+function shopQty(it, E){
+  if (it.kind === 'm'){ var e = (E || expectedMap())[it.mid]; return e ? e.exp : 0; }
+  var v = db.stock[it.sk]; return (v === undefined || v === null || v === '') ? null : +v;
+}
+function ctnText(q, key){ var c = whCtn(key); if (c > 1 && q >= c) return Math.floor(q / c) + ' ctn' + (q % c ? ' + ' + num(q % c) + ' pcs' : ''); return ''; }
+function toPcs(key, qty, unit){ return unit === 'ctn' ? qty * whCtn(key) : qty; }
+function shopAdd(it, delta, why){
+  var now = Date.now();
+  if (it.kind === 'i'){ var cur = shopQty(it); db.stock[it.sk] = num((cur === null ? 0 : cur) + delta); }
+  else if (delta > 0) db.inv.purchases.push({id:now, t:now, m:it.mid, q:delta, cost:0, supplier:why || 'From warehouse', wh:true});
+  else db.inv.waste.push({id:now, t:now, m:it.mid, q:-delta, reason:why || 'Adjusted', wh:true});
+}
+function whLog(o){
+  o.id = Date.now() + '-' + Math.random().toString(36).slice(2, 6); o.t = Date.now();
+  db.wh.log.push(o); if (db.wh.log.length > 1000) db.wh.log.splice(0, db.wh.log.length - 1000);
+  queueEvent('wh_move', o);
+}
+function whPrev(){
+  var q = parseFloat(S.wf.qty); if (!(q > 0)) return '';
+  if (S.wf.unit === 'ctn'){ var c = whCtn(S.wf.key); return c ? '= ' + num(q * c) + ' pcs' : 'Set pieces per carton in Overview first'; }
+  return '';
+}
 function vStock(){
-  var html = menu.map(function(c){
-    var rows = c.items.map(function(item){
-      var v = db.stock[skey(c.name, item.name)];
-      var n = (v === undefined || v === null || v === '') ? null : +v;
-      return '<tr><td>'+esc(item.name)+'</td><td>'+(n===null?'<span class="pill" style="background:#eee;color:#666">Not tracked</span>':(n<=0?'<span class="pill void">Out</span>':(n<=setg().lowAt?'<span class="pill void">Low</span>':'<span class="pill cash">OK</span>')))+'</td>'
-        + '<td class="n"><input class="inp" type="number" min="0" inputmode="numeric" data-f="stock" data-k="'+esc(skey(c.name, item.name))+'" placeholder="-" value="'+(v===undefined||v===null?'':esc(v))+'" aria-label="Stock for '+esc(item.name)+'"></td></tr>';
+  var tabs = [['over','Overview'],['in','Stock in'],['tr','Transfer'],['adj','Adjust'],['log','History']];
+  var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="whtab" data-id="'+t[0]+'" aria-pressed="'+(S.wt===t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
+  var body = (S.wt === 'in' || S.wt === 'tr' || S.wt === 'adj') ? whMove(S.wt) : S.wt === 'log' ? whLogView() : whOver();
+  return '<div class="page"><div class="bar">'+seg+'</div>'+body+'</div>';
+}
+function whOver(){
+  var E = expectedMap(), groups = {}, order = [], low = setg().lowAt;
+  whItems().forEach(function(it){ if (!groups[it.group]){ groups[it.group] = []; order.push(it.group); } groups[it.group].push(it); });
+  var html = order.map(function(g){
+    var rows = groups[g].map(function(it){
+      var w = whQty(it.key), s = shopQty(it, E), m = it.kind === 'm' ? mat(it.mid) : null, lim = m ? m.min : low, ct = ctnText(w, it.key);
+      var pill = s === null ? '' : (s <= 0 ? ' <span class="pill void">Out</span>' : (s <= lim ? ' <span class="pill void">Low</span>' : ''));
+      return '<tr data-n="'+esc((it.name + ' ' + g).toLowerCase())+'"><td>'+esc(it.name)+'</td>'
+        + '<td class="n"><b>'+num(w)+'</b>'+(ct ? '<br><small style="color:var(--muted)">'+ct+'</small>' : '')+'</td>'
+        + '<td class="n">'+(s === null ? '<span style="color:var(--muted)">-</span>' : '<b>'+num(s)+'</b>')+pill+'</td>'
+        + '<td class="n">'+num(w + (s || 0))+'</td>'
+        + '<td class="n"><input class="inp" type="number" min="0" inputmode="numeric" data-f="ctn" data-k="'+esc(it.key)+'" placeholder="-" value="'+(whCtn(it.key) || '')+'" aria-label="Pieces per carton for '+esc(it.name)+'"></td></tr>';
     }).join('');
-    return '<div class="tbl"><h3>'+esc(c.name)+'</h3><table><tbody>'+rows+'</tbody></table></div>';
+    return '<div class="tbl"><h3>'+esc(g)+'</h3><table><thead><tr><th>Item</th><th class="n">Warehouse</th><th class="n">Shop</th><th class="n">Total</th><th class="n">Pcs / carton</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   }).join('');
-  return '<div class="page"><p style="color:var(--muted);margin:0 0 12px">Type a number to track an item. It goes down by itself on every sale and goes back up when a bill is voided. Leave empty to not track.</p>'+html+'</div>';
+  return '<input id="whq" class="inp" style="width:100%;text-align:left;margin-bottom:10px" placeholder="Search an item" aria-label="Search an item">'
+    + '<p style="color:var(--muted);margin:0 0 12px">Everything is counted in pieces. New stock goes to the Warehouse first (Stock in), then you move it to the Shop (Transfer). Sales reduce the Shop. Type the pieces in one carton so you can enter by carton.</p>' + html;
+}
+function whMove(kind){
+  var f = S.wf, its = whItems(), E = expectedMap();
+  if (!f.key || !whFind(f.key)){ f.key = its[0].key; f.unit = whCtn(f.key) ? 'ctn' : 'pcs'; }
+  var it = whFind(f.key), w = whQty(f.key), s = shopQty(it, E), c = whCtn(f.key), opts = '', lastG = null;
+  its.forEach(function(x){
+    if (x.group !== lastG){ if (lastG !== null) opts += '</optgroup>'; opts += '<optgroup label="'+esc(x.group)+'">'; lastG = x.group; }
+    opts += '<option value="'+esc(x.key)+'"'+(x.key === f.key ? ' selected' : '')+'>'+esc(x.name)+'</option>';
+  });
+  opts += '</optgroup>';
+  function sel(k, list, cur){ return '<select class="inp" data-f="wfs" data-k="'+k+'">'+list.map(function(o){ return '<option value="'+o[0]+'"'+(o[0] === cur ? ' selected' : '')+'>'+o[1]+'</option>'; }).join('')+'</select>'; }
+  var item = '<label class="fld">Item<select class="inp" data-f="wfs" data-k="key">'+opts+'</select></label>';
+  var qty = '<label class="fld">Quantity<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="wf" data-k="qty" value="'+esc(f.qty)+'"></label>';
+  var unit = '<label class="fld">Unit'+sel('unit', [['pcs','Pieces'],['ctn','Carton' + (c ? ' (' + c + ' pcs)' : '')]], f.unit)+'</label>';
+  var note = function(lab){ return '<label class="fld">'+lab+'<input class="inp" data-f="wf" data-k="note" value="'+esc(f.note)+'"></label>'; };
+  var title, fields, btn;
+  if (kind === 'in'){
+    title = 'Stock in (to the Warehouse)';
+    fields = item + qty + unit + (it.kind === 'm' ? '<label class="fld">Total cost (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="wf" data-k="cost" value="'+esc(f.cost)+'"></label>' : '') + note('Supplier or note');
+    btn = '<button class="btn primary sm" data-act="whgo">Add to warehouse</button>';
+  } else if (kind === 'tr'){
+    title = 'Transfer (Warehouse → Shop)';
+    fields = item + qty + unit; btn = '<button class="btn primary sm" data-act="whgo">Move to shop</button>';
+  } else {
+    title = 'Adjust (damaged, spoiled, count difference)';
+    fields = '<label class="fld">Where'+sel('loc', [['wh','Warehouse'],['shop','Shop']], f.loc)+'</label>' + item
+      + '<label class="fld">Change'+sel('dir', [['-','Remove'],['+','Add']], f.dir)+'</label>' + qty + unit
+      + '<label class="fld">Reason'+sel('reason', ['Damaged','Spoiled','Count difference','Staff use','Sample or free','Other'].map(function(r){ return [r, r]; }), f.reason)+'</label>' + note('Note (optional)');
+    btn = '<button class="btn plum sm" data-act="whgo">Save adjustment</button>';
+  }
+  var info = '<div style="color:var(--muted);margin-bottom:10px">Warehouse <b style="color:var(--ink)">'+num(w)+'</b> pcs'+(ctnText(w, f.key) ? ' ('+ctnText(w, f.key)+')' : '')+' &nbsp;·&nbsp; Shop <b style="color:var(--ink)">'+(s === null ? '-' : num(s))+'</b>'
+    + (c ? '' : ' &nbsp;·&nbsp; No carton size set (Overview)')+'</div>';
+  return '<div class="tbl"><h3>'+title+'</h3><div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;align-items:end">'+fields+'</div>'
+    + '<div style="padding:0 16px 16px">'+info+'<div style="display:flex;gap:14px;align-items:center"><span id="whprev" style="font-weight:700;color:var(--pink-dk)">'+whPrev()+'</span>'+btn+'</div></div></div>';
+}
+function whLogView(){
+  var rows = db.wh.log.slice(-150).reverse().map(function(l){
+    var what = l.type === 'in' ? 'Stock in' : l.type === 'transfer' ? 'Warehouse → Shop' : 'Adjust ' + (l.loc === 'wh' ? 'warehouse' : 'shop');
+    var q = (l.type === 'adjust' ? (l.dir > 0 ? '+' : '−') : '') + num(l.q) + ' pcs' + (l.unit === 'ctn' ? ' <small style="color:var(--muted)">('+num(l.entered)+' ctn)</small>' : '');
+    return '<tr><td>'+fdate(l.t)+'</td><td>'+what+'</td><td>'+esc(l.name)+'</td><td class="n">'+q+'</td><td>'+esc([l.reason, l.note].filter(Boolean).join(' · '))+'</td></tr>';
+  }).join('');
+  return '<div class="tbl"><h3>Stock movements</h3><table><thead><tr><th>Time</th><th>What</th><th>Item</th><th class="n">Pieces</th><th>Note</th></tr></thead><tbody>'+(rows || '<tr><td colspan="5">Nothing recorded yet.</td></tr>')+'</tbody></table></div>';
 }
 
 function receiptText(s){
@@ -1027,6 +1111,9 @@ document.addEventListener('input', function(e){
   if (f === 'dnote' && S.discForm){ S.discForm.note = t.value; discRefresh(); return; }
   if (f === 'sync'){ sync[t.dataset.k] = t.value.trim(); saveSync(); paintSync(); return; }
   if (f === 'set'){ var kk = t.dataset.k; db.settings[kk] = (kk === 'rate' || kk === 'lowAt') ? (parseFloat(t.value) || 0) : t.value; save(); return; }
+  if (t.id === 'whq'){ var wq0 = t.value.trim().toLowerCase(); document.querySelectorAll('tr[data-n]').forEach(function(r){ r.style.display = (!wq0 || r.dataset.n.indexOf(wq0) >= 0) ? '' : 'none'; }); return; }
+  if (f === 'wf'){ S.wf[t.dataset.k] = t.value; var wpv = document.getElementById('whprev'); if (wpv) wpv.textContent = whPrev(); return; }
+  if (f === 'ctn'){ var cn = parseInt(t.value, 10); if (cn > 0) db.wh.carton[t.dataset.k] = cn; else delete db.wh.carton[t.dataset.k]; save(); return; }
   if (f === 'cnt'){ if (t.value === '') delete S.cnt[t.dataset.m]; else S.cnt[t.dataset.m] = t.value; return; }
   if (f === 'rqty'){ db.inv.recipes[t.dataset.k][+t.dataset.i].q = parseFloat(t.value) || 0; save(); return; }
   if (f === 'mname' || f === 'munit' || f === 'mcost' || f === 'mmin'){ var mm = mat(t.dataset.m);
@@ -1042,7 +1129,6 @@ document.addEventListener('input', function(e){
     }
     saveMenu(); return;
   }
-  if (t.dataset && t.dataset.f === 'stock'){ if (t.value === '') delete db.stock[t.dataset.k]; else db.stock[t.dataset.k] = Math.max(0, parseInt(t.value, 10) || 0); save(); }
 });
 function discRefresh(){
   var df = S.discForm; if (!df) return;
@@ -1053,6 +1139,7 @@ function discRefresh(){
 document.addEventListener('change', function(e){
   var t = e.target;
   if (t.id === 'cdate' && t.value){ S.closeDate = t.value; render(); return; }
+  if (t.dataset && t.dataset.f === 'wfs'){ S.wf[t.dataset.k] = t.value; if (t.dataset.k === 'key') S.wf.unit = whCtn(t.value) ? 'ctn' : 'pcs'; render(); return; }
   if (t.dataset && t.dataset.f === 'vreason' && S.voidForm){ S.voidForm.reason = t.value; render(); return; }
   if (t.dataset && t.dataset.f === 'dreason' && S.discForm){ S.discForm.reason = t.value; render(); return; }
   if (t.dataset && t.dataset.f === 'rmat'){ db.inv.recipes[t.dataset.k][+t.dataset.i].m = t.value; save(); }
@@ -1121,6 +1208,28 @@ document.addEventListener('click', function(e){
     case 'tgzero': db.settings.allowZero = !db.settings.allowZero; save(); break;
     case 'dayuse': S.dayUse = d.v === '0' ? today() : shiftDate(S.dayUse || today(), +d.v); break;
     case 'invtab': S.inv = d.id; S.matDel = null; break;
+    case 'whtab': S.wt = d.id; break;
+    case 'whgo':
+      var whf = S.wf, whk = S.wt, whit = whFind(whf.key), whq = parseFloat(whf.qty);
+      if (!whit){ toast('Choose an item'); return; }
+      if (!(whq > 0)){ toast('Enter the quantity'); return; }
+      if (whf.unit === 'ctn' && !whCtn(whf.key)){ toast('Set pieces per carton in Overview first'); return; }
+      var whp = num(toPcs(whf.key, whq, whf.unit)), whb = {key:whf.key, name:whit.name, q:whp, unit:whf.unit, entered:whq};
+      if (whk === 'in'){
+        db.wh.qty[whf.key] = num(whQty(whf.key) + whp);
+        var whc = parseFloat(whf.cost); if (whit.kind === 'm' && whc > 0) mat(whit.mid).cost = Math.round(whc / whp * 1000) / 1000;
+        whb.type = 'in'; whb.note = (whf.note || '').trim(); whLog(whb); toast('Added to warehouse');
+      } else if (whk === 'tr'){
+        if (whp > whQty(whf.key)){ toast('Only ' + num(whQty(whf.key)) + ' pcs in the warehouse'); return; }
+        db.wh.qty[whf.key] = num(whQty(whf.key) - whp); shopAdd(whit, whp, 'From warehouse');
+        whb.type = 'transfer'; whLog(whb); toast('Moved to shop');
+      } else {
+        var whs = whf.dir === '+' ? 1 : -1, whl = whf.loc;
+        if (whs < 0){ var whh = whl === 'wh' ? whQty(whf.key) : (shopQty(whit) || 0); if (whp > whh){ toast('Only ' + num(whh) + ' pcs there'); return; } }
+        if (whl === 'wh') db.wh.qty[whf.key] = num(whQty(whf.key) + whs * whp); else shopAdd(whit, whs * whp, whf.reason);
+        whb.type = 'adjust'; whb.loc = whl; whb.dir = whs; whb.reason = whf.reason; whb.note = (whf.note || '').trim(); whLog(whb); toast('Adjustment saved');
+      }
+      whf.qty = ''; whf.cost = ''; whf.note = ''; save(); break;
     case 'reccat': S.recCat = d.id; break;
     case 'addrec': db.inv.recipes[d.k] = db.inv.recipes[d.k] || []; db.inv.recipes[d.k].push({m:db.inv.materials[0].id, q:1}); save(); break;
     case 'rmrec': db.inv.recipes[d.k].splice(+d.i, 1); save(); break;
