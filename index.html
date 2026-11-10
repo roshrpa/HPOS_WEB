@@ -1157,6 +1157,16 @@ function receiptText(s){
 }
 
 function vSheets(){
+  if (S.closeAsk){
+    var cd = S.closeDate || today(), cn2 = closeNums(cd), crow = function(a, b){ return '<tr><td>'+a+'</td><td class="n">'+b+'</td></tr>'; }, noCount = !(cn2.R.counted !== '' && !isNaN(parseFloat(cn2.R.counted)));
+    return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Close the day"><h3>'+(cn2.R.closed ? 'Update the closing of ' : 'Close the day ')+esc(cd)+'?</h3>'
+      + '<p>Check the numbers. Press Yes only when the shop is done for the day.</p>'
+      + '<table><tbody>'+crow('Net sales', 'AED '+money(cn2.D.net))+crow('Cash that should be in the drawer', money(cn2.expected))+crow('Cash counted', noCount ? '<span style="color:var(--pink-dk)">not entered</span>' : money(parseFloat(cn2.R.counted)))
+      + (!noCount ? crow('Difference', '<span style="'+diffStyle(cn2.cashDiff)+'">'+diffText(cn2.cashDiff)+'</span>') : '')
+      + (setg().carryOpen ? crow('Left in the counter for tomorrow', money(cn2.kept)) : '')+'</tbody></table>'
+      + (noCount ? '<p style="color:var(--pink-dk);margin:10px 0 0">You have not entered the cash counted. The drawer cash will not be checked.</p>' : '')
+      + '<div class="btns"><button class="btn ghost" data-act="closeno">Not yet</button><button class="btn primary" data-act="closeyes">Yes, '+(cn2.R.closed ? 'update' : 'close the day')+'</button></div></div></div>';
+  }
   if (S.sheet){
     var c = byId(menu, S.sheet.cat), item = c && byId(c.items, S.sheet.item);
     if (c && item) return '<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-label="Choose size"><h3>'+esc(item.name)+'</h3><p>'+esc(c.name)+' · choose size</p><div class="sizes">'
@@ -1287,7 +1297,7 @@ function discRefresh(){
 }
 document.addEventListener('change', function(e){
   var t = e.target;
-  if (t.id === 'cdate' && t.value){ S.closeDate = t.value; render(); return; }
+  if (t.id === 'cdate' && t.value){ S.closeDate = t.value; S.closeAsk = false; render(); return; }
   if (t.dataset && t.dataset.f === 'xfs'){ S.xf[t.dataset.k] = t.value; if (t.dataset.k === 'cat'){ var xc0 = xCat(t.value); S.xf.sub = (xc0 && xc0.subs[0]) ? xc0.subs[0].id : ''; } render(); return; }
   if (t.dataset && t.dataset.f === 'xfilter'){ S.xc = t.value; render(); return; }
   if (t.dataset && t.dataset.f === 'wfs'){ S.wf[t.dataset.k] = t.value; if (t.dataset.k === 'key'){ S.wf.unit = whCtn(t.value) ? 'ctn' : 'pcs'; S.wf.to = whDirect(t.value) ? 'shop' : 'wh'; } render(); return; }
@@ -1322,7 +1332,7 @@ document.addEventListener('click', function(e){
   if (el.classList.contains('scrim') && e.target !== el) return;
   var a = el.dataset.act, d = el.dataset, c;
   switch (a){
-    case 'tab': if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
+    case 'tab': S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
     case 'cat': S.cat = d.id; S.catChanged = true; break;
     case 'item': c = curCat(); var item = byId(c.items, d.id); if (!item || item.off) break;
       if (c.sizes.length > 1) S.sheet = {cat:c.id, item:item.id}; else addLine(c, item, c.sizes[0]); break;
@@ -1345,7 +1355,10 @@ document.addEventListener('click', function(e){
       if (!(coa > 0)){ toast('Enter the amount'); return; }
       var cob = {id:Date.now(), t:Date.now(), amt:coa, reason:document.getElementById('co_r').value, note:document.getElementById('co_n').value.trim()}; dayRec(S.closeDate || today()).cashOut.push(cob); queueEvent('cash_out', {day:S.closeDate || today(), id:cob.id, t:cob.t, amt:cob.amt, reason:cob.reason, note:cob.note}); save(); break;
     case 'delout': var drr = dayRec(S.closeDate || today()); drr.cashOut = drr.cashOut.filter(function(c){ return String(c.id) !== d.id; }); save(); break;
-    case 'saveclose':
+    case 'saveclose': S.closeAsk = true; break;
+    case 'closeno': S.closeAsk = false; break;
+    case 'closeyes':
+      S.closeAsk = false;
       var cdt = S.closeDate || today(), cn = closeNums(cdt);
       cn.R.closed = {t:Date.now(), net:cn.D.net, cash:cn.D.cash, card:cn.D.card, expected:cn.expected, cashDiff:cn.cashDiff, cardDiff:cn.cardDiff, bills:cn.D.ok.length, kept:cn.kept, taken:cn.taken};
       queueEvent('day_close', {day:cdt, opening:cn.opening, counted:cn.R.counted, cardMachine:cn.R.cardMachine, note:cn.R.note, closed:cn.R.closed}); save(); toast('Day closed'); break;
