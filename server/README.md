@@ -26,6 +26,8 @@ The tablet order pad and the POS both sync with it (☰ > Edit menu on the table
 
 ## Set it up on a server on the internet
 
+Step by step with every command: see [DEPLOY-LINUX.md](DEPLOY-LINUX.md).
+
 1. Rent a small Linux server (Ubuntu 24.04, 2 CPU, 4 GB RAM, 50 GB disk is plenty). Pick a data centre near you.
 2. Point a domain name at it (an `A` record, for example `pos.yourshop.com`).
 3. Log in and install Docker: https://docs.docker.com/engine/install/ubuntu/
@@ -33,11 +35,12 @@ The tablet order pad and the POS both sync with it (☰ > Edit menu on the table
 5. Get the code and fill in the settings:
 
    ```sh
-   git clone https://github.com/roshrpa/HPOS.git /opt/hpos
+   git clone https://github.com/roshrpa/HPOS_WEB.git /opt/hpos
    cd /opt/hpos/server
    cp .env.example .env
    nano .env        # set POSTGRES_PASSWORD, ADMIN_TOKEN, DOMAIN
-   docker compose up -d
+   ./get-tablet-app.sh
+   docker compose up -d --build
    ```
 
 6. Check it: `curl https://pos.yourshop.com/health` should answer `{"ok":true}`.

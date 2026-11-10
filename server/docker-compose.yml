@@ -27,7 +27,11 @@ services:
       DATABASE_URL: postgres://hpos:${POSTGRES_PASSWORD}@db:5432/hpos
       ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env (at least 16 characters)}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      WEB_DIR: /web
       PORT: "3000"
+    volumes:
+      - ./tablet/index.html:/web/index.html:ro        # order pad (run ./get-tablet-app.sh to update)
+      - ../index.html:/web/pos/index.html:ro          # POS
 
   caddy:
     image: caddy:2
