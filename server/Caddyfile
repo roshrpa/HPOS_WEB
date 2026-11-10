@@ -1,0 +1,5 @@
+# Caddy gets and renews the HTTPS certificate by itself. DOMAIN comes from .env (for example pos.yourshop.com).
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy api:3000
+}

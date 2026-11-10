@@ -1,0 +1,10 @@
+{
+  "name": "hpos-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hollywood POS sync API",
+  "main": "src/server.js",
+  "scripts": { "start": "node src/server.js" },
+  "engines": { "node": ">=20" },
+  "dependencies": { "pg": "^8.13.0" }
+}
