@@ -176,7 +176,7 @@ td .inp{width:90px;text-align:right}
   .tbl,.card{overflow-x:auto}
 }
 #xprint{display:none}
-@media print{.rlogo{filter:grayscale(1) contrast(1.6)}@page{margin:5mm}body.pr #app{display:block}body.pr #app>header,body.pr #app>main{display:none}body.px #xprint{display:block}body{overflow:visible}#app,#toast{display:none}.scrim{position:static;background:none;padding:0}.sheet{box-shadow:none;width:100%}.btns,.sheet h3,.sheet p{display:none}}
+@media print{.rlogo{filter:grayscale(1) contrast(1.6)}@page{margin:5mm}body.pr #app{display:block}body.pr #app>header,body.pr #app>main{display:none}body.px{background:#fff}body.px #xprint{display:block}body.px #xprint tr{page-break-inside:avoid}body{overflow:visible}#app,#toast{display:none}.scrim{position:static;background:none;padding:0}.sheet{box-shadow:none;width:100%}.btns,.sheet h3,.sheet p{display:none}}
 </style>
 </head>
 <body>
@@ -782,6 +782,55 @@ function closeText(date){
   if (R.note) L.push('', 'Note: ' + R.note);
   return L.join('\n');
 }
+function printHtml(h){
+  var w = document.getElementById('xprint'); if (!w){ w = document.createElement('div'); w.id = 'xprint'; document.body.appendChild(w); }
+  w.innerHTML = h; document.body.classList.add('px');
+  try { window.print(); } catch(err){ toast('Printing is not available here'); }
+  document.body.classList.remove('px');
+}
+function dayReportHtml(date){
+  var N = closeNums(date), D = N.D, R = N.R, G = setg(), T = xTotals(db.exp.items.filter(function(e){ return e.date === date; })), dayExp = db.exp.items.filter(function(e){ return e.date === date; });
+  var th = 'text-align:left;border-bottom:2px solid #000;padding:4px 6px;font-size:11px', td = 'padding:4px 6px;border-bottom:1px solid #ccc;font-size:11px', tr = td + ';text-align:right', thr = th + ';text-align:right';
+  function sec(t){ return '<div style="font-weight:700;font-size:13px;margin:14px 0 4px;page-break-after:avoid;break-after:avoid">'+t+'</div>'; }
+  function kv(rows){ return '<table style="width:100%;border-collapse:collapse"><tbody>'+rows.filter(Boolean).map(function(r){ var b = r[2] ? ';font-weight:700' : ''; return '<tr><td style="'+td+b+'">'+r[0]+'</td><td style="'+tr+b+'">'+r[1]+'</td></tr>'; }).join('')+'</tbody></table>'; }
+  function tbl(head, rows, empty){ return '<table style="width:100%;border-collapse:collapse"><thead><tr>'+head.map(function(h, i){ return '<th style="'+(h.charAt(0) === '>' ? thr : th)+'">'+esc(h.replace(/^>/, ''))+'</th>'; }).join('')+'</tr></thead><tbody>'+(rows || '<tr><td style="'+td+'" colspan="'+head.length+'">'+empty+'</td></tr>')+'</tbody></table>'; }
+  function hm(t){ return new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
+  var cashBills = D.ok.filter(function(s){ return s.pay === 'cash'; }).length, cardBills = D.ok.filter(function(s){ return s.pay === 'card'; }).length;
+  var hasCount = N.cashDiff !== null, hasCard = N.cardDiff !== null;
+  var left = kv([['Bills', D.ok.length], ['Items sold', D.units], ['Gross sales', 'AED '+money(D.gross)], D.disc > 0 ? ['Discounts', '− AED '+money(D.disc)] : null, ['Net sales', 'AED '+money(D.net), true], D.vat > 0 ? ['VAT included', 'AED '+money(D.vat)] : null,
+      ['Average bill', D.ok.length ? 'AED '+money(D.net / D.ok.length) : '-'], ['Cancelled bills', D.voids.length + (D.voids.length ? ' · AED '+money(D.voidTot) : '')]])
+    + sec('Payments') + kv([['Cash sales ('+cashBills+(cashBills === 1 ? ' bill' : ' bills')+')', 'AED '+money(D.cash)], ['Card sales ('+cardBills+(cardBills === 1 ? ' bill' : ' bills')+')', 'AED '+money(D.card)], ['Total', 'AED '+money(D.net), true]]);
+  var cashOutTotal = R.cashOut.reduce(function(a, c){ return a + c.amt; }, 0), expCash = expCashSum(date);
+  var right = kv([['Opening cash', money(N.opening)], ['+ Cash sales', money(D.cash)], ['− Cash paid out', money(N.out)], ['Cash that should be in the drawer', money(N.expected), true], ['Cash counted', hasCount ? money(parseFloat(R.counted)) : 'not entered'], ['Difference', hasCount ? diffText(N.cashDiff) : '-'],
+      G.carryOpen ? ['Taken out of the counter', money(N.taken)] : null, G.carryOpen ? ['Left in the counter for tomorrow', money(N.kept), true] : null])
+    + sec('Card') + kv([['Card sales in the POS', money(D.card)], ['Card machine total', hasCard ? money(parseFloat(R.cardMachine)) : 'not entered'], ['Difference', hasCard ? diffText(N.cardDiff) : '-']]);
+  var outRows = R.cashOut.map(function(c){ return '<tr><td style="'+td+'">'+hm(c.t)+'</td><td style="'+td+'">'+esc(c.reason)+(c.note ? ' · '+esc(c.note) : '')+'</td><td style="'+tr+'">'+money(c.amt)+'</td></tr>'; }).join('');
+  var expRows = dayExp.map(function(e){ return '<tr><td style="'+td+'">'+esc(xLabel(e))+'</td><td style="'+td+'">'+esc([e.who, e.note, e.bill ? 'Bill ' + e.bill : ''].filter(Boolean).join(' · '))+'</td><td style="'+td+'">'+xFromLabel(e.from)+'</td><td style="'+tr+'">'+money(e.amt)+'</td></tr>'; }).join('');
+  var catRows = Object.keys(D.cat).sort(function(a, b){ return D.cat[b].amt - D.cat[a].amt; }).map(function(k){ return '<tr><td style="'+td+'">'+esc(k)+'</td><td style="'+tr+'">'+D.cat[k].qty+'</td><td style="'+tr+'">'+money(D.cat[k].amt)+'</td></tr>'; }).join('');
+  var itemRows = Object.keys(D.items).sort(function(a, b){ return D.items[b].amt - D.items[a].amt; }).map(function(k){ return '<tr><td style="'+td+'">'+esc(k)+'</td><td style="'+tr+'">'+D.items[k].qty+'</td><td style="'+tr+'">'+money(D.items[k].amt)+'</td></tr>'; }).join('');
+  var voidRows = D.voids.map(function(s){ return '<tr><td style="'+td+'">#'+s.no+'</td><td style="'+td+'">'+hm(s.t)+'</td><td style="'+td+'">'+esc((s.voidReason || '') + (s.voidNote ? ' · ' + s.voidNote : ''))+'</td><td style="'+td+'">'+esc(s.lines.map(function(l){ return l.qty + ' x ' + l.name; }).join(', '))+'</td><td style="'+tr+'">'+money(s.total)+'</td></tr>'; }).join('');
+  var discRows = D.ok.filter(function(s){ return s.discount > 0; }).map(function(s){ return '<tr><td style="'+td+'">#'+s.no+'</td><td style="'+td+'">'+esc((s.discReason || '') + (s.discNote ? ' · ' + s.discNote : ''))+'</td><td style="'+tr+'">'+money(s.subtotal)+'</td><td style="'+tr+'">'+money(s.discount)+'</td></tr>'; }).join('');
+  var billRows = D.all.slice().sort(function(a, b){ return a.t - b.t; }).map(function(s){ var q = s.lines.reduce(function(a, l){ return a + l.qty; }, 0);
+    return '<tr><td style="'+td+'">#'+s.no+'</td><td style="'+td+'">'+hm(s.t)+'</td><td style="'+tr+'">'+q+'</td><td style="'+td+'">'+(s.void ? 'Cancelled' : (s.pay === 'card' ? 'Card' : 'Cash'))+'</td><td style="'+tr+(s.void ? ';text-decoration:line-through' : '')+'">'+money(s.total)+'</td></tr>'; }).join('');
+  var useRows = db.inv.materials.filter(function(m){ return D.use[m.id]; }).map(function(m){ return '<tr><td style="'+td+'">'+esc(m.name)+'</td><td style="'+tr+'">'+num(D.use[m.id])+' '+esc(m.unit)+'</td></tr>'; }).join('');
+  return '<div style="color:#000;padding:2mm">'
+    + '<div style="display:flex;align-items:center;gap:14px;margin-bottom:6px"><img src="'+LOGO+'" alt="" style="height:54px"><div style="flex:1"><div style="font-size:22px;font-weight:700">'+esc(G.shop)+'</div><div style="font-size:15px">Daily sales report · '+esc(date)+'</div></div>'
+    + '<div style="text-align:right;font-size:12px">'+(R.closed ? 'Day closed<br>'+esc(fdate(R.closed.t)) : '<b>Not closed yet</b><br>Draft')+'</div></div>'
+    + (G.vat && G.trn ? '<div style="font-size:11px;margin-bottom:4px">TRN: '+esc(G.trn)+'</div>' : '')
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px"><div>'+sec('Sales summary')+left+'</div><div>'+sec('Cash drawer')+right+'</div></div>'
+    + sec('Sales by category') + tbl(['Category','>Items','>AED'], catRows, 'No sales.')
+    + sec('Items sold') + tbl(['Item','>Qty','>AED'], itemRows, 'No sales.')
+    + sec('Cancelled bills ('+D.voids.length+')') + tbl(['No.','Time','Reason','Items','>AED'], voidRows, 'No cancelled bills.')
+    + sec('Discounts given') + tbl(['No.','Reason','>Before','>Discount'], discRows, 'No discounts.')
+    + sec('Cash paid out (Day close)') + tbl(['Time','Reason','>AED'], outRows, 'None.')
+    + sec('Expenses of the day') + tbl(['Category','Paid to / note','Paid from','>AED'], expRows, 'No expenses entered.')
+    + (dayExp.length ? '<div style="font-size:11px;text-align:right;margin-top:3px">Total AED '+money(T.all)+' · counter cash '+money(T.cash)+' · bank '+money(T.bank)+'</div>' : '')
+    + (useRows ? sec('Cups, lids and plates used') + tbl(['Material','>Used'], useRows, '') : '')
+    + sec('All bills') + tbl(['No.','Time','>Items','Payment','>AED'], billRows, 'No bills.')
+    + (R.note ? sec('Note') + '<div style="font-size:12px">'+esc(R.note)+'</div>' : '')
+    + '<div style="display:flex;justify-content:space-between;margin-top:34px;font-size:11px"><span>Prepared by: ____________________</span><span>Checked by: ____________________</span><span>Partner: ____________________</span></div></div>';
+}
+
 function vClose(){
   var date = S.closeDate || today(), N = closeNums(date), D = N.D, R = N.R, auto = autoOpening(date);
   var tile = function(a, b){ return '<div class="tile"><small>'+a+'</small><b>'+b+'</b></div>'; };
@@ -817,7 +866,7 @@ function vClose(){
     + (D.voids.length ? '<div class="tbl"><h3>Cancelled bills</h3><table><thead><tr><th>No.</th><th>Reason</th><th class="n">AED</th></tr></thead><tbody>'+D.voids.map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+esc(s.voidReason||'')+(s.voidNote?' <span style="color:var(--muted)">· '+esc(s.voidNote)+'</span>':'')+'</td><td class="n">'+money(s.total)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + (D.ok.some(function(s){ return s.discount > 0; }) ? '<div class="tbl"><h3>Discounts given</h3><table><thead><tr><th>No.</th><th>Reason</th><th class="n">AED</th></tr></thead><tbody>'+D.ok.filter(function(s){ return s.discount > 0; }).map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+esc(s.discReason||'')+(s.discNote?' <span style="color:var(--muted)">· '+esc(s.discNote)+'</span>':'')+'</td><td class="n">'+money(s.discount)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + '<div class="card"><h3>Note</h3>'+fl('Anything to remember about today','<input class="inp" data-f="day" data-k="note" value="'+esc(R.note)+'">')+'</div>'
-    + '<div class="btns" style="max-width:520px"><button class="btn ghost" data-act="copyclose">Copy report</button><button class="btn primary" data-act="saveclose">'+(R.closed ? 'Update closing' : 'Close the day')+'</button></div>'
+    + '<div class="btns" style="max-width:760px;flex-wrap:wrap"><button class="btn ghost" data-act="copyclose">Copy report</button><button class="btn ghost" data-act="dayprint">Print or save as PDF</button><button class="btn primary" data-act="saveclose">'+(R.closed ? 'Update closing' : 'Close the day')+'</button></div>'
     + (hist ? '<div class="tbl" style="margin-top:16px"><h3>Closed days</h3><table><thead><tr><th>Day</th><th class="n">Net</th><th class="n">Cash</th><th class="n">Card</th><th class="n">Cash difference</th></tr></thead><tbody>'+hist+'</tbody></table></div>' : '')
     + '</div>';
 }
@@ -1357,6 +1406,7 @@ document.addEventListener('click', function(e){
     case 'delout': var drr = dayRec(S.closeDate || today()); drr.cashOut = drr.cashOut.filter(function(c){ return String(c.id) !== d.id; }); save(); break;
     case 'saveclose': S.closeAsk = true; break;
     case 'closeno': S.closeAsk = false; break;
+    case 'dayprint': printHtml(dayReportHtml(S.closeDate || today())); return;
     case 'closeyes':
       S.closeAsk = false;
       var cdt = S.closeDate || today(), cn = closeNums(cdt);
