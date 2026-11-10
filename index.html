@@ -322,6 +322,7 @@ function invDefault(){
 if (!db.inv || db.inv.v !== 9) db.inv = invDefault();
 if (db.settings && db.settings.pin === undefined){ db.settings.pinOn = false; db.settings.pin = '1234'; }
 if (!db.settings) db.settings = {pinOn:false, pin:'1234', shop:'Hollywood Ice Creams', tel:'056 900 4121 / 07 236 1564', insta:'@hollywoodicecreams_ae', trn:'', vat:false, rate:5, allowZero:true, lowAt:5};
+if (db.settings.carryOpen === undefined) db.settings.carryOpen = true;
 /* Test start: every menu item begins with 100 in stock (runs once per browser) */
 if (db.stockSeed !== 1){ db.stock = {}; menu.forEach(function(c){ c.items.forEach(function(it0){ db.stock[skey(c.name, it0.name)] = 100; }); }); db.stockSeed = 1; save(); }
 function num(n){ return Math.round(n * 100) / 100; }
@@ -721,6 +722,7 @@ function vSettings(){
     + sw(G.vat, 'tgvat', 'Charge VAT', G.vat ? 'Bills and receipts show VAT and the receipt says TAX INVOICE.' : 'No VAT on bills. Receipts say RECEIPT. Use this while the shop is below the VAT registration limit.')
     + (G.vat ? '<div class="card"><div class="fgrid">'+inp('VAT rate (%)','rate',G.rate,'number')+inp('Tax registration number (TRN)','trn',G.trn)+'</div><p style="color:var(--muted);font-size:13px;margin:10px 0 0">Prices in the menu are treated as including VAT.</p></div>' : '')
     + sw(G.allowZero, 'tgzero', 'Allow sale when item stock is 0', G.allowZero ? 'Staff can keep selling even if the stock count was not updated. Stock goes below zero so you can see it.' : 'An item with 0 stock shows Sold out and cannot be sold.')
+    + sw(!!G.carryOpen, 'tgcarry', 'Carry the closing cash to the next day', G.carryOpen ? 'On Day close you enter how much cash stays in the counter. It becomes the opening cash of the next day automatically.' : 'Type the opening cash by hand every morning.')
     + sw(!!G.pinOn, 'tgpin', 'Ask for manager PIN', G.pinOn ? 'The PIN is asked when giving a discount, cancelling a bill, and opening Settings or Menu.' : 'Anyone using the POS can give discounts, cancel bills and change settings.')
     + '<div class="card"><div class="fgrid">'+inp('Manager PIN (4 digits or more)','pin',G.pin)+'</div>'+(G.pinOn && String(G.pin||'').length < 4 ? '<p style="color:var(--pink-dk);font-size:13px;margin:8px 0 0">The PIN is too short. Use at least 4 digits.</p>' : '')+'</div>'
     + syncCard()
@@ -730,7 +732,7 @@ function vSettings(){
 
 /* ---------- Day close ---------- */
 var CASHOUT_REASONS = ['Bought supplies','Paid supplier','Staff advance','Delivery or transport','Repair','Other'];
-function dayRec(date){ db.days = db.days || {}; if (!db.days[date]) db.days[date] = {opening:'', counted:'', cardMachine:'', note:'', cashOut:[], closed:null}; return db.days[date]; }
+function dayRec(date){ db.days = db.days || {}; if (!db.days[date]) db.days[date] = {opening:'', counted:'', keep:'', cardMachine:'', note:'', cashOut:[], closed:null}; return db.days[date]; }
 function dayData(date){
   var all = db.sales.filter(function(s){ return (s.day || new Date(s.t).toLocaleDateString('en-CA')) === date; });
   var ok = all.filter(function(s){ return !s.void; }), voids = all.filter(function(s){ return s.void; });
@@ -749,11 +751,15 @@ function dayData(date){
   return {all:all, ok:ok, voids:voids, net:net, disc:disc, gross:net + disc, vat:sum(ok, function(s){ return s.vat; }), cash:cash, card:net - cash, cat:cat, items:items, units:units, use:use,
     first:times.length ? Math.min.apply(null, times) : 0, last:times.length ? Math.max.apply(null, times) : 0, voidTot:sum(voids, function(s){ return s.total; })};
 }
+function lastClosed(date){ var ks = Object.keys(db.days || {}).filter(function(k){ return k < date && db.days[k].closed; }).sort(); return ks.length ? db.days[ks[ks.length - 1]].closed : null; }
+function autoOpening(date){ if (!setg().carryOpen) return null; var c = lastClosed(date); return (c && c.kept !== undefined && c.kept !== null) ? c.kept : null; }
+function openingOf(date, R){ var v = parseFloat(R.opening); if (R.opening !== '' && !isNaN(v)) return v; var a = autoOpening(date); return a !== null ? a : 0; }
 function closeNums(date){
   var D = dayData(date), R = dayRec(date);
-  var opening = parseFloat(R.opening) || 0, out = R.cashOut.reduce(function(a,c){ return a + c.amt; }, 0) + expCashSum(date);
+  var opening = openingOf(date, R), out = R.cashOut.reduce(function(a,c){ return a + c.amt; }, 0) + expCashSum(date);
   var expected = opening + D.cash - out, hasCount = R.counted !== '' && !isNaN(parseFloat(R.counted)), hasCard = R.cardMachine !== '' && !isNaN(parseFloat(R.cardMachine));
-  return {D:D, R:R, opening:opening, out:out, expected:expected, cashDiff:hasCount ? parseFloat(R.counted) - expected : null, cardDiff:hasCard ? parseFloat(R.cardMachine) - D.card : null};
+  var cashNow = hasCount ? parseFloat(R.counted) : expected, hasKeep = R.keep !== undefined && R.keep !== '' && !isNaN(parseFloat(R.keep)), kept = hasKeep ? parseFloat(R.keep) : cashNow;
+  return {D:D, R:R, opening:opening, out:out, expected:expected, cashNow:cashNow, kept:kept, taken:cashNow - kept, cashDiff:hasCount ? parseFloat(R.counted) - expected : null, cardDiff:hasCard ? parseFloat(R.cardMachine) - D.card : null};
 }
 function diffText(d){ return d === null ? '-' : (d === 0 ? 'Matches' : (d > 0 ? 'Over by AED ' + money(d) : 'Short by AED ' + money(-d))); }
 function diffStyle(d){ return d === null || d === 0 ? '' : (d < 0 ? 'color:var(--pink-dk)' : 'color:var(--warn)'); }
@@ -765,6 +771,7 @@ function closeText(date){
   L.push('Cash sales: AED ' + money(D.cash), 'Card sales: AED ' + money(D.card), '');
   L.push('Opening cash: ' + money(N.opening), 'Cash paid out: ' + money(N.out), 'Cash that should be in the drawer: ' + money(N.expected));
   if (N.cashDiff !== null) L.push('Cash counted: ' + money(parseFloat(R.counted)) + ' (' + diffText(N.cashDiff) + ')');
+  if (setg().carryOpen) L.push('Taken out of the counter: ' + money(N.taken), 'Left in the counter for tomorrow: ' + money(N.kept));
   if (N.cardDiff !== null) L.push('Card machine total: ' + money(parseFloat(R.cardMachine)) + ' (' + diffText(N.cardDiff) + ')');
   L.push('', 'By category:');
   Object.keys(D.cat).forEach(function(k){ L.push('  ' + k + ': ' + D.cat[k].qty + ' items, AED ' + money(D.cat[k].amt)); });
@@ -776,7 +783,7 @@ function closeText(date){
   return L.join('\n');
 }
 function vClose(){
-  var date = S.closeDate || today(), N = closeNums(date), D = N.D, R = N.R;
+  var date = S.closeDate || today(), N = closeNums(date), D = N.D, R = N.R, auto = autoOpening(date);
   var tile = function(a, b){ return '<div class="tile"><small>'+a+'</small><b>'+b+'</b></div>'; };
   var tiles = tile('Bills', D.ok.length) + tile('Items sold', D.units) + tile('Net sales (AED)', money(D.net)) + (D.disc > 0 ? tile('Discounts', money(D.disc)) : '') + (D.vat > 0 ? tile('VAT', money(D.vat)) : '')
     + tile('Average bill', D.ok.length ? money(D.net / D.ok.length) : '-') + (D.voids.length ? tile('Cancelled', D.voids.length + ' · ' + money(D.voidTot)) : '');
@@ -791,11 +798,13 @@ function vClose(){
   return '<div class="page" style="max-width:900px"><div class="bar"><label class="fld" style="flex-direction:row;align-items:center;gap:8px">Day <input id="cdate" class="inp" type="date" style="width:170px" value="'+date+'"></label><span class="sp"></span>'
     + (R.closed ? '<span class="pill cash">Closed '+fdate(R.closed.t)+'</span>' : '<span class="pill void">Not closed</span>') + '</div>'
     + '<div class="tiles">'+tiles+'</div>'
-    + '<div class="card"><h3>Cash drawer</h3><div class="fgrid">'+fl('Opening cash in drawer (AED)','<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="opening" value="'+esc(R.opening)+'">')
-    + fl('Cash counted now (AED)','<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="counted" value="'+esc(R.counted)+'">')+'</div>'
+    + '<div class="card"><h3>Cash drawer</h3><div class="fgrid">'+fl('Opening cash in drawer (AED)'+((R.opening === '' && auto !== null) ? '<span style="font-weight:400;color:var(--muted)"> \u00b7 from the last day close</span>' : ''),'<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="opening" placeholder="'+(auto !== null ? money(auto) : '')+'" value="'+esc(R.opening)+'">')
+    + fl('Cash counted now (AED)','<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="counted" value="'+esc(R.counted)+'">')
+    + (setg().carryOpen ? fl('Cash left in the counter for tomorrow (AED)','<input id="keepin" class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="keep" placeholder="'+money(N.cashNow)+'" value="'+esc(R.keep || '')+'">') : '')+'</div>'
     + '<table style="margin-top:10px"><tbody><tr><td>Opening cash</td><td class="n" id="nOpen">'+money(N.opening)+'</td></tr><tr><td>+ Cash sales ('+D.ok.filter(function(s){ return s.pay==='cash'; }).length+' bills)</td><td class="n">'+money(D.cash)+'</td></tr>'
     + '<tr><td>− Cash paid out</td><td class="n" id="nOut">'+money(N.out)+'</td></tr><tr><td><b>Cash that should be in the drawer</b></td><td class="n"><b id="nExp">'+money(N.expected)+'</b></td></tr>'
-    + '<tr><td><b>Difference</b></td><td class="n"><b id="nCashDiff" style="'+diffStyle(N.cashDiff)+'">'+diffText(N.cashDiff)+'</b></td></tr></tbody></table></div>'
+    + '<tr><td><b>Difference</b></td><td class="n"><b id="nCashDiff" style="'+diffStyle(N.cashDiff)+'">'+diffText(N.cashDiff)+'</b></td></tr>'
+    + (setg().carryOpen ? '<tr><td>Taken out of the counter (bank deposit, owner)</td><td class="n" id="nTaken">'+money(N.taken)+'</td></tr><tr><td><b>Left in the counter = opening cash for the next day</b></td><td class="n"><b id="nKept">'+money(N.kept)+'</b></td></tr>' : '')+'</tbody></table></div>'
     + '<div class="card"><h3>Cash paid out today</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end">'
     + fl('Reason','<select id="co_r" class="inp">'+CASHOUT_REASONS.map(function(r){ return '<option>'+r+'</option>'; }).join('')+'</select>')+fl('Amount (AED)','<input id="co_a" class="inp" type="number" min="0" step="any" inputmode="decimal">')+fl('Note','<input id="co_n" class="inp">')
     + '<button class="btn plum sm" data-act="addout">Add</button></div>'+((outs||ecs)?'<table style="margin-top:10px"><tbody>'+outs+ecs+'</tbody></table>':'')+'<p style="margin:10px 0 0;color:var(--muted);font-size:13px">Shop expenses paid from counter cash are added in the Expenses tab and counted here automatically.</p></div>'
@@ -815,6 +824,7 @@ function vClose(){
 function closeRefresh(){
   var date = S.closeDate || today(), N = closeNums(date), g = function(id){ return document.getElementById(id); };
   if (g('nOpen')) g('nOpen').textContent = money(N.opening); if (g('nOut')) g('nOut').textContent = money(N.out); if (g('nExp')) g('nExp').textContent = money(N.expected);
+  if (g('nTaken')) g('nTaken').textContent = money(N.taken); if (g('nKept')) g('nKept').textContent = money(N.kept); if (g('keepin')) g('keepin').placeholder = money(N.cashNow);
   [['nCashDiff', N.cashDiff], ['nCardDiff', N.cardDiff]].forEach(function(p){ var e = g(p[0]); if (e){ e.textContent = diffText(p[1]); e.setAttribute('style', diffStyle(p[1])); } });
 }
 
@@ -1337,7 +1347,7 @@ document.addEventListener('click', function(e){
     case 'delout': var drr = dayRec(S.closeDate || today()); drr.cashOut = drr.cashOut.filter(function(c){ return String(c.id) !== d.id; }); save(); break;
     case 'saveclose':
       var cdt = S.closeDate || today(), cn = closeNums(cdt);
-      cn.R.closed = {t:Date.now(), net:cn.D.net, cash:cn.D.cash, card:cn.D.card, expected:cn.expected, cashDiff:cn.cashDiff, cardDiff:cn.cardDiff, bills:cn.D.ok.length};
+      cn.R.closed = {t:Date.now(), net:cn.D.net, cash:cn.D.cash, card:cn.D.card, expected:cn.expected, cashDiff:cn.cashDiff, cardDiff:cn.cardDiff, bills:cn.D.ok.length, kept:cn.kept, taken:cn.taken};
       queueEvent('day_close', {day:cdt, opening:cn.opening, counted:cn.R.counted, cardMachine:cn.R.cardMachine, note:cn.R.note, closed:cn.R.closed}); save(); toast('Day closed'); break;
     case 'copyclose':
       try { navigator.clipboard.writeText(closeText(S.closeDate || today())).then(function(){ toast('Report copied'); }, function(){ toast('Copy not allowed here'); }); } catch(err){ toast('Copy not allowed here'); }
@@ -1347,6 +1357,7 @@ document.addEventListener('click', function(e){
       if (!setg().pinOn && String(setg().pin || '').length < 4){ toast('Set a PIN of at least 4 digits first'); break; }
       setg().pinOn = !setg().pinOn; S.unlocked = true; save(); break;
     case 'tgvat': db.settings.vat = !db.settings.vat; save(); break;
+    case 'tgcarry': db.settings.carryOpen = !db.settings.carryOpen; save(); break;
     case 'tgzero': db.settings.allowZero = !db.settings.allowZero; save(); break;
     case 'dayuse': S.dayUse = d.v === '0' ? today() : shiftDate(S.dayUse || today(), +d.v); break;
     case 'invtab': S.inv = d.id; S.matDel = null; break;
