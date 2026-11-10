@@ -94,13 +94,13 @@ curl -X POST https://pos.yourshop.com/admin/devices \
   -d '{"name":"Tablet 1","kind":"tablet"}'
 ```
 
-Repeat with `"name":"Tablet 2"`, `"Tablet 3"`, and for the counter `"name":"Counter","kind":"pos"`. (Check the exact device kinds your version accepts in `README.md` if the call is refused.)
+Repeat with `"name":"Tablet 2"`, `"Tablet 3"`, and for the counter `"name":"Counter","kind":"pos"`.
 
 ## 7. Connect the apps
 
-- Order pad on a tablet or phone: open `https://pos.yourshop.com/`, then ☰ > Settings and enter the server address `https://pos.yourshop.com` and that device's token, then press Save and test. The label at the top changes from *This device only* to *Synced*.
+- Order pad on a tablet or phone: open `https://pos.yourshop.com/`, then ☰ > Edit menu, scroll to *Sync with the server*, and enter the server address `https://pos.yourshop.com` and that device's token, then press Save and test. The label at the top changes from *This device only* to *Synced*.
 - Counter POS: open `https://pos.yourshop.com/pos/`, Settings > *Sync with the server*, same address and the Counter token.
-- The Android APK works the same way. Enter the same address and token in its Settings.
+- The Android APK works the same way: ☰ > Edit menu > *Sync with the server*.
 
 Use these addresses, not the GitHub ones, for the shop. They are on the same domain as the database, so there is nothing to block.
 
