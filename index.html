@@ -109,6 +109,7 @@ tr.void td{color:var(--muted);text-decoration:line-through}
 .pill{display:inline-block;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600}
 .pill.cash{background:var(--done-bg);color:var(--done)}
 .pill.card{background:#efe2f2;color:var(--plum)}
+.pill.credit{background:#fff3d6;color:#8a5a00}
 .pill.void{background:var(--warn-bg);color:var(--warn)}
 .inp{min-height:42px;border:2px solid var(--line);border-radius:12px;padding:0 12px;background:#fff;width:100%}
 td .inp{width:90px;text-align:right}
@@ -750,7 +751,7 @@ function dayData(date){
   var use = {};
   ok.forEach(function(s){ s.lines.forEach(function(l){ var r = db.inv.recipes[rkey(l.cat, l.size)]; if (r) r.forEach(function(x){ use[x.m] = (use[x.m] || 0) + x.q * l.qty; }); }); });
   var times = ok.map(function(s){ return s.t; });
-  return {all:all, ok:ok, voids:voids, net:net, disc:disc, gross:net + disc, vat:sum(ok, function(s){ return s.vat; }), cash:cash, card:net - cash, cat:cat, items:items, units:units, use:use,
+  return {all:all, ok:ok, voids:voids, net:net, disc:disc, gross:net + disc, vat:sum(ok, function(s){ return s.vat; }), cash:cash, card:sum(ok.filter(function(s){ return s.pay === 'card'; }), function(s){ return s.total; }), credit:sum(ok.filter(function(s){ return s.pay === 'credit'; }), function(s){ return s.total; }), cat:cat, items:items, units:units, use:use,
     first:times.length ? Math.min.apply(null, times) : 0, last:times.length ? Math.max.apply(null, times) : 0, voidTot:sum(voids, function(s){ return s.total; })};
 }
 function lastClosed(date){ var ks = Object.keys(db.days || {}).filter(function(k){ return k < date && db.days[k].closed; }).sort(); return ks.length ? db.days[ks[ks.length - 1]].closed : null; }
@@ -761,7 +762,7 @@ function closeNums(date){
   var opening = openingOf(date, R), out = R.cashOut.reduce(function(a,c){ return a + c.amt; }, 0) + expCashSum(date);
   var man = cashManualNet(date), expected = opening + D.cash + man - out, hasCount = R.counted !== '' && !isNaN(parseFloat(R.counted)), hasCard = R.cardMachine !== '' && !isNaN(parseFloat(R.cardMachine));
   var cashNow = hasCount ? parseFloat(R.counted) : expected, hasKeep = R.keep !== undefined && R.keep !== '' && !isNaN(parseFloat(R.keep)), kept = hasKeep ? parseFloat(R.keep) : cashNow;
-  return {D:D, R:R, man:man, opening:opening, out:out, expected:expected, cashNow:cashNow, kept:kept, taken:cashNow - kept, cashDiff:hasCount ? parseFloat(R.counted) - expected : null, cardDiff:hasCard ? parseFloat(R.cardMachine) - D.card : null};
+  return {D:D, R:R, man:man, opening:opening, out:out, expected:expected, cashNow:cashNow, kept:kept, taken:cashNow - kept, cashDiff:hasCount ? parseFloat(R.counted) - expected : null, cardDiff:hasCard ? parseFloat(R.cardMachine) - (D.card + creditCardOn(date)) : null};
 }
 function diffText(d){ return d === null ? '-' : (d === 0 ? 'Matches' : (d > 0 ? 'Over by AED ' + money(d) : 'Short by AED ' + money(-d))); }
 function diffStyle(d){ return d === null || d === 0 ? '' : (d < 0 ? 'color:var(--pink-dk)' : 'color:var(--warn)'); }
@@ -770,7 +771,7 @@ function closeText(date){
   L.push('Day close ' + date + ' - ' + setg().shop, '');
   L.push('Bills: ' + D.ok.length + '   Items: ' + D.units, 'Gross sales: AED ' + money(D.gross), 'Discounts: AED ' + money(D.disc), 'Net sales: AED ' + money(D.net));
   if (D.vat > 0) L.push('VAT: AED ' + money(D.vat));
-  L.push('Cash sales: AED ' + money(D.cash), 'Card sales: AED ' + money(D.card), '');
+  L.push('Cash sales: AED ' + money(D.cash), 'Card sales: AED ' + money(D.card), D.credit > 0 ? 'Credit sales: AED ' + money(D.credit) : '', '');
   L.push('Opening cash: ' + money(N.opening), 'Cash paid out: ' + money(N.out), 'Cash that should be in the drawer: ' + money(N.expected));
   if (N.cashDiff !== null) L.push('Cash counted: ' + money(parseFloat(R.counted)) + ' (' + diffText(N.cashDiff) + ')');
   if (setg().carryOpen) L.push('Taken out of the counter (' + takenToLabel(N.R) + '): ' + money(N.taken), 'Left in the counter for tomorrow: ' + money(N.kept));
@@ -861,7 +862,7 @@ function dayReportHtml(date){
   var hasCount = N.cashDiff !== null, hasCard = N.cardDiff !== null;
   var left = kv([['Bills', D.ok.length], ['Items sold', D.units], ['Gross sales', 'AED '+money(D.gross)], D.disc > 0 ? ['Discounts', '− AED '+money(D.disc)] : null, ['Net sales', 'AED '+money(D.net), true], D.vat > 0 ? ['VAT included', 'AED '+money(D.vat)] : null,
       ['Average bill', D.ok.length ? 'AED '+money(D.net / D.ok.length) : '-'], ['Cancelled bills', D.voids.length + (D.voids.length ? ' · AED '+money(D.voidTot) : '')]])
-    + sec('Payments') + kv([['Cash sales ('+cashBills+(cashBills === 1 ? ' bill' : ' bills')+')', 'AED '+money(D.cash)], ['Card sales ('+cardBills+(cardBills === 1 ? ' bill' : ' bills')+')', 'AED '+money(D.card)], ['Total', 'AED '+money(D.net), true]]);
+    + sec('Payments') + kv([['Cash sales ('+cashBills+(cashBills === 1 ? ' bill' : ' bills')+')', 'AED '+money(D.cash)], ['Card sales ('+cardBills+(cardBills === 1 ? ' bill' : ' bills')+')', 'AED '+money(D.card)], D.credit > 0 ? ['Credit sales', 'AED '+money(D.credit)] : null, ['Total', 'AED '+money(D.net), true]]);
   var cashOutTotal = R.cashOut.reduce(function(a, c){ return a + c.amt; }, 0), expCash = expCashSum(date);
   var right = kv([['Opening cash', money(N.opening)], ['+ Cash sales', money(D.cash)], ['− Cash paid out', money(N.out)], ['Cash that should be in the drawer', money(N.expected), true], ['Cash counted', hasCount ? money(parseFloat(R.counted)) : 'not entered'], ['Difference', hasCount ? diffText(N.cashDiff) : '-'],
       G.carryOpen ? ['Taken out of the counter → ' + takenToLabel(N.R), money(N.taken)] : null, G.carryOpen ? ['Left in the counter for tomorrow', money(N.kept), true] : null])
@@ -903,7 +904,7 @@ function vClose(){
   var date = S.closeDate || today(), N = closeNums(date), D = N.D, R = N.R, auto = autoOpening(date);
   var tile = function(a, b){ return '<div class="tile"><small>'+a+'</small><b>'+b+'</b></div>'; };
   var tiles = tile('Bills', D.ok.length) + tile('Items sold', D.units) + tile('Net sales (AED)', money(D.net)) + (D.disc > 0 ? tile('Discounts', money(D.disc)) : '') + (D.vat > 0 ? tile('VAT', money(D.vat)) : '')
-    + tile('Average bill', D.ok.length ? money(D.net / D.ok.length) : '-') + (D.voids.length ? tile('Cancelled', D.voids.length + ' · ' + money(D.voidTot)) : '');
+    + tile('Average bill', D.ok.length ? money(D.net / D.ok.length) : '-') + (D.voids.length ? tile('Cancelled', D.voids.length + ' · ' + money(D.voidTot)) : '') + (D.credit > 0 ? tile('On credit', money(D.credit)) : '');
   var cats = Object.keys(D.cat).sort(function(a,b){ return D.cat[b].amt - D.cat[a].amt; }).map(function(k){ return '<tr><td>'+esc(k)+'</td><td class="n">'+D.cat[k].qty+'</td><td class="n">'+money(D.cat[k].amt)+'</td></tr>'; }).join('');
   var items = Object.keys(D.items).sort(function(a,b){ return D.items[b].amt - D.items[a].amt; }).map(function(k){ return '<tr><td>'+esc(k)+'</td><td class="n">'+D.items[k].qty+'</td><td class="n">'+money(D.items[k].amt)+'</td></tr>'; }).join('');
   var use = db.inv.materials.filter(function(m){ return D.use[m.id]; }).map(function(m){ return '<tr><td>'+esc(m.name)+'</td><td class="n">'+num(D.use[m.id])+' '+esc(m.unit)+'</td></tr>'; }).join('');
@@ -949,8 +950,8 @@ function closeRefresh(){
 
 function vHeader(){
   function tab(id, label){ if (TAB_PERM[id] && !can(TAB_PERM[id])) return ''; return '<button data-act="tab" data-v="'+id+'" aria-current="'+(S.tab===id)+'">'+label+'</button>'; }
-  return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+userChip()+'<nav class="tabs">'
-    + tab('sale','Sale') + tab('dash','Dashboard') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Stock') + tab('purch','Purchases') + tab('exp','Expenses') + tab('cash','Cash') + tab('menu','Menu') + tab('audit','Audit') + tab('users','Users') + tab('settings','Settings') + '</nav></header>';
+  return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+creditPill()+userChip()+'<nav class="tabs">'
+    + tab('sale','Sale') + tab('dash','Dashboard') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Stock') + tab('purch','Purchases') + tab('exp','Expenses') + tab('cash','Cash') + tab('credit','Credit') + tab('menu','Menu') + tab('audit','Audit') + tab('users','Users') + tab('settings','Settings') + '</nav></header>';
 }
 
 function vSale(){
@@ -985,7 +986,7 @@ function vSale(){
     + '<div class="foot">'+(setg().vat ? '<div class="sum"><span>Subtotal (excl. VAT)</span><span>'+money(total-vat)+'</span></div><div class="sum"><span>VAT '+num(setg().rate)+'%</span><span>'+money(vat)+'</span></div>' : '')
     + (dsc > 0 ? '<div class="sum"><span>Subtotal</span><span>'+money(sub0)+'</span></div><div class="sum" style="color:var(--pink-dk);font-weight:600"><span>Discount <button class="link" style="min-height:28px" data-act="discoff">remove</button></span><span>−'+money(dsc)+'</span></div>' : '')
     + '<div class="tot"><span>Total</span><span>AED '+money(total)+'</span></div>'
-    + '<div class="row2"><button class="btn primary" data-act="pay" data-m="cash"'+(has?'':' disabled')+'>Cash</button><button class="btn plum" data-act="pay" data-m="card"'+(has?'':' disabled')+'>Card</button></div>'
+    + '<div class="row2" style="grid-template-columns:1fr 1fr 1fr"><button class="btn primary" data-act="pay" data-m="cash"'+(has?'':' disabled')+'>Cash</button><button class="btn plum" data-act="pay" data-m="card"'+(has?'':' disabled')+'>Card</button><button class="btn ghost" data-act="pay" data-m="credit"'+(has?'':' disabled')+'>Credit</button></div>'
     + (has ? '<div class="row2"><button class="btn ghost sm" data-act="discopen">'+(dsc>0?'Change discount':'Discount')+'</button><button class="btn ghost sm" data-act="clear">Clear bill</button></div>' : '') + '</div></aside></div>';
 }
 
@@ -1005,7 +1006,7 @@ function vSales(){
     var t = new Date(s.t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
     var q = s.lines.reduce(function(a,l){ return a+l.qty; }, 0);
     var ask = S.voidAsk === s.id;
-    return '<tr class="'+(s.void?'void':'')+'"><td>#'+s.no+'</td><td>'+t+'</td><td>'+q+' items</td><td>'+(s.void?'<span class="pill void">Cancelled</span><div style="font-size:12px;color:var(--muted);text-decoration:none;margin-top:2px">'+esc(s.voidReason||'')+'</div>':'<span class="pill '+s.pay+'">'+s.pay+'</span>')+'</td><td class="n">'+money(s.total)+'</td>'
+    return '<tr class="'+(s.void?'void':'')+'"><td>#'+s.no+'</td><td>'+t+'</td><td>'+q+' items</td><td>'+(s.void?'<span class="pill void">Cancelled</span><div style="font-size:12px;color:var(--muted);text-decoration:none;margin-top:2px">'+esc(s.voidReason||'')+'</div>':'<span class="pill '+s.pay+'">'+s.pay+'</span>'+(s.pay === 'credit' ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.custName || '')+'</div>' : ''))+'</td><td class="n">'+money(s.total)+'</td>'
       + '<td class="n"><button class="btn ghost sm" data-act="view" data-id="'+s.id+'">Receipt</button> '
       + (s.void ? '' : '<button class="btn danger sm" data-act="voidopen" data-id="'+s.id+'">Cancel bill</button>') + '</td></tr>';
   }).join('');
@@ -1270,7 +1271,7 @@ function receiptText(s){
   if (s.discount > 0) L.push(lr('Subtotal', money(s.subtotal)), lr('Discount', '-' + money(s.discount)));
   if (hasVat) L.push(lr('Subtotal excl. VAT', money(s.total - s.vat)), lr('VAT ' + num(s.vatRate) + '%', money(s.vat)));
   L.push(lr('TOTAL AED', money(s.total)), '');
-  L.push(lr('Paid by ' + s.pay, money(s.pay === 'cash' ? s.tendered : s.total)));
+  if (s.pay === 'credit'){ L.push(lr('ON CREDIT', money(s.total)), 'Customer: ' + (s.custName || ''), 'Phone: ' + (s.custPhone || ''), lr('Due date', s.due || ''), 'Given by: ' + (s.givenBy || '')); } else L.push(lr('Paid by ' + s.pay, money(s.pay === 'cash' ? s.tendered : s.total)));
   if (s.pay === 'cash') L.push(lr('Change', money(s.tendered - s.total)));
   L.push('', c('Thank you!' + (G.insta ? ' ' + G.insta : '')));
   if (s.void) L.unshift(c('*** VOID ***'));
@@ -1327,6 +1328,7 @@ function vSheets(){
   }
   if (S.pay){
     var total = billTotal(), t = parseFloat(S.tendered), ch = isNaN(t) ? 0 : t - total;
+    if (S.pay === 'credit') return vCreditSheet(total);
     if (S.pay === 'cash') return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Cash payment"><h3>Cash</h3><p>Total AED '+money(total)+'</p>'
       + '<input id="tender" class="inp" type="number" inputmode="decimal" placeholder="Amount received" value="'+esc(S.tendered)+'">'
       + '<div class="quick"><button data-act="quick" data-v="'+total+'">Exact</button>'+[10,20,50,100,200,500].map(function(v){ return '<button data-act="quick" data-v="'+v+'">'+v+'</button>'; }).join('')+'</div>'
@@ -1351,7 +1353,7 @@ function render(){
   if (TAB_PERM[S.tab] && !can(TAB_PERM[S.tab])) S.tab = 'sale';
   var keep = {}; SCR.forEach(function(s){ var e = document.querySelector(s); if (e) keep[s] = [e.scrollTop, e.scrollLeft]; });
   var key = S.tab;
-  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
+  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
   document.getElementById('app').innerHTML = vHeader() + '<main>' + body + '</main>' + vSheets();
   paintSync();
   SCR.forEach(function(s){ var e = document.querySelector(s), k = keep[s]; if (e && k && key === lastKey && !(s === '.items' && S.catChanged)){ e.scrollTop = k[0]; e.scrollLeft = k[1]; } });
@@ -1369,12 +1371,12 @@ function addLine(c, item, size){
 function finishSale(){
   if (db.day !== today()){ db.day = today(); db.counter = 0; }
   db.counter++;
-  var s = {by:curName(), uid:S.uid, id:uuid(), dev:sync.dev || '', no:db.counter, t:Date.now(), day:today(), lines:S.cart.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty, orig:l.orig, mod:l.mod, modBy:l.modBy, modWhy:l.modWhy}; }), subtotal:totalOf(S.cart), discount:discAmt(), discReason:S.disc ? S.disc.reason : '', discNote:S.disc ? S.disc.note : '', discBy:S.disc ? S.disc.by : '', total:billTotal(), pay:S.pay, tendered:S.pay==='cash'?parseFloat(S.tendered):0, void:false, vat:vatOf(billTotal()), vatRate:setg().vat ? setg().rate : 0};
+  var cs = S.creditSel || {}, s = {cust:cs.cust || '', custName:cs.name || '', custPhone:cs.phone || '', givenBy:cs.givenBy || '', due:cs.due || '', by:curName(), uid:S.uid, id:uuid(), dev:sync.dev || '', no:db.counter, t:Date.now(), day:today(), lines:S.cart.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty, orig:l.orig, mod:l.mod, modBy:l.modBy, modWhy:l.modWhy}; }), subtotal:totalOf(S.cart), discount:discAmt(), discReason:S.disc ? S.disc.reason : '', discNote:S.disc ? S.disc.note : '', discBy:S.disc ? S.disc.by : '', total:billTotal(), pay:S.pay, tendered:S.pay==='cash'?parseFloat(S.tendered):0, void:false, vat:vatOf(billTotal()), vatRate:setg().vat ? setg().rate : 0};
   s.lines.forEach(function(l){ var k = skey(l.cat, l.name), v = db.stock[k]; if (v !== undefined && v !== null && v !== '') db.stock[k] = setg().allowZero ? +v - l.qty : Math.max(0, +v - l.qty); });
   db.sales.push(s); save();
   s.lines.forEach(function(l){ if (l.mod) audit('Sales', 'Price changed at sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty + ': AED ' + money(l.orig) + ' to AED ' + money(l.price) + '. Reason: ' + l.modWhy, {ap:l.modBy, flag:1}); });
   if (s.discount > 0) audit('Sales', 'Discount given', 'Bill #' + s.no + ' · AED ' + money(s.discount) + '. Reason: ' + s.discReason + (s.discNote ? ' – ' + s.discNote : ''), {ap:s.discBy, flag:1});
-  queueEvent('sale', {by:s.by, discBy:s.discBy, id:s.id, no:(s.dev ? s.dev + '-' : '') + s.no, day:s.day, t:s.t, pay:s.pay, subtotal:s.subtotal, discount:s.discount, discReason:s.discReason, discNote:s.discNote, total:s.total, vat:s.vat, vatRate:s.vatRate, tendered:s.tendered, lines:s.lines});
+  queueEvent('sale', {cust:s.cust, custName:s.custName, custPhone:s.custPhone, givenBy:s.givenBy, due:s.due, by:s.by, discBy:s.discBy, id:s.id, no:(s.dev ? s.dev + '-' : '') + s.no, day:s.day, t:s.t, pay:s.pay, subtotal:s.subtotal, discount:s.discount, discReason:s.discReason, discNote:s.discNote, total:s.total, vat:s.vat, vatRate:s.vatRate, tendered:s.tendered, lines:s.lines});
   if (S.fromOrder){ var fo = (db.tOrders || []).filter(function(x){ return String(x.id) === String(S.fromOrder); })[0]; if (fo) fo.status = 'done'; queueEvent('order_done', {id:S.fromOrder, done:true, sale:s.id}); S.fromOrder = null; save(); }
   S.disc = null; S.cart = []; S.pay = null; S.tendered = ''; S.receipt = s.id;
 }
@@ -1659,7 +1661,7 @@ S.uid = null; try { S.uid = sessionStorage.getItem('hp_uid') || null; } catch(e)
 function hashPin(p){ var s = 'hp|' + String(p), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return 'h' + (h >>> 0).toString(36); }
 function curUser(){ var u = S.uid && byId(db.users, S.uid); return (u && u.active !== false) ? u : null; }
 function curName(){ var u = curUser(); return u ? u.name : 'System'; }
-function defPerm(role, p){ if (role === 'Owner') return true; if (role === 'Manager') return p !== 'users'; return p === 'sales' || p === 'reprint'; }
+function defPerm(role, p){ if (role === 'Owner') return true; if (p === 'creditgive') return true; if (role === 'Manager') return p !== 'users'; return p === 'sales' || p === 'reprint'; }
 function roleCan(role, p){ if (role === 'Owner') return true; var r = db.perms[role]; if (r && r[p] !== undefined) return !!r[p]; return defPerm(role, p); }
 function can(p, u){ u = u || curUser(); return !!u && roleCan(u.role, p); }
 function pinUser(pin, perm){
@@ -1958,7 +1960,7 @@ function cashManualNet(date){
   var n = 0; db.cash.entries.forEach(function(e){ if (e.date !== date) return; entryRows(e).forEach(function(x){ if (x.acct === 'drawer') n += x.amt; }); }); return round2(n + (typeof purchCashNet === 'function' ? purchCashNet(date) : 0));
 }
 function cardToReceive(){
-  var sold = 0, got = 0; db.sales.forEach(function(s){ if (!s.void && s.pay === 'card') sold += s.total; }); db.cash.entries.forEach(function(e){ if (e.kind === 'settle') got += e.amt; });
+  var sold = 0, got = 0; db.sales.forEach(function(s){ if (!s.void && s.pay === 'card') sold += s.total; }); db.cash.entries.forEach(function(e){ if (e.kind === 'settle') got += e.amt; }); (db.cpay || []).forEach(function(x){ if (x.method === 'card') sold += x.amt; });
   return round2(sold - got);
 }
 function monthSum(fn, m){ var t = 0; db.cash.entries.forEach(function(e){ if (e.date.slice(0, 7) === m) t += fn(e) || 0; }); return t; }
@@ -2348,6 +2350,228 @@ document.addEventListener('click', function(e){
       db.pur.pays.push(pay); queueEvent('sup_pay', pay);
       audit('Purchases', 'Supplier payment', supName(S.psup) + ' · AED ' + money(pay.amt) + ' from ' + (p.from === 'bank' ? 'bank' : 'counter cash') + (pay.note ? ' · ' + pay.note : ''), {ap:ap3.name});
       S.spf = {amt:'', from:p.from, date:p.date, note:'', pin:''}; toast('Payment recorded'); break;
+    default: return;
+  }
+  save(); render();
+});
+
+/* ---------- Credit sales, customers, receipts, ageing ---------- */
+PERMS.push(['credit', 'Credit tab and receiving payments'], ['creditgive', 'Give credit to customers (approve)'], ['creditover', 'Approve credit over the limit']);
+TAB_PERM.credit = 'credit';
+if (!db.cust) db.cust = [];
+if (!db.cpay) db.cpay = [];
+S.cr = null; S.cc = null; S.crp = {amt:'', method:'cash', date:today(), note:'', pin:''}; S.ced = null; S.ct = 'over';
+function creditLimitDef(){ var v = parseFloat(setg().creditLimit); return isNaN(v) ? 200 : v; }
+function creditDays(){ var v = parseInt(setg().creditDays, 10); return v > 0 ? v : 7; }
+function custById(id){ return byId(db.cust, id); }
+function addDays(d, n){ var x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toLocaleDateString('en-CA'); }
+function daysBetween(a, b){ return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5); }
+function custSales(id){ return db.sales.filter(function(s){ return !s.void && s.pay === 'credit' && s.cust === id; }).sort(function(a, b){ return a.t - b.t; }); }
+function custPaid(id){ return db.cpay.reduce(function(a, x){ return a + (x.cust === id ? x.amt : 0); }, 0); }
+function custBal(id){ return round2(custSales(id).reduce(function(a, s){ return a + s.total; }, 0) - custPaid(id)); }
+function custBills(id){
+  var paid = custPaid(id);
+  return custSales(id).map(function(s){ var take = Math.min(paid, s.total); paid -= take; return {s:s, out:round2(s.total - take), due:s.due || addDays(s.day, creditDays())}; });
+}
+function custOverdue(id){
+  var t = today(), o = 0, oldest = 0;
+  custBills(id).forEach(function(b){ if (b.out > 0.004 && b.due < t){ o += b.out; oldest = Math.max(oldest, daysBetween(b.due, t)); } });
+  return {amt:round2(o), days:oldest};
+}
+function creditStats(){
+  var out = 0, od = 0, n = 0, nod = 0;
+  db.cust.forEach(function(c){ var b = custBal(c.id); if (b > 0.004){ out += b; n++; } var o = custOverdue(c.id); if (o.amt > 0){ od += o.amt; nod++; } });
+  return {out:round2(out), od:round2(od), n:n, nod:nod};
+}
+function creditPill(){ if (!can('credit')) return ''; var st = creditStats(); return st.nod ? '<button class="chkpill" style="background:var(--warn)" data-act="gocredit">Credit overdue · ' + st.nod + '</button>' : ''; }
+function creditCardOn(date){ return db.cpay.reduce(function(a, x){ return a + (x.method === 'card' && x.date === date ? x.amt : 0); }, 0); }
+function creditLedger(acct){
+  var rows = [];
+  db.cpay.forEach(function(x){ var c = custById(x.cust); if (x.method === (acct === 'bank' ? 'bank' : 'cash')) rows.push({date:x.date, t:x.t, amt:x.amt, label:'Credit payment · ' + (c ? c.name : ''), src:'Credit', by:x.by}); });
+  return rows;
+}
+var _extL = extLedger; extLedger = function(acct){ return _extL(acct).concat(creditLedger(acct)); };
+
+/* ----- credit sheet at the counter ----- */
+function creditStaff(){ return db.users.filter(function(u){ return u.active !== false && can('creditgive', u); }); }
+function creditInit(){ S.cr = {cust:'', name:'', phone:'', limit:'', given:S.uid || '', pin:'', opin:''}; }
+function creditCheck(total){
+  var c = S.cr, cu = c.cust && c.cust !== '__new' ? custById(c.cust) : null, r = {ok:false, msg:'', over:false, lim:0, bal:0};
+  if (!c.cust) { r.msg = 'Choose the customer'; return r; }
+  if (c.cust === '__new'){
+    if (!c.name.trim()){ r.msg = 'Enter the customer name'; return r; }
+    if (!/^[+\d][\d\s-]{5,}$/.test(c.phone.trim())){ r.msg = 'Enter a valid phone number'; return r; }
+    r.lim = c.limit !== '' && parseFloat(c.limit) >= 0 ? parseFloat(c.limit) : creditLimitDef(); r.bal = 0;
+  } else { r.lim = +cu.limit || 0; r.bal = custBal(cu.id); }
+  r.over = r.bal + total > r.lim + 0.001;
+  var g = byId(db.users, c.given);
+  if (!g){ r.msg = 'Choose who is giving the credit'; return r; }
+  if (!(g.pin === hashPin(c.pin))){ r.msg = 'Enter the PIN of ' + g.name; return r; }
+  if (r.over){ var ap = pinUser(c.opin, 'creditover'); if (!ap){ r.msg = 'Over the limit. A manager PIN is needed'; return r; } r.appr = ap; }
+  r.ok = true; return r;
+}
+function vCreditSheet(total){
+  if (!S.cr) creditInit();
+  var c = S.cr, r = creditCheck(total), cu = c.cust && c.cust !== '__new' ? custById(c.cust) : null;
+  var custs = db.cust.filter(function(x){ return x.active !== false; });
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Credit sale" style="max-height:92vh;overflow:auto"><h3>On credit</h3><p>Total AED '+money(total)+'. Customer name and phone are required.</p>'
+    + '<label class="fld">Customer<select class="inp" data-f="crs" data-k="cust"><option value="">Choose customer</option>'+custs.map(function(x){ return '<option value="'+x.id+'"'+(x.id === c.cust ? ' selected' : '')+'>'+esc(x.name)+' · '+esc(x.phone)+'</option>'; }).join('')+'<option value="__new"'+(c.cust === '__new' ? ' selected' : '')+'>+ New customer</option></select></label>'
+    + (c.cust === '__new' ? '<div class="fgrid" style="margin-top:8px"><label class="fld">Name<input class="inp" data-f="cr" data-k="name" value="'+esc(c.name)+'" autocomplete="off"></label><label class="fld">Phone<input class="inp" type="tel" inputmode="tel" data-f="cr" data-k="phone" value="'+esc(c.phone)+'" autocomplete="off"></label><label class="fld">Credit limit (AED, optional)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cr" data-k="limit" placeholder="'+creditLimitDef()+'" value="'+esc(c.limit)+'"></label></div>' : '')
+    + (cu ? '<p style="margin:8px 0 0;font-size:14px">Owes AED <b>'+money(r.bal)+'</b> · limit AED '+money(r.lim)+' · available AED '+money(Math.max(0, r.lim - r.bal))+(custOverdue(cu.id).amt ? ' · <b style="color:var(--pink-dk)">overdue AED '+money(custOverdue(cu.id).amt)+'</b>' : '')+'</p>' : '')
+    + '<label class="fld" style="margin-top:10px">Credit given by<select class="inp" data-f="crs" data-k="given">'+creditStaff().map(function(u){ return '<option value="'+u.id+'"'+(u.id === c.given ? ' selected' : '')+'>'+esc(u.name)+'</option>'; }).join('')+'</select></label>'
+    + '<label class="fld" style="margin-top:10px">PIN of the person giving credit<input id="crpin" class="inp" type="password" inputmode="numeric" data-f="cr" data-k="pin" value="'+esc(c.pin)+'" autocomplete="off"></label>'
+    + (r.over ? '<p style="color:var(--pink-dk);margin:10px 0 0;font-size:14px">This bill goes over the credit limit (limit AED '+money(r.lim)+'). A manager must approve.</p><label class="fld" style="margin-top:6px">Manager PIN<input class="inp" type="password" inputmode="numeric" data-f="cr" data-k="opin" value="'+esc(c.opin)+'" autocomplete="off"></label>' : '')
+    + '<p id="crmsg" style="color:var(--pink-dk);margin:10px 0 0;font-size:14px">'+esc(r.ok ? '' : r.msg)+'</p>'
+    + '<div class="btns"><button class="btn ghost" data-act="paycancel">Back</button><button class="btn primary" data-act="creditok"'+(r.ok ? '' : ' disabled')+'>Give on credit</button></div></div></div>';
+}
+function creditRefresh(){
+  var r = creditCheck(billTotal()), b = document.querySelector('[data-act=creditok]'), m = document.getElementById('crmsg');
+  if (b) b.disabled = !r.ok; if (m) m.textContent = r.ok ? '' : r.msg;
+  var need = r.over && !document.querySelector('[data-k=opin]'); if (need || (!r.over && document.querySelector('[data-k=opin]'))) render();
+}
+
+/* ----- Credit tab ----- */
+function ageBucket(days){ return days <= 0 ? 0 : days <= 7 ? 1 : days <= 30 ? 2 : 3; }
+function vCredit(){
+  var tabs = [['over', 'Customers'], ['age', 'Ageing report']];
+  var seg = '<div class="seg">' + tabs.map(function(t){ return '<button data-act="ctab" data-id="'+t[0]+'" aria-pressed="'+(S.ct === t[0] && !S.cc)+'">'+t[1]+'</button>'; }).join('') + '</div>';
+  return '<div class="page"><div class="bar">'+seg+'</div>' + (S.cc ? vCustDetail() : S.ct === 'age' ? vAgeing() : vCustList()) + '</div>';
+}
+function vCustList(){
+  var st = creditStats(), tile = function(a, b, c){ return '<div class="tile"><small>'+a+'</small><b>'+b+'</b>'+(c ? '<small>'+c+'</small>' : '')+'</div>'; };
+  var rows = db.cust.map(function(c){ var b = custBal(c.id), o = custOverdue(c.id); return {c:c, b:b, o:o}; }).sort(function(x, y){ return y.o.amt - x.o.amt || y.b - x.b; }).map(function(r){
+    return '<tr><td><b>'+esc(r.c.name)+'</b>'+(r.c.active === false ? ' <span class="pill void">Inactive</span>' : '')+'<small style="display:block;color:var(--muted)">'+esc(r.c.phone)+'</small></td><td style="text-align:right">'+money(r.c.limit)+'</td><td style="text-align:right"><b>'+money(r.b)+'</b></td><td style="text-align:right;'+(r.o.amt ? 'color:var(--pink-dk)' : '')+'">'+(r.o.amt ? money(r.o.amt)+'<small style="display:block">'+r.o.days+' days late</small>' : '-')+'</td><td style="text-align:right"><button class="btn sm ghost" data-act="custopen" data-id="'+r.c.id+'">Open</button></td></tr>';
+  }).join('');
+  return '<div class="tiles">'+tile('Credit outstanding', 'AED '+money(st.out), st.n+' customers')+tile('Overdue', 'AED '+money(st.od), st.nod+' customers · more than '+creditDays()+' days')+'</div>'
+    + '<div class="card"><h3>Credit customers</h3><div class="tblwrap"><table class="tbl"><thead><tr><th>Customer</th><th style="text-align:right">Limit</th><th style="text-align:right">Owes</th><th style="text-align:right">Overdue</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="5" class="empty">No credit customers yet. They are added when you sell on credit.</td></tr>')+'</tbody></table></div></div>'
+    + '<div class="card"><h3>Defaults</h3><p style="margin:0 0 8px;color:var(--muted)">Used for new customers. A bill is overdue when it is unpaid after the credit days.</p><div class="fgrid">'
+    + '<label class="fld">Default credit limit (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cset" data-k="creditLimit" value="'+creditLimitDef()+'"></label>'
+    + '<label class="fld">Credit days (due after)<input class="inp" type="number" min="1" step="1" inputmode="numeric" data-f="cset" data-k="creditDays" value="'+creditDays()+'"></label></div></div>';
+}
+function custStatement(id){
+  var rows = [];
+  custSales(id).forEach(function(s){ rows.push({date:s.day, t:s.t, d:'Bill #' + s.no + (s.givenBy ? ' · given by ' + s.givenBy : '') + ' · due ' + xDate(s.due || addDays(s.day, creditDays())), amt:s.total}); });
+  db.cpay.forEach(function(x){ if (x.cust === id) rows.push({date:x.date, t:x.t, d:'Payment received (' + x.method + ')' + (x.note ? ' · ' + x.note : ''), amt:-x.amt}); });
+  rows.sort(function(a, b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : a.t - b.t; });
+  var bal = 0; rows.forEach(function(r){ bal += r.amt; r.bal = round2(bal); }); return rows;
+}
+function vCustDetail(){
+  var c = custById(S.cc); if (!c) return '';
+  var st = custStatement(c.id), b = custBal(c.id), o = custOverdue(c.id), p = S.crp, e = S.ced || {name:c.name, phone:c.phone, limit:String(c.limit), pin:''};
+  var bills = custBills(c.id).filter(function(x){ return x.out > 0.004; });
+  return '<div class="card"><div class="bar"><h3 style="margin:0">'+esc(c.name)+'</h3><span class="sp"></span><button class="btn sm ghost" data-act="custprint">Statement (print / PDF)</button> <button class="btn sm ghost" data-act="custclose">Back to list</button></div>'
+    + '<p style="margin:6px 0">Owes <b>AED '+money(b)+'</b> · limit AED '+money(c.limit)+(o.amt ? ' · <b style="color:var(--pink-dk)">overdue AED '+money(o.amt)+' ('+o.days+' days)</b>' : '')+'</p>'
+    + (bills.length ? '<p style="margin:0 0 8px;color:var(--muted);font-size:13px">Unpaid bills: '+bills.map(function(x){ return '#'+x.s.no+' AED '+money(x.out)+' (due '+xDate(x.due)+')'; }).join(' · ')+'</p>' : '')
+    + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Details</th><th style="text-align:right">Bill</th><th style="text-align:right">Paid</th><th style="text-align:right">Balance</th></tr></thead><tbody>'
+    + (st.map(function(r){ return '<tr><td>'+xDate(r.date)+'</td><td>'+esc(r.d)+'</td><td style="text-align:right">'+(r.amt > 0 ? money(r.amt) : '')+'</td><td style="text-align:right">'+(r.amt < 0 ? money(-r.amt) : '')+'</td><td style="text-align:right">'+money(r.bal)+'</td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">No bills yet.</td></tr>')+'</tbody></table></div></div>'
+    + '<div class="card"><h3>Receive a payment</h3><div class="fgrid"><label class="fld">Date<input class="inp" type="date" data-f="crp" data-k="date" value="'+esc(p.date)+'"></label>'
+    + '<label class="fld">Amount (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="crp" data-k="amt" value="'+esc(p.amt)+'" placeholder="'+(b > 0 ? money(b) : '')+'"></label>'
+    + '<label class="fld">Received by<select class="inp" data-f="crps" data-k="method"><option value="cash"'+(p.method === 'cash' ? ' selected' : '')+'>Cash (counter drawer)</option><option value="card"'+(p.method === 'card' ? ' selected' : '')+'>Card machine</option><option value="bank"'+(p.method === 'bank' ? ' selected' : '')+'>Bank transfer</option></select></label>'
+    + '<label class="fld">Note (optional)<input class="inp" data-f="crp" data-k="note" value="'+esc(p.note)+'" autocomplete="off"></label>'
+    + '<label class="fld">'+pinLabel('credit')+'<input class="inp" type="password" inputmode="numeric" data-f="crp" data-k="pin" value="'+esc(p.pin)+'" autocomplete="off"></label></div>'
+    + '<p style="color:var(--muted);margin:8px 0 0;font-size:13px">The payment clears the oldest bills first. Cash goes into the counter drawer, bank into the bank, card into "Card to receive".</p>'
+    + '<div class="btns"><button class="btn primary" data-act="crpay">Record payment</button></div></div>'
+    + '<div class="card"><h3>Customer details and limit</h3><div class="fgrid"><label class="fld">Name<input class="inp" data-f="ced" data-k="name" value="'+esc(e.name)+'"></label><label class="fld">Phone<input class="inp" data-f="ced" data-k="phone" value="'+esc(e.phone)+'"></label><label class="fld">Credit limit (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="ced" data-k="limit" value="'+esc(e.limit)+'"></label>'
+    + '<label class="fld">'+pinLabel('credit')+'<input class="inp" type="password" inputmode="numeric" data-f="ced" data-k="pin" value="'+esc(e.pin || '')+'" autocomplete="off"></label></div>'
+    + '<div class="btns"><button class="btn plum" data-act="custsave">Save details</button> <button class="btn ghost" data-act="custtoggle">'+(c.active === false ? 'Activate customer' : 'Deactivate customer')+'</button></div></div>';
+}
+function ageRows(){
+  var rows = [];
+  db.cust.forEach(function(c){
+    var bk = [0, 0, 0, 0], t = today(), tot = 0;
+    custBills(c.id).forEach(function(x){ if (x.out > 0.004){ bk[ageBucket(daysBetween(x.due, t))] += x.out; tot += x.out; } });
+    if (tot > 0.004) rows.push({c:c, bk:bk.map(round2), tot:round2(tot)});
+  });
+  return rows.sort(function(a, b){ return b.tot - a.tot; });
+}
+function vAgeing(){
+  var rows = ageRows(), T = [0, 0, 0, 0, 0];
+  rows.forEach(function(r){ r.bk.forEach(function(v, i){ T[i] += v; }); T[4] += r.tot; });
+  return '<div class="card"><div class="bar"><h3 style="margin:0">Ageing report</h3><span class="sp"></span><button class="btn sm ghost" data-act="ageprint">Print / PDF</button></div><p style="margin:6px 0 8px;color:var(--muted)">Unpaid credit by how late it is, as of today.</p>'
+    + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Customer</th><th style="text-align:right">Not due</th><th style="text-align:right">1-7 days late</th><th style="text-align:right">8-30 days</th><th style="text-align:right">Over 30 days</th><th style="text-align:right">Total</th></tr></thead><tbody>'
+    + (rows.map(function(r){ return '<tr><td><b>'+esc(r.c.name)+'</b><small style="display:block;color:var(--muted)">'+esc(r.c.phone)+'</small></td>'+r.bk.map(function(v){ return '<td style="text-align:right">'+(v ? money(v) : '-')+'</td>'; }).join('')+'<td style="text-align:right"><b>'+money(r.tot)+'</b></td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">Nothing outstanding.</td></tr>')
+    + (rows.length ? '<tr><td><b>Total</b></td>'+T.map(function(v, i){ return '<td style="text-align:right"><b>'+money(v)+'</b></td>'; }).join('')+'</tr>' : '')+'</tbody></table></div></div>';
+}
+function creditPrintHead(sub){ var G = setg(); return '<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><img src="'+LOGO+'" alt="" style="height:54px"><div><div style="font-size:22px;font-weight:700">'+esc(G.shop)+'</div><div style="font-size:15px">'+esc(sub)+'</div></div></div>'; }
+function custPrintHtml(id){
+  var c = custById(id), st = custStatement(id), th = 'text-align:left;border-bottom:2px solid #000;padding:5px 6px;font-size:12px', td = 'padding:5px 6px;border-bottom:1px solid #ccc;font-size:12px', tr = td + ';text-align:right', o = custOverdue(id);
+  return '<div style="color:#000;padding:4mm">' + creditPrintHead('Customer statement · ' + c.name + ' · ' + c.phone)
+    + '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="'+th+'">Date</th><th style="'+th+'">Details</th><th style="'+th+';text-align:right">Bill</th><th style="'+th+';text-align:right">Paid</th><th style="'+th+';text-align:right">Balance</th></tr></thead><tbody>'
+    + st.map(function(r){ return '<tr><td style="'+td+'">'+xDate(r.date)+'</td><td style="'+td+'">'+esc(r.d)+'</td><td style="'+tr+'">'+(r.amt > 0 ? money(r.amt) : '')+'</td><td style="'+tr+'">'+(r.amt < 0 ? money(-r.amt) : '')+'</td><td style="'+tr+'">'+money(r.bal)+'</td></tr>'; }).join('')
+    + '</tbody></table><p style="margin-top:12px;font-weight:700">Balance due: AED '+money(custBal(id))+(o.amt ? ' (overdue AED '+money(o.amt)+')' : '')+'</p><p style="font-size:12px">Statement date '+xDate(today())+'</p></div>';
+}
+function agePrintHtml(){
+  var rows = ageRows(), th = 'text-align:left;border-bottom:2px solid #000;padding:5px 6px;font-size:12px', td = 'padding:5px 6px;border-bottom:1px solid #ccc;font-size:12px', tr = td + ';text-align:right', tt = [0, 0, 0, 0, 0];
+  rows.forEach(function(r){ r.bk.forEach(function(v, i){ tt[i] += v; }); tt[4] += r.tot; });
+  return '<div style="color:#000;padding:4mm">' + creditPrintHead('Credit ageing report · ' + xDate(today()))
+    + '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="'+th+'">Customer</th><th style="'+th+'">Phone</th><th style="'+th+';text-align:right">Not due</th><th style="'+th+';text-align:right">1-7 late</th><th style="'+th+';text-align:right">8-30</th><th style="'+th+';text-align:right">30+</th><th style="'+th+';text-align:right">Total</th></tr></thead><tbody>'
+    + rows.map(function(r){ return '<tr><td style="'+td+'">'+esc(r.c.name)+'</td><td style="'+td+'">'+esc(r.c.phone)+'</td>'+r.bk.map(function(v){ return '<td style="'+tr+'">'+(v ? money(v) : '-')+'</td>'; }).join('')+'<td style="'+tr+';font-weight:700">'+money(r.tot)+'</td></tr>'; }).join('')
+    + '<tr><td style="'+td+';font-weight:700" colspan="2">Total</td>'+tt.map(function(v){ return '<td style="'+tr+';font-weight:700">'+money(v)+'</td>'; }).join('')+'</tr></tbody></table></div>';
+}
+
+/* ----- dashboard and events ----- */
+DASH_EXT.push(function(tile){ if (!can('credit')) return ''; var st = creditStats(); return tile('Credit outstanding', 'AED ' + money(st.out), st.n + ' customers', 'gocredit') + (st.nod ? tile('Credit overdue', 'AED ' + money(st.od), st.nod + ' customers · over ' + creditDays() + ' days', 'gocredit', true) : ''); });
+document.addEventListener('input', function(e){
+  var t = e.target, f = t.dataset && t.dataset.f; if (!f) return;
+  if (f === 'cr' && S.cr){ S.cr[t.dataset.k] = t.value; creditRefresh(); }
+  else if (f === 'crp') S.crp[t.dataset.k] = t.value;
+  else if (f === 'ced'){ if (!S.ced){ var c = custById(S.cc); S.ced = {name:c.name, phone:c.phone, limit:String(c.limit), pin:''}; } S.ced[t.dataset.k] = t.value; }
+  else if (f === 'cset'){ var v = parseFloat(t.value); if (!isNaN(v) && v >= 0){ setg()[t.dataset.k] = t.dataset.k === 'creditDays' ? Math.max(1, Math.round(v)) : v; save(); } }
+});
+document.addEventListener('change', function(e){
+  var t = e.target, f = t.dataset && t.dataset.f; if (!f) return;
+  if (f === 'crs' && S.cr){ S.cr[t.dataset.k] = t.value; if (t.dataset.k === 'given') S.cr.pin = ''; render(); }
+  else if (f === 'crps'){ S.crp[t.dataset.k] = t.value; render(); }
+});
+document.addEventListener('click', function(e){
+  var el = e.target.closest('[data-act]'); if (!el) return;
+  if (el.classList.contains('scrim') && e.target !== el) return;
+  var a = el.dataset.act, d = el.dataset;
+  switch (a){
+    case 'pay': if (d.m === 'credit' && S.pay === 'credit') creditInit(); else return; break;
+    case 'gocredit': S.tab = can('credit') ? 'credit' : S.tab; S.cc = null; S.ct = 'over'; break;
+    case 'ctab': S.ct = d.id; S.cc = null; break;
+    case 'custopen': S.cc = d.id; S.ced = null; S.crp = {amt:'', method:'cash', date:today(), note:'', pin:''}; break;
+    case 'custclose': S.cc = null; break;
+    case 'custprint': printHtml(custPrintHtml(S.cc)); return;
+    case 'ageprint': printHtml(agePrintHtml()); return;
+    case 'creditok':
+      var total = billTotal(), r = creditCheck(total); if (!r.ok){ toast(r.msg); return; }
+      var c = S.cr, cu;
+      if (c.cust === '__new'){
+        var ph = c.phone.trim(), dup = db.cust.filter(function(x){ return x.phone.replace(/\s|-/g, '') === ph.replace(/\s|-/g, ''); })[0];
+        if (dup){ toast('That phone number belongs to ' + dup.name + '. Choose that customer.'); return; }
+        cu = {id:uid('k'), name:c.name.trim(), phone:ph, limit:r.lim, active:true, t:Date.now()}; db.cust.push(cu); queueEvent('cust_save', cu); audit('Credit', 'Customer added', cu.name + ' · ' + cu.phone + ' · limit AED ' + money(cu.limit));
+      } else cu = custById(c.cust);
+      var g = byId(db.users, c.given);
+      S.creditSel = {cust:cu.id, name:cu.name, phone:cu.phone, givenBy:g.name, due:addDays(today(), creditDays())};
+      var ov = r.over ? r.appr : null;
+      finishSale();
+      var sl = db.sales[db.sales.length - 1];
+      audit('Credit', 'Credit sale', 'Bill #' + sl.no + ' · ' + cu.name + ' · AED ' + money(sl.total) + ' · due ' + sl.due + ' · given by ' + g.name, {ap:g.name});
+      if (ov) audit('Credit', 'Credit over the limit approved', cu.name + ' · limit AED ' + money(cu.limit) + ' · balance now AED ' + money(custBal(cu.id)), {ap:ov.name, flag:1});
+      S.creditSel = null; S.cr = null; break;
+    case 'crpay':
+      var p = S.crp, amt = parseFloat(p.amt), ap = pinUser(p.pin, 'credit'), cc = custById(S.cc);
+      if (!p.date){ toast('Choose the date'); return; }
+      if (!(amt > 0)){ toast('Enter the amount'); return; }
+      if (!ap){ toast('Wrong PIN'); return; }
+      var pay = {id:uid('r'), t:Date.now(), date:p.date, cust:cc.id, amt:round2(amt), method:p.method, note:p.note.trim(), by:ap.name};
+      db.cpay.push(pay); queueEvent('credit_pay', pay);
+      audit('Credit', 'Credit payment received', cc.name + ' · AED ' + money(pay.amt) + ' · ' + p.method + (pay.note ? ' · ' + pay.note : '') + ' · balance now AED ' + money(custBal(cc.id)), {ap:ap.name});
+      S.crp = {amt:'', method:p.method, date:p.date, note:'', pin:''}; toast('Payment recorded'); break;
+    case 'custsave':
+      var ed = S.ced, c2 = custById(S.cc), ap2 = ed && pinUser(ed.pin, 'credit');
+      if (!ed){ toast('Nothing changed'); return; }
+      if (!ed.name.trim() || !/^[+\d][\d\s-]{5,}$/.test(ed.phone.trim())){ toast('Name and a valid phone are required'); return; }
+      if (!ap2){ toast('Wrong PIN'); return; }
+      var nl = Math.max(0, parseFloat(ed.limit) || 0), chg = [];
+      if (c2.name !== ed.name.trim()) chg.push('name ' + c2.name + ' to ' + ed.name.trim());
+      if (c2.phone !== ed.phone.trim()) chg.push('phone ' + c2.phone + ' to ' + ed.phone.trim());
+      if (+c2.limit !== nl) chg.push('limit AED ' + money(c2.limit) + ' to AED ' + money(nl));
+      c2.name = ed.name.trim(); c2.phone = ed.phone.trim(); c2.limit = nl; S.ced = null;
+      if (chg.length) audit('Credit', 'Customer changed', chg.join(' · '), {ap:ap2.name, flag:chg.some(function(x){ return x.indexOf('limit') === 0; })}); toast('Saved'); break;
+    case 'custtoggle': var c3 = custById(S.cc); c3.active = c3.active === false; audit('Credit', c3.active ? 'Customer activated' : 'Customer deactivated', c3.name); break;
     default: return;
   }
   save(); render();
