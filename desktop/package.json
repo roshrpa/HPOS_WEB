@@ -1,0 +1,21 @@
+{
+  "name": "hollywood-pos-desktop",
+  "version": "1.0.0",
+  "description": "Hollywood Ice Creams - counter billing for Windows",
+  "main": "main.js",
+  "author": "Hollywood Ice Creams",
+  "private": true,
+  "scripts": {
+    "prepare-app": "node scripts/prepare.js",
+    "start": "node scripts/prepare.js && electron .",
+    "dist": "node scripts/prepare.js && electron-builder --win nsis --publish never"
+  },
+  "build": {
+    "appId": "ae.hollywood.pos",
+    "productName": "Hollywood POS",
+    "files": ["main.js", "app/**/*"],
+    "win": { "target": "nsis" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true }
+  },
+  "devDependencies": { "electron": "^33.0.0", "electron-builder": "^25.0.0" }
+}

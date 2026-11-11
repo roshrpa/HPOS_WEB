@@ -949,7 +949,7 @@ function closeRefresh(){
 }
 
 function vHeader(){
-  function tab(id, label){ if (TAB_PERM[id] && !can(TAB_PERM[id])) return ''; return '<button data-act="tab" data-v="'+id+'" aria-current="'+(S.tab===id)+'">'+label+'</button>'; }
+  function tab(id, label){ if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users'].indexOf(id) < 0) return ''; if (TAB_PERM[id] && !can(TAB_PERM[id])) return ''; return '<button data-act="tab" data-v="'+id+'" aria-current="'+(S.tab===id)+'">'+label+'</button>'; }
   return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+creditPill()+userChip()+'<nav class="tabs">'
     + tab('sale','Sale') + tab('dash','Dashboard') + tab('sales','Sales') + tab('range','Cash &amp; report') + tab('inv','Inventory') + tab('stock','Stock') + tab('purch','Purchases') + tab('exp','Expenses') + tab('cash','Cash') + tab('credit','Credit') + tab('reports','Reports') + tab('menu','Menu') + tab('audit','Audit') + tab('users','Users') + tab('settings','Settings') + '</nav></header>';
 }
