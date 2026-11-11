@@ -680,7 +680,7 @@ function vMenu(){
       + prices
       + fld('Label (e.g. Best seller)', '<input class="inp" data-f="itag" data-id="'+item.id+'" value="'+esc(item.tag)+'">')
       + '</div><div style="margin-top:10px">'+fld('Description / ingredients', '<input class="inp" data-f="idesc" data-id="'+item.id+'" value="'+esc(item.desc)+'">')+'</div>'
-      + '<div class="acts"><button data-act="pickimg" data-id="'+item.id+'">Change picture</button>'
+      + '<div class="acts"><button data-act="copyitem" data-id="'+item.id+'">'+(S.menuClip && S.menuClip.srcId === item.id ? '✓ Copied' : 'Copy')+'</button><button data-act="pickimg" data-id="'+item.id+'">Change picture</button>'
       + (item.img ? '<button data-act="noimg" data-id="'+item.id+'">Use category picture</button>' : '')
       + '<label><input type="checkbox" data-f="ioff" data-id="'+item.id+'"'+(item.off?' checked':'')+'> Sold out</label>'
       + '<button data-act="iup" data-id="'+item.id+'" aria-label="Move up"'+(i===0?' disabled':'')+'>▲</button><button data-act="idown" data-id="'+item.id+'" aria-label="Move down"'+(i===c.items.length-1?' disabled':'')+'>▼</button>'
@@ -697,7 +697,7 @@ function vMenu(){
     + '<div class="fgrid" style="margin-top:12px">'+fld('Name','<input class="inp" data-f="cname" value="'+esc(c.name)+'">')+fld('Arabic name','<input class="inp ar" data-f="car" value="'+esc(c.ar)+'">')+'</div></div>'
     + '<div class="card"><h3>Sizes and prices (AED)</h3>'+sizesHtml+'<button class="btn ghost sm" data-act="addsize">+ Add size</button>'
     + '<p style="color:var(--muted);font-size:13px;margin:10px 0 0">These prices apply to every item. To give one item a different price, type it in that item below. Leave the size name blank if the category has only one size.</p></div>'
-    + '<div class="card"><h3>Items ('+c.items.length+')</h3>'+rows+'<button class="btn primary sm" data-act="additem">+ Add item</button></div>'
+    + '<div class="card"><h3>Items ('+c.items.length+')</h3>'+rows+'<button class="btn primary sm" data-act="additem">+ Add item</button>'+(S.menuClip ? ' <button class="btn ghost sm" data-act="pasteitem">Paste copy of “'+esc(S.menuClip.item.name)+'”</button> <button class="btn ghost sm" data-act="clearclip">Clear copy</button>' : '<span style="color:var(--muted);font-size:13px;margin-left:8px">Tip: press Copy on an item to reuse it as a new item.</span>')+'</div>'
     + '<div class="card"><h3>Category actions</h3><div style="display:flex;gap:8px;flex-wrap:wrap">'
     + (catDel ? '<button class="btn primary sm" data-act="delcatyes">Delete "'+esc(c.name)+'" and its items</button><button class="btn ghost sm" data-act="delno">Keep</button>'
               : '<button class="btn danger sm" data-act="delcat">Delete category</button>') + '</div></div>'
@@ -1610,6 +1610,16 @@ document.addEventListener('click', function(e){
     case 'addsize': c = edCat(); c.sizes.push({id:uid('s'), label:'New size', price:0}); saveMenu(); break;
     case 'delsize': c = edCat(); c.sizes = c.sizes.filter(function(s){ return s.id !== d.sid; }); c.items.forEach(function(x){ if (x.prices) delete x.prices[d.sid]; }); saveMenu(); break;
     case 'additem': c = edCat(); c.items.push(it('New item', '', '')); saveMenu(); break;
+    case 'copyitem': c = edCat(); var ci = byId(c.items, d.id); if (ci) S.menuClip = {srcId: ci.id, item: JSON.parse(JSON.stringify(ci)), sizes: c.sizes.map(function(z){ return z.id; }), catId: c.id}; break;
+    case 'clearclip': S.menuClip = null; break;
+    case 'pasteitem': c = edCat(); if (S.menuClip){
+      var src = S.menuClip, n = JSON.parse(JSON.stringify(src.item)), np = null;
+      if (n.prices){ np = {}; c.sizes.forEach(function(z, zi){ var sid = src.catId === c.id ? z.id : src.sizes[zi]; if (sid != null && n.prices[sid] != null) np[z.id] = n.prices[sid]; }); }
+      n.id = uid('i'); n.name = n.name + ' (copy)'; n.prices = np; n.off = false;
+      var pos = byId(c.items, src.srcId); var pi = pos ? c.items.indexOf(pos) : -1;
+      if (pi >= 0 && src.catId === c.id) c.items.splice(pi + 1, 0, n); else c.items.push(n);
+      saveMenu(); setTimeout(function(){ var e = document.querySelector('[data-f=iname][data-id="'+n.id+'"]'); if (e){ e.scrollIntoView({block:'center'}); e.focus(); e.select(); } }, 80);
+    } break;
     case 'delitem': S.del = d.id; break;
     case 'delitemyes': c = edCat(); c.items = c.items.filter(function(x){ return x.id !== d.id; }); S.del = null; saveMenu(); break;
     case 'iup': c = edCat(); var k0 = c.items.indexOf(byId(c.items, d.id)); if (k0 > 0) swap(c.items, k0, k0 - 1); saveMenu(); break;
