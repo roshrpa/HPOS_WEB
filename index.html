@@ -1685,12 +1685,12 @@ function lockNow(){ if (curUser()) audit('Users and Security', 'Locked', ''); S.
 /* ----- login and first-run setup ----- */
 function vSetup(){
   var f = S.su;
-  return '<div class="page"><div class="card" style="max-width:400px;margin:40px auto"><div style="text-align:center"><img class="rlogo" src="'+LOGO+'" alt="" style="height:64px"><h3 style="font-size:20px;margin:8px 0 4px">Set up the Owner</h3><p style="color:var(--muted);margin:0 0 12px">First time here. Create the Owner login. Everyone who uses the POS gets a name and a PIN.</p></div>'
-    + '<label class="fld">Owner name<input class="inp" data-f="sun" value="'+esc(f.name)+'" autocomplete="off"></label>'
+  return '<div class="page"><div class="card" style="max-width:400px;margin:40px auto"><div style="text-align:center"><img class="rlogo" src="'+LOGO+'" alt="" style="height:64px"><h3 style="font-size:20px;margin:8px 0 4px">Create your user</h3><p style="color:var(--muted);margin:0 0 12px">First time here. Create the first user login. You can add more users later; everyone who uses the POS gets a name and a PIN.</p></div>'
+    + '<label class="fld">User name<input class="inp" data-f="sun" value="'+esc(f.name)+'" autocomplete="off"></label>'
     + '<label class="fld" style="margin-top:10px">PIN (4 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="spin" value="'+esc(f.pin)+'" autocomplete="off"></label>'
     + '<label class="fld" style="margin-top:10px">Repeat PIN<input class="inp" type="password" inputmode="numeric" data-f="spin2" value="'+esc(f.pin2)+'" autocomplete="off"></label>'
     + (S.lerr ? '<p style="color:var(--pink-dk);margin:10px 0 0">'+esc(S.lerr)+'</p>' : '')
-    + '<div class="btns"><button class="btn primary" data-act="setupok">Create Owner</button></div></div></div>';
+    + '<div class="btns"><button class="btn primary" data-act="setupok">Create user</button></div></div></div>';
 }
 function vLogin(){
   var us = db.users.filter(function(u){ return u.active !== false; });
