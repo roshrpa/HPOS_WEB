@@ -759,9 +759,9 @@ function openingOf(date, R){ var v = parseFloat(R.opening); if (R.opening !== ''
 function closeNums(date){
   var D = dayData(date), R = dayRec(date);
   var opening = openingOf(date, R), out = R.cashOut.reduce(function(a,c){ return a + c.amt; }, 0) + expCashSum(date);
-  var expected = opening + D.cash - out, hasCount = R.counted !== '' && !isNaN(parseFloat(R.counted)), hasCard = R.cardMachine !== '' && !isNaN(parseFloat(R.cardMachine));
+  var man = cashManualNet(date), expected = opening + D.cash + man - out, hasCount = R.counted !== '' && !isNaN(parseFloat(R.counted)), hasCard = R.cardMachine !== '' && !isNaN(parseFloat(R.cardMachine));
   var cashNow = hasCount ? parseFloat(R.counted) : expected, hasKeep = R.keep !== undefined && R.keep !== '' && !isNaN(parseFloat(R.keep)), kept = hasKeep ? parseFloat(R.keep) : cashNow;
-  return {D:D, R:R, opening:opening, out:out, expected:expected, cashNow:cashNow, kept:kept, taken:cashNow - kept, cashDiff:hasCount ? parseFloat(R.counted) - expected : null, cardDiff:hasCard ? parseFloat(R.cardMachine) - D.card : null};
+  return {D:D, R:R, man:man, opening:opening, out:out, expected:expected, cashNow:cashNow, kept:kept, taken:cashNow - kept, cashDiff:hasCount ? parseFloat(R.counted) - expected : null, cardDiff:hasCard ? parseFloat(R.cardMachine) - D.card : null};
 }
 function diffText(d){ return d === null ? '-' : (d === 0 ? 'Matches' : (d > 0 ? 'Over by AED ' + money(d) : 'Short by AED ' + money(-d))); }
 function diffStyle(d){ return d === null || d === 0 ? '' : (d < 0 ? 'color:var(--pink-dk)' : 'color:var(--warn)'); }
@@ -773,7 +773,7 @@ function closeText(date){
   L.push('Cash sales: AED ' + money(D.cash), 'Card sales: AED ' + money(D.card), '');
   L.push('Opening cash: ' + money(N.opening), 'Cash paid out: ' + money(N.out), 'Cash that should be in the drawer: ' + money(N.expected));
   if (N.cashDiff !== null) L.push('Cash counted: ' + money(parseFloat(R.counted)) + ' (' + diffText(N.cashDiff) + ')');
-  if (setg().carryOpen) L.push('Taken out of the counter: ' + money(N.taken), 'Left in the counter for tomorrow: ' + money(N.kept));
+  if (setg().carryOpen) L.push('Taken out of the counter (' + takenToLabel(N.R) + '): ' + money(N.taken), 'Left in the counter for tomorrow: ' + money(N.kept));
   if (N.cardDiff !== null) L.push('Card machine total: ' + money(parseFloat(R.cardMachine)) + ' (' + diffText(N.cardDiff) + ')');
   L.push('', 'By category:');
   Object.keys(D.cat).forEach(function(k){ L.push('  ' + k + ': ' + D.cat[k].qty + ' items, AED ' + money(D.cat[k].amt)); });
@@ -864,7 +864,7 @@ function dayReportHtml(date){
     + sec('Payments') + kv([['Cash sales ('+cashBills+(cashBills === 1 ? ' bill' : ' bills')+')', 'AED '+money(D.cash)], ['Card sales ('+cardBills+(cardBills === 1 ? ' bill' : ' bills')+')', 'AED '+money(D.card)], ['Total', 'AED '+money(D.net), true]]);
   var cashOutTotal = R.cashOut.reduce(function(a, c){ return a + c.amt; }, 0), expCash = expCashSum(date);
   var right = kv([['Opening cash', money(N.opening)], ['+ Cash sales', money(D.cash)], ['− Cash paid out', money(N.out)], ['Cash that should be in the drawer', money(N.expected), true], ['Cash counted', hasCount ? money(parseFloat(R.counted)) : 'not entered'], ['Difference', hasCount ? diffText(N.cashDiff) : '-'],
-      G.carryOpen ? ['Taken out of the counter', money(N.taken)] : null, G.carryOpen ? ['Left in the counter for tomorrow', money(N.kept), true] : null])
+      G.carryOpen ? ['Taken out of the counter → ' + takenToLabel(N.R), money(N.taken)] : null, G.carryOpen ? ['Left in the counter for tomorrow', money(N.kept), true] : null])
     + sec('Card') + kv([['Card sales in the POS', money(D.card)], ['Card machine total', hasCard ? money(parseFloat(R.cardMachine)) : 'not entered'], ['Difference', hasCard ? diffText(N.cardDiff) : '-']]);
   var outRows = R.cashOut.map(function(c){ return '<tr><td style="'+td+'">'+hm(c.t)+'</td><td style="'+td+'">'+esc(c.reason)+(c.note ? ' · '+esc(c.note) : '')+'</td><td style="'+tr+'">'+money(c.amt)+'</td></tr>'; }).join('');
   var expRows = dayExp.map(function(e){ return '<tr><td style="'+td+'">'+esc(xLabel(e))+'</td><td style="'+td+'">'+esc([e.who, e.note, e.bill ? 'Bill ' + e.bill : ''].filter(Boolean).join(' · '))+'</td><td style="'+td+'">'+xFromLabel(e.from)+'</td><td style="'+tr+'">'+money(e.amt)+'</td></tr>'; }).join('');
@@ -918,9 +918,9 @@ function vClose(){
     + '<div class="tiles">'+tiles+'</div>'
     + '<div class="card"><h3>Cash drawer</h3><div class="fgrid">'+fl('Opening cash in drawer (AED)'+((R.opening === '' && auto !== null) ? '<span style="font-weight:400;color:var(--muted)"> \u00b7 from the last day close</span>' : ''),'<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="opening" placeholder="'+(auto !== null ? money(auto) : '')+'" value="'+esc(R.opening)+'">')
     + fl('Cash counted now (AED)','<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="counted" value="'+esc(R.counted)+'">')
-    + (setg().carryOpen ? fl('Cash left in the counter for tomorrow (AED)','<input id="keepin" class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="keep" placeholder="'+money(N.cashNow)+'" value="'+esc(R.keep || '')+'">') : '')+'</div>'
+    + (setg().carryOpen ? fl('Cash left in the counter for tomorrow (AED)','<input id="keepin" class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="day" data-k="keep" placeholder="'+money(N.cashNow)+'" value="'+esc(R.keep || '')+'">') : '')+(setg().carryOpen ? fl('Taken out goes to','<select class="inp" data-f="day" data-k="takenTo">'+TAKEN_TO.map(function(x){ return '<option value="'+x[0]+'"'+((R.takenTo || 'bank') === x[0] ? ' selected' : '')+'>'+x[1]+'</option>'; }).join('')+'</select>') : '')+'</div>'
     + '<table style="margin-top:10px"><tbody><tr><td>Opening cash</td><td class="n" id="nOpen">'+money(N.opening)+'</td></tr><tr><td>+ Cash sales ('+D.ok.filter(function(s){ return s.pay==='cash'; }).length+' bills)</td><td class="n">'+money(D.cash)+'</td></tr>'
-    + '<tr><td>− Cash paid out</td><td class="n" id="nOut">'+money(N.out)+'</td></tr><tr><td><b>Cash that should be in the drawer</b></td><td class="n"><b id="nExp">'+money(N.expected)+'</b></td></tr>'
+    + '<tr><td>− Cash paid out</td><td class="n" id="nOut">'+money(N.out)+'</td></tr>'+(N.man ? '<tr><td>± Cash tab entries (in − out)</td><td class="n">'+money(N.man)+'</td></tr>' : '')+'<tr><td><b>Cash that should be in the drawer</b></td><td class="n"><b id="nExp">'+money(N.expected)+'</b></td></tr>'
     + '<tr><td><b>Difference</b></td><td class="n"><b id="nCashDiff" style="'+diffStyle(N.cashDiff)+'">'+diffText(N.cashDiff)+'</b></td></tr>'
     + (setg().carryOpen ? '<tr><td>Taken out of the counter (bank deposit, owner)</td><td class="n" id="nTaken">'+money(N.taken)+'</td></tr><tr><td><b>Left in the counter = opening cash for the next day</b></td><td class="n"><b id="nKept">'+money(N.kept)+'</b></td></tr>' : '')+'</tbody></table></div>'
     + '<div class="card"><h3>Cash paid out today</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end">'
@@ -950,7 +950,7 @@ function closeRefresh(){
 function vHeader(){
   function tab(id, label){ if (TAB_PERM[id] && !can(TAB_PERM[id])) return ''; return '<button data-act="tab" data-v="'+id+'" aria-current="'+(S.tab===id)+'">'+label+'</button>'; }
   return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+userChip()+'<nav class="tabs">'
-    + tab('sale','Sale') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Stock') + tab('exp','Expenses') + tab('menu','Menu') + tab('audit','Audit') + tab('users','Users') + tab('settings','Settings') + '</nav></header>';
+    + tab('sale','Sale') + tab('dash','Dashboard') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Stock') + tab('exp','Expenses') + tab('cash','Cash') + tab('menu','Menu') + tab('audit','Audit') + tab('users','Users') + tab('settings','Settings') + '</nav></header>';
 }
 
 function vSale(){
@@ -1283,7 +1283,7 @@ function vSheets(){
       + '<p>Check the numbers. Press Yes only when the shop is done for the day.</p>'
       + '<table><tbody>'+crow('Net sales', 'AED '+money(cn2.D.net))+crow('Cash that should be in the drawer', money(cn2.expected))+crow('Cash counted', noCount ? '<span style="color:var(--pink-dk)">not entered</span>' : money(parseFloat(cn2.R.counted)))
       + (!noCount ? crow('Difference', '<span style="'+diffStyle(cn2.cashDiff)+'">'+diffText(cn2.cashDiff)+'</span>') : '')
-      + (setg().carryOpen ? crow('Left in the counter for tomorrow', money(cn2.kept)) : '')
+      + (setg().carryOpen ? (cn2.taken > 0 ? crow('Taken out → ' + takenToLabel(cn2.R, true), money(cn2.taken)) : '') + crow('Left in the counter for tomorrow', money(cn2.kept)) : '')
       + (dailyMats().length ? crow('Cups and plates count', cn2.R.closeCount ? 'done by '+esc(cn2.R.closeCount.by) : '<span style="color:var(--pink-dk)">not done</span>') : '')+'</tbody></table>'
       + (noCount ? '<p style="color:var(--pink-dk);margin:10px 0 0">You have not entered the cash counted. The drawer cash will not be checked.</p>' : '')
       + '<div class="btns"><button class="btn ghost" data-act="closeno">Not yet</button><button class="btn primary" data-act="closeyes">Yes, '+(cn2.R.closed ? 'update' : 'close the day')+'</button></div></div></div>';
@@ -1350,7 +1350,7 @@ function render(){
   if (TAB_PERM[S.tab] && !can(TAB_PERM[S.tab])) S.tab = 'sale';
   var keep = {}; SCR.forEach(function(s){ var e = document.querySelector(s); if (e) keep[s] = [e.scrollTop, e.scrollLeft]; });
   var key = S.tab;
-  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
+  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
   document.getElementById('app').innerHTML = vHeader() + '<main>' + body + '</main>' + vSheets();
   paintSync();
   SCR.forEach(function(s){ var e = document.querySelector(s), k = keep[s]; if (e && k && key === lastKey && !(s === '.items' && S.catChanged)){ e.scrollTop = k[0]; e.scrollLeft = k[1]; } });
@@ -1502,7 +1502,7 @@ document.addEventListener('click', function(e){
     case 'closeyes':
       S.closeAsk = false;
       var cdt = S.closeDate || today(), cn = closeNums(cdt);
-      cn.R.closed = {by:curName(), t:Date.now(), net:cn.D.net, cash:cn.D.cash, card:cn.D.card, expected:cn.expected, cashDiff:cn.cashDiff, cardDiff:cn.cardDiff, bills:cn.D.ok.length, kept:cn.kept, taken:cn.taken};
+      cn.R.closed = {by:curName(), t:Date.now(), net:cn.D.net, cash:cn.D.cash, card:cn.D.card, expected:cn.expected, cashDiff:cn.cashDiff, cardDiff:cn.cardDiff, bills:cn.D.ok.length, kept:cn.kept, taken:cn.taken, takenTo:cn.R.takenTo || 'bank'};
       queueEvent('day_close', {day:cdt, opening:cn.opening, counted:cn.R.counted, cardMachine:cn.R.cardMachine, note:cn.R.note, closed:cn.R.closed}); audit('Day close', 'Day closed', cdt + ' · sales AED ' + money(cn.D.net) + ' · cash difference ' + money(cn.cashDiff) + ' · taken out ' + money(cn.taken), {flag:Math.abs(cn.cashDiff) >= 0.5 || Math.abs(cn.cardDiff) >= 0.5}); save(); toast('Day closed'); break;
     case 'copyclose':
       try { navigator.clipboard.writeText(closeText(S.closeDate || today())).then(function(){ toast('Report copied'); }, function(){ toast('Copy not allowed here'); }); } catch(err){ toast('Copy not allowed here'); }
@@ -1897,6 +1897,210 @@ document.addEventListener('click', function(e){
       try { var bl = new Blob([auditCsv(auditList())], {type:'text/csv;charset=utf-8'}), an = document.createElement('a'); an.href = URL.createObjectURL(bl); an.download = 'audit-log.csv'; document.body.appendChild(an); an.click(); document.body.removeChild(an); toast('CSV downloaded'); }
       catch(er){ toast('Download is not available here'); } return;
     default: auditDiffs(); return;
+  }
+  save(); render();
+});
+
+/* ---------- Cash management (Drawer + Bank) and Dashboard ---------- */
+PERMS.push(['cash', 'Cash management'], ['dash', 'Dashboard']);
+TAB_PERM.cash = 'cash'; TAB_PERM.dash = 'dash';
+if (!db.cash) db.cash = {open:{drawer:{amt:0, date:''}, bank:{amt:0, date:''}}, entries:[]};
+if (!db.cash.open) db.cash.open = {drawer:{amt:0, date:''}, bank:{amt:0, date:''}};
+S.cf = {kind:'in', date:today(), acct:'drawer', amt:'', fee:'', note:'', pin:''}; S.cm = today().slice(0, 7); S.ca = 'drawer'; S.cdel = null; S.cdelpin = '';
+S.cop = {da:'', dd:'', ba:'', bd:'', pin:''};
+var CASH_KINDS = [['in', 'Cash in (to drawer)'], ['out', 'Cash out (from drawer)'], ['cap', 'Owner capital (money put in)'], ['draw', 'Owner drawings (money taken)'], ['dep', 'Deposit cash to bank (drawer → bank)'], ['wd', 'Withdraw from bank to drawer (bank → drawer)'], ['settle', 'Card settlement received in bank']];
+var TAKEN_TO = [['bank', 'Bank deposit'], ['owner', 'Owner'], ['other', 'Other']];
+function takenToLabel(R, live){ var k = (!live && R.closed) ? (R.closed.takenTo || 'bank') : (R.takenTo || 'bank'), f = TAKEN_TO.filter(function(x){ return x[0] === k; })[0]; return f ? f[1] : 'Bank deposit'; }
+function cashKindLabel(k){ var f = CASH_KINDS.filter(function(x){ return x[0] === k; })[0]; return f ? f[1].replace(/ \(.*\)$/, '') : k; }
+function entryRows(e){
+  var r = [], a = e.amt, L = cashKindLabel(e.kind), n = e.note ? ' · ' + e.note : '';
+  if (e.kind === 'in') r.push({acct:'drawer', amt:a, label:'Cash in' + n});
+  else if (e.kind === 'out') r.push({acct:'drawer', amt:-a, label:'Cash out' + n});
+  else if (e.kind === 'cap') r.push({acct:e.acct, amt:a, label:'Owner capital' + n});
+  else if (e.kind === 'draw') r.push({acct:e.acct, amt:-a, label:'Owner drawings' + n});
+  else if (e.kind === 'dep'){ r.push({acct:'drawer', amt:-a, label:'Deposited to bank' + n}); r.push({acct:'bank', amt:a, label:'Cash deposit from drawer' + n}); }
+  else if (e.kind === 'wd'){ r.push({acct:'bank', amt:-a, label:'Withdrawn to drawer' + n}); r.push({acct:'drawer', amt:a, label:'Cash from bank' + n}); }
+  else if (e.kind === 'settle'){ r.push({acct:'bank', amt:a, label:'Card settlement received' + n}); if (e.fee > 0) r.push({acct:'bank', amt:-e.fee, label:'Card fee on settlement' + n}); }
+  return r.map(function(x){ x.date = e.date; x.t = e.t; x.by = e.by; x.id = e.id; x.src = 'Cash tab'; return x; });
+}
+function ledgerRows(acct){
+  var rows = [], days = db.days || {}, bySale = {};
+  if (acct === 'drawer'){
+    db.sales.forEach(function(s){ if (s.void || s.pay !== 'cash') return; var d = s.day || new Date(s.t).toLocaleDateString('en-CA'); bySale[d] = bySale[d] || {amt:0, n:0}; bySale[d].amt += s.total; bySale[d].n++; });
+    Object.keys(bySale).forEach(function(d){ rows.push({date:d, t:new Date(d + 'T23:00:00').getTime(), amt:round2(bySale[d].amt), label:'Cash sales (' + bySale[d].n + ' bills)', src:'Sales'}); });
+    Object.keys(days).forEach(function(d){
+      var R = days[d];
+      (R.cashOut || []).forEach(function(c){ rows.push({date:d, t:c.t || new Date(d + 'T12:00:00').getTime(), amt:-c.amt, label:'Cash paid out · ' + c.reason + (c.note ? ' · ' + c.note : ''), src:'Day close'}); });
+      if (R.closed){
+        if (R.closed.cashDiff) rows.push({date:d, t:R.closed.t, amt:round2(R.closed.cashDiff), label:'Cash over / short at day close', src:'Day close', by:R.closed.by});
+        if (R.closed.taken > 0) rows.push({date:d, t:R.closed.t + 1, amt:-R.closed.taken, label:'Taken out at day close → ' + takenToLabel(R), src:'Day close', by:R.closed.by});
+      }
+    });
+    db.exp.items.forEach(function(e){ if (e.from !== 'bank') rows.push({date:e.date, t:e.t || 0, amt:-e.amt, label:'Expense · ' + xLabel(e) + (e.who ? ' · ' + e.who : ''), src:'Expenses', by:e.by}); });
+  } else {
+    Object.keys(days).forEach(function(d){ var R = days[d]; if (R.closed && R.closed.taken > 0 && (R.closed.takenTo || 'bank') === 'bank') rows.push({date:d, t:R.closed.t + 1, amt:R.closed.taken, label:'Day close deposit', src:'Day close', by:R.closed.by}); });
+    db.exp.items.forEach(function(e){ if (e.from === 'bank') rows.push({date:e.date, t:e.t || 0, amt:-e.amt, label:'Expense · ' + xLabel(e) + (e.who ? ' · ' + e.who : ''), src:'Expenses', by:e.by}); });
+  }
+  db.cash.entries.forEach(function(e){ entryRows(e).forEach(function(x){ if (x.acct === acct) rows.push(x); }); });
+  if (typeof extLedger === 'function') rows = rows.concat(extLedger(acct));
+  var op = db.cash.open[acct];
+  if (op && op.date) rows = rows.filter(function(r){ return r.date >= op.date; });
+  rows.sort(function(a, b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.t || 0) - (b.t || 0); });
+  return rows;
+}
+function cashBal(acct, uptoDate){
+  var op = db.cash.open[acct] || {amt:0}, b = +op.amt || 0;
+  ledgerRows(acct).forEach(function(r){ if (!uptoDate || r.date <= uptoDate) b += r.amt; });
+  return round2(b);
+}
+function cashManualNet(date){
+  var n = 0; db.cash.entries.forEach(function(e){ if (e.date !== date) return; entryRows(e).forEach(function(x){ if (x.acct === 'drawer') n += x.amt; }); }); return round2(n);
+}
+function cardToReceive(){
+  var sold = 0, got = 0; db.sales.forEach(function(s){ if (!s.void && s.pay === 'card') sold += s.total; }); db.cash.entries.forEach(function(e){ if (e.kind === 'settle') got += e.amt; });
+  return round2(sold - got);
+}
+function monthSum(fn, m){ var t = 0; db.cash.entries.forEach(function(e){ if (e.date.slice(0, 7) === m) t += fn(e) || 0; }); return t; }
+function ownerDraw(m){
+  var t = monthSum(function(e){ return e.kind === 'draw' ? e.amt : 0; }, m);
+  Object.keys(db.days || {}).forEach(function(d){ var R = db.days[d]; if (d.slice(0, 7) === m && R.closed && R.closed.taken > 0 && R.closed.takenTo === 'owner') t += R.closed.taken; });
+  return round2(t);
+}
+
+/* ----- Cash tab ----- */
+function csvDownload(name, rows){
+  var txt = '﻿' + rows.map(function(r){ return r.map(function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
+  try { var bl = new Blob([txt], {type:'text/csv;charset=utf-8'}), a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a); toast('CSV downloaded'); }
+  catch(er){ toast('Download is not available here'); }
+}
+function ledgerView(acct, m){
+  var op = db.cash.open[acct] || {amt:0, date:''}, all = ledgerRows(acct), bal = +op.amt || 0, out = [], i;
+  for (i = 0; i < all.length; i++){ bal += all[i].amt; var r = all[i]; r.bal = round2(bal); if (r.date.slice(0, 7) === m) out.push(r); }
+  var start = round2((+op.amt || 0) + all.filter(function(r){ return r.date.slice(0, 7) < m; }).reduce(function(a, r){ return a + r.amt; }, 0));
+  return {rows:out, start:start, end:out.length ? out[out.length - 1].bal : start, inn:round2(out.reduce(function(a, r){ return a + (r.amt > 0 ? r.amt : 0); }, 0)), outt:round2(out.reduce(function(a, r){ return a + (r.amt < 0 ? -r.amt : 0); }, 0))};
+}
+function vCash(){
+  var f = S.cf, tile = function(a, b, c){ return '<div class="tile"><small>'+a+'</small><b>'+b+'</b>'+(c ? '<small>'+c+'</small>' : '')+'</div>'; };
+  var dB = cashBal('drawer'), bB = cashBal('bank'), ctr = cardToReceive(), m = today().slice(0, 7);
+  var needAcct = f.kind === 'cap' || f.kind === 'draw';
+  var form = '<div class="card"><h3>Add a cash entry</h3><div class="fgrid">'
+    + '<label class="fld">Type<select class="inp" data-f="cfs" data-k="kind">'+CASH_KINDS.map(function(k){ return '<option value="'+k[0]+'"'+(k[0] === f.kind ? ' selected' : '')+'>'+k[1]+'</option>'; }).join('')+'</select></label>'
+    + '<label class="fld">Date<input class="inp" type="date" data-f="cf" data-k="date" value="'+esc(f.date)+'"></label>'
+    + (needAcct ? '<label class="fld">'+(f.kind === 'cap' ? 'Put into' : 'Taken from')+'<select class="inp" data-f="cfs" data-k="acct"><option value="drawer"'+(f.acct === 'drawer' ? ' selected' : '')+'>Counter drawer</option><option value="bank"'+(f.acct === 'bank' ? ' selected' : '')+'>Bank</option></select></label>' : '')
+    + '<label class="fld">'+(f.kind === 'settle' ? 'Gross card amount (AED)' : 'Amount (AED)')+'<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cf" data-k="amt" value="'+esc(f.amt)+'"></label>'
+    + (f.kind === 'settle' ? '<label class="fld">Bank / machine fee (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cf" data-k="fee" value="'+esc(f.fee)+'"></label>' : '')
+    + '<label class="fld">Reason / note'+((f.kind === 'dep' || f.kind === 'wd' || f.kind === 'settle') ? ' (optional)' : ' (required)')+'<input class="inp" data-f="cf" data-k="note" value="'+esc(f.note)+'" autocomplete="off"></label>'
+    + '<label class="fld">'+pinLabel('cash')+'<input class="inp" type="password" inputmode="numeric" data-f="cf" data-k="pin" value="'+esc(f.pin)+'" autocomplete="off"></label></div>'
+    + (f.kind === 'settle' ? '<p style="color:var(--muted);margin:8px 0 0;font-size:13px">Enter what the bank paid before the fee. The bank balance goes up by the amount minus the fee, and "Card to receive" goes down by the amount.</p>' : '')
+    + '<div class="btns"><button class="btn primary" data-act="cashadd">Save entry</button></div></div>';
+  var acct = S.ca, lv = ledgerView(acct, S.cm);
+  var led = '<div class="card"><div class="bar"><h3 style="margin:0">Ledger</h3><span class="sp"></span><div class="seg"><button data-act="cacct" data-id="drawer" aria-pressed="'+(acct === 'drawer')+'">Drawer</button><button data-act="cacct" data-id="bank" aria-pressed="'+(acct === 'bank')+'">Bank</button></div></div>'
+    + '<div class="bar" style="margin:8px 0"><button class="btn sm ghost" data-act="cmonth" data-v="-1">‹</button><b>'+monthLabel(S.cm)+'</b><button class="btn sm ghost" data-act="cmonth" data-v="1">›</button><span class="sp"></span><button class="btn sm ghost" data-act="cprint">Print / PDF</button> <button class="btn sm ghost" data-act="ccsv">CSV</button></div>'
+    + '<p style="margin:0 0 8px;color:var(--muted)">Start AED '+money(lv.start)+' · In '+money(lv.inn)+' · Out '+money(lv.outt)+' · <b style="color:var(--ink,#222)">End AED '+money(lv.end)+'</b></p>'
+    + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Details</th><th>By</th><th style="text-align:right">In</th><th style="text-align:right">Out</th><th style="text-align:right">Balance</th><th></th></tr></thead><tbody>'
+    + (lv.rows.slice().reverse().map(function(r){
+      var del = '';
+      if (r.src === 'Cash tab'){
+        del = S.cdel === r.id ? '<input class="inp" type="password" inputmode="numeric" placeholder="PIN" data-f="cdelpin" value="'+esc(S.cdelpin)+'" style="width:90px;display:inline-block"> <button class="btn sm danger" data-act="cdely" data-id="'+r.id+'">Delete</button> <button class="btn sm ghost" data-act="cdeln">×</button>' : '<button class="btn sm ghost" data-act="cdel" data-id="'+r.id+'">Delete</button>';
+      }
+      return '<tr><td style="white-space:nowrap">'+xDate(r.date)+'</td><td>'+esc(r.label)+'<small style="display:block;color:var(--muted)">'+esc(r.src)+'</small></td><td>'+esc(r.by || '')+'</td><td style="text-align:right">'+(r.amt > 0 ? money(r.amt) : '')+'</td><td style="text-align:right">'+(r.amt < 0 ? money(-r.amt) : '')+'</td><td style="text-align:right">'+money(r.bal)+'</td><td>'+del+'</td></tr>';
+    }).join('') || '<tr><td colspan="7" class="empty">No movements this month.</td></tr>')+'</tbody></table></div></div>';
+  var o = S.cop, od = db.cash.open;
+  var open = '<div class="card"><h3>Opening balances</h3><p style="color:var(--muted);margin:0 0 10px">The balance on the day you start using this ledger. Movements before that date are ignored. Now: drawer AED '+money(+od.drawer.amt || 0)+(od.drawer.date ? ' from '+xDate(od.drawer.date) : '')+', bank AED '+money(+od.bank.amt || 0)+(od.bank.date ? ' from '+xDate(od.bank.date) : '')+'.</p><div class="fgrid">'
+    + '<label class="fld">Drawer opening (AED)<input class="inp" type="number" step="any" inputmode="decimal" data-f="cop" data-k="da" value="'+esc(o.da)+'"></label><label class="fld">Drawer opening date<input class="inp" type="date" data-f="cop" data-k="dd" value="'+esc(o.dd)+'"></label>'
+    + '<label class="fld">Bank opening (AED)<input class="inp" type="number" step="any" inputmode="decimal" data-f="cop" data-k="ba" value="'+esc(o.ba)+'"></label><label class="fld">Bank opening date<input class="inp" type="date" data-f="cop" data-k="bd" value="'+esc(o.bd)+'"></label>'
+    + '<label class="fld">'+pinLabel('cash')+'<input class="inp" type="password" inputmode="numeric" data-f="cop" data-k="pin" value="'+esc(o.pin)+'" autocomplete="off"></label></div>'
+    + '<div class="btns"><button class="btn plum" data-act="copsave">Save opening balances</button></div></div>';
+  return '<div class="page"><div class="tiles">'+tile('Counter drawer', 'AED '+money(dB))+tile('Bank', 'AED '+money(bB))+tile('Card to receive', 'AED '+money(ctr), 'sold by card, not yet in bank')+tile('Owner drawings ' + monthLabel(m).split(' ')[0], 'AED '+money(ownerDraw(m)))+'</div>'
+    + form + led + open + '</div>';
+}
+function ledgerPrintHtml(acct, m){
+  var G = setg(), lv = ledgerView(acct, m), th = 'text-align:left;border-bottom:2px solid #000;padding:5px 6px;font-size:11px', td = 'padding:4px 6px;border-bottom:1px solid #ccc;font-size:11px', tr = td + ';text-align:right';
+  return '<div style="color:#000;padding:4mm"><div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><img src="'+LOGO+'" alt="" style="height:54px"><div><div style="font-size:22px;font-weight:700">'+esc(G.shop)+'</div><div style="font-size:15px">'+(acct === 'bank' ? 'Bank' : 'Counter drawer')+' ledger · '+esc(monthLabel(m))+'</div></div></div>'
+    + '<p style="font-size:12px">Start AED '+money(lv.start)+' · In '+money(lv.inn)+' · Out '+money(lv.outt)+' · End AED '+money(lv.end)+'</p>'
+    + '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="'+th+'">Date</th><th style="'+th+'">Details</th><th style="'+th+'">By</th><th style="'+th+';text-align:right">In</th><th style="'+th+';text-align:right">Out</th><th style="'+th+';text-align:right">Balance</th></tr></thead><tbody>'
+    + lv.rows.map(function(r){ return '<tr><td style="'+td+'">'+xDate(r.date)+'</td><td style="'+td+'">'+esc(r.label)+'</td><td style="'+td+'">'+esc(r.by || '')+'</td><td style="'+tr+'">'+(r.amt > 0 ? money(r.amt) : '')+'</td><td style="'+tr+'">'+(r.amt < 0 ? money(-r.amt) : '')+'</td><td style="'+tr+'">'+money(r.bal)+'</td></tr>'; }).join('')
+    + '</tbody></table></div>';
+}
+
+/* ----- Dashboard ----- */
+function lowStockCount(){
+  var n = 0, at = +setg().lowAt || 0;
+  Object.keys(db.stock || {}).forEach(function(k){ var v = db.stock[k]; if (v !== undefined && v !== null && v !== '' && +v <= at) n++; });
+  try { var em = expectedMap(); db.inv.materials.forEach(function(mm){ if (mm.min > 0 && em[mm.id] && em[mm.id].exp < mm.min) n++; }); } catch(er){}
+  return n;
+}
+var DASH_EXT = [];
+function vDash(){
+  var tile = function(a, b, c, act, warn){ return '<'+(act ? 'button data-act="'+act+'"' : 'div')+' class="tile" style="text-align:left;'+(warn ? 'background:#fff0f5' : '')+'"><small>'+a+'</small><b>'+b+'</b>'+(c ? '<small>'+c+'</small>' : '')+'</'+(act ? 'button' : 'div')+'>'; };
+  var t = today(), m = t.slice(0, 7), D = dayData(t);
+  var ms = db.sales.filter(function(s){ return !s.void && (s.day || '').slice(0, 7) === m; }), mTot = ms.reduce(function(a, s){ return a + s.total; }, 0);
+  var mExp = db.exp.items.filter(function(e){ return e.date.slice(0, 7) === m; }).reduce(function(a, e){ return a + e.amt; }, 0);
+  var flags = db.audit.filter(function(r){ return r.flag; }).slice(-6).reverse();
+  var tiles = [
+    tile('Today\'s sales', 'AED ' + money(D.net), D.ok.length + ' bills · cash ' + money(D.cash) + ' · card ' + money(D.card)),
+    tile('This month sales', 'AED ' + money(mTot), ms.length + ' bills'),
+    tile('This month expenses', 'AED ' + money(mExp), '', 'goexp'),
+    tile('Counter drawer', 'AED ' + money(cashBal('drawer')), '', 'gocash'),
+    tile('Bank', 'AED ' + money(cashBal('bank')), '', 'gocash'),
+    tile('Card to receive', 'AED ' + money(cardToReceive()), 'from the card machine', 'gocash'),
+    tile('Low stock items', String(lowStockCount()), '', 'gostock', lowStockCount() > 0)
+  ];
+  if (openCheckPending()) tiles.push(tile('Stock check', 'Pending', 'opening cups and plates', 'opencheck', true));
+  DASH_EXT.forEach(function(fn){ var x = fn(tile); if (x) tiles.push(x); });
+  return '<div class="page"><h3 style="margin:0 0 10px">Dashboard · '+xDate(t)+'</h3><div class="tiles">'+tiles.join('')+'</div>'
+    + '<div class="card"><h3>Recent flagged actions</h3>'+(flags.length ? '<table class="tbl"><tbody>'+flags.map(function(r){ return '<tr><td style="white-space:nowrap">'+auditTime(r.t)+'</td><td>'+esc(r.u)+(r.ap ? '<small style="display:block;color:var(--muted)">approved by '+esc(r.ap)+'</small>' : '')+'</td><td><b>⚑ '+esc(r.act)+'</b><small style="display:block;color:var(--muted)">'+esc(r.d)+'</small></td></tr>'; }).join('')+'</tbody></table>' + (can('audit') ? '<div class="btns"><button class="btn sm ghost" data-act="goaudit">Open audit log</button></div>' : '') : '<div class="empty">Nothing flagged.</div>')+'</div></div>';
+}
+
+/* ----- events ----- */
+document.addEventListener('input', function(e){
+  var t = e.target, f = t.dataset && t.dataset.f; if (!f) return;
+  if (f === 'cf') S.cf[t.dataset.k] = t.value; else if (f === 'cop') S.cop[t.dataset.k] = t.value; else if (f === 'cdelpin') S.cdelpin = t.value;
+});
+document.addEventListener('change', function(e){
+  var t = e.target, f = t.dataset && t.dataset.f; if (!f) return;
+  if (f === 'cfs'){ S.cf[t.dataset.k] = t.value; render(); }
+});
+document.addEventListener('click', function(e){
+  var el = e.target.closest('[data-act]'); if (!el) return;
+  var a = el.dataset.act, d = el.dataset;
+  switch (a){
+    case 'cacct': S.ca = d.id; break;
+    case 'cmonth': S.cm = shiftMonth(S.cm, +d.v); break;
+    case 'gocash': S.tab = can('cash') ? 'cash' : S.tab; break;
+    case 'goexp': S.tab = can('exp') ? 'exp' : S.tab; break;
+    case 'gostock': S.tab = can('stock') ? 'stock' : S.tab; break;
+    case 'goaudit': S.tab = 'audit'; break;
+    case 'cprint': printHtml(ledgerPrintHtml(S.ca, S.cm)); return;
+    case 'ccsv': var lv = ledgerView(S.ca, S.cm), rows = [['Date', 'Details', 'Source', 'By', 'In', 'Out', 'Balance']]; lv.rows.forEach(function(r){ rows.push([r.date, r.label, r.src, r.by || '', r.amt > 0 ? money(r.amt) : '', r.amt < 0 ? money(-r.amt) : '', money(r.bal)]); }); csvDownload((S.ca === 'bank' ? 'bank' : 'drawer') + '-ledger-' + S.cm + '.csv', rows); return;
+    case 'cdel': S.cdel = d.id; S.cdelpin = ''; break;
+    case 'cdeln': S.cdel = null; break;
+    case 'cdely':
+      var ap = pinUser(S.cdelpin, 'cash'); if (!ap){ toast('Wrong PIN'); return; }
+      var de = byId(db.cash.entries, d.id);
+      if (de){ db.cash.entries = db.cash.entries.filter(function(x){ return x.id !== d.id; }); audit('Cash', 'Cash entry deleted', cashKindLabel(de.kind) + ' · AED ' + money(de.amt) + ' · ' + de.date + (de.note ? ' · ' + de.note : ''), {ap:ap.name, flag:1}); queueEvent('cash_delete', {id:d.id}); toast('Entry deleted'); }
+      S.cdel = null; S.cdelpin = ''; break;
+    case 'cashadd':
+      var f = S.cf, amt = parseFloat(f.amt), ap2 = pinUser(f.pin, 'cash'), needNote = ['dep', 'wd', 'settle'].indexOf(f.kind) < 0, fee = parseFloat(f.fee) || 0;
+      if (!f.date){ toast('Choose the date'); return; }
+      if (!(amt > 0)){ toast('Enter the amount'); return; }
+      if (needNote && !f.note.trim()){ toast('Write the reason'); return; }
+      if (f.kind === 'settle' && fee >= amt){ toast('The fee must be less than the amount'); return; }
+      if (!ap2){ toast('Wrong PIN'); return; }
+      var src = (f.kind === 'out' || f.kind === 'dep' || (f.kind === 'draw' && f.acct === 'drawer')) ? 'drawer' : (f.kind === 'wd' || (f.kind === 'draw' && f.acct === 'bank')) ? 'bank' : null;
+      if (src && amt > cashBal(src) + 0.001){ toast('Only AED ' + money(cashBal(src)) + ' in the ' + (src === 'bank' ? 'bank' : 'drawer')); return; }
+      var en = {id:uid('c'), t:Date.now(), date:f.date, kind:f.kind, acct:(f.kind === 'cap' || f.kind === 'draw') ? f.acct : (f.kind === 'wd' ? 'bank' : 'drawer'), amt:round2(amt), fee:f.kind === 'settle' ? round2(fee) : 0, note:f.note.trim(), by:ap2.name};
+      db.cash.entries.push(en); queueEvent('cash_entry', en);
+      audit('Cash', cashKindLabel(f.kind), 'AED ' + money(en.amt) + (en.fee ? ' (fee ' + money(en.fee) + ')' : '') + ' · ' + f.date + (en.note ? ' · ' + en.note : ''), {ap:ap2.name, flag:(f.kind === 'out' || f.kind === 'draw')});
+      S.cf = {kind:f.kind, date:f.date, acct:f.acct, amt:'', fee:'', note:'', pin:''}; toast('Entry saved'); break;
+    case 'copsave':
+      var o = S.cop, ap3 = pinUser(o.pin, 'cash'); if (!ap3){ toast('Wrong PIN'); return; }
+      var ch = [];
+      if (o.da !== '' && o.dd){ db.cash.open.drawer = {amt:round2(parseFloat(o.da) || 0), date:o.dd}; ch.push('Drawer ' + money(parseFloat(o.da) || 0) + ' from ' + o.dd); }
+      if (o.ba !== '' && o.bd){ db.cash.open.bank = {amt:round2(parseFloat(o.ba) || 0), date:o.bd}; ch.push('Bank ' + money(parseFloat(o.ba) || 0) + ' from ' + o.bd); }
+      if (!ch.length){ toast('Enter an amount and its date'); return; }
+      audit('Cash', 'Opening balance set', ch.join(' · '), {ap:ap3.name, flag:1}); S.cop = {da:'', dd:'', ba:'', bd:'', pin:''}; toast('Opening balances saved'); break;
+    default: return;
   }
   save(); render();
 });
