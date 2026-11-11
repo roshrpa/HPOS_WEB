@@ -2687,18 +2687,18 @@ function pnlOf(m){
 }
 
 /* ----- report rendering (screen and print share one builder) ----- */
-function rb(print){
-  var td = print ? 'padding:4px 6px;border-bottom:1px solid #ccc;font-size:12px' : 'padding:7px 6px;border-bottom:1px solid #eee';
+function rb(print, three){
+  var td = print ? 'padding:4px 6px;border-bottom:1px solid #ccc;font-size:12px' : 'padding:7px 6px;border-bottom:1px solid #eee', line = print ? '#000' : '#d8d2d6', num3 = 'text-align:right;white-space:nowrap';
   return {
-    sec:function(t, h2, h3){ return '<tr><td style="'+(print ? 'font-weight:700;font-size:13px;padding:12px 6px 3px;border-bottom:2px solid #000' : 'font-weight:700;padding:16px 6px 4px;border-bottom:2px solid #d8d2d6')+'">'+t+'</td><td style="text-align:right;color:#666;font-size:12px;padding-top:14px;border-bottom:2px solid '+(print ? '#000' : '#d8d2d6')+'">'+(h2 || '')+'</td><td style="text-align:right;color:#666;font-size:12px;padding-top:14px;border-bottom:2px solid '+(print ? '#000' : '#d8d2d6')+'">'+(h3 || '')+'</td></tr>'; },
-    row:function(a, b, o, c){ o = o || {}; var w = o.b ? ';font-weight:700' : ''; return '<tr><td style="'+td+(o.i ? ';padding-left:'+(6 + o.i * 18)+'px' : '')+w+'">'+a+'</td><td style="'+td+';text-align:right;white-space:nowrap'+w+'">'+b+'</td><td style="'+td+';text-align:right;white-space:nowrap;color:#666">'+(c === undefined ? '' : c)+'</td></tr>'; },
-    wrap:function(rows){ return '<table style="width:100%;border-collapse:collapse"><tbody>' + rows + '</tbody></table>'; }
+    sec:function(t, h2, h3){ return '<tr><td style="'+(print ? 'font-weight:700;font-size:13px;padding:12px 6px 3px;border-bottom:2px solid #000' : 'font-weight:700;padding:16px 6px 4px;border-bottom:2px solid #d8d2d6')+'">'+t+'</td><td style="'+num3+';color:#666;font-size:12px;padding:14px 6px 3px;border-bottom:2px solid '+line+'">'+(h2 || '')+'</td>'+(three ? '<td style="'+num3+';color:#666;font-size:12px;padding:14px 6px 3px;border-bottom:2px solid '+line+'">'+(h3 || '')+'</td>' : '')+'</tr>'; },
+    row:function(a, b, o, c){ o = o || {}; var w = o.b ? ';font-weight:700' : ''; return '<tr><td style="'+td+(o.i ? ';padding-left:'+(6 + o.i * 18)+'px' : '')+w+'">'+a+'</td><td style="'+td+';'+num3+w+'">'+b+'</td>'+(three ? '<td style="'+td+';'+num3+';color:#666">'+(c === undefined ? '' : c)+'</td>' : '')+'</tr>'; },
+    wrap:function(rows){ return '<table style="width:100%;border-collapse:collapse;table-layout:fixed"><colgroup>'+(three ? '<col><col style="width:24%"><col style="width:24%">' : '<col><col style="width:26%">')+'</colgroup><tbody>' + rows + '</tbody></table>'; }
   };
 }
 function catName(id){ var c = xCat(id); return c ? c.name : 'Deleted category'; }
 function monthlyRows(m, print){
-  var R = rb(print), D = monthData(m), d = ledgerView('drawer', m), b = ledgerView('bank', m), h = '';
-  h += R.sec('Sales') + R.row('Bills', D.bills) + R.row('Sales before discount', money(D.net + D.disc)) + R.row('Discounts', '−' + money(D.disc)) + R.row('Net sales (including VAT)', money(D.net), {b:1}) + (D.vat ? R.row('VAT included', money(D.vat), {i:1}) + R.row('Net sales without VAT', money(D.rev), {i:1}) : '');
+  var R = rb(print, false), D = monthData(m), d = ledgerView('drawer', m), b = ledgerView('bank', m), h = '';
+  h += R.sec('Sales') + R.row('Bills', D.bills) + R.row('Sales before discount', money(D.net + D.disc)) + R.row('Discounts', (D.disc ? '−' : '') + money(D.disc)) + R.row('Net sales (including VAT)', money(D.net), {b:1}) + (D.vat ? R.row('VAT included', money(D.vat), {i:1}) + R.row('Net sales without VAT', money(D.rev), {i:1}) : '');
   h += R.sec('Sales by payment type') + R.row('Cash', money(D.pay.cash), {i:1}) + R.row('Card', money(D.pay.card), {i:1}) + R.row('Credit (not yet received)', money(D.pay.credit), {i:1});
   h += R.sec('Sales by category');
   Object.keys(D.cat).sort(function(x, y){ return D.cat[y] - D.cat[x]; }).forEach(function(k){ h += R.row(esc(k), money(D.cat[k]), {i:1}); });
@@ -2714,7 +2714,7 @@ function monthlyRows(m, print){
   return h;
 }
 function pnlRows(m, print){
-  var R = rb(print), P = pnlOf(m), Q = pnlOf(shiftMonth(m, -1)), h = '', pm = monthLabel(shiftMonth(m, -1));
+  var R = rb(print, true), P = pnlOf(m), Q = pnlOf(shiftMonth(m, -1)), h = '', pm = monthLabel(shiftMonth(m, -1));
   var pc = function(v){ return v.toFixed(1) + '%'; };
   h += R.sec('', monthLabel(m), pm);
   h += R.row('Sales without VAT', money(P.rev), {b:1}, money(Q.rev));
@@ -2733,7 +2733,7 @@ function pnlRows(m, print){
   return {html:h, P:P};
 }
 function vatRows(m, print){
-  var R = rb(print), D = monthData(m), out = D.vat, inP = D.pur.vat, inE = D.exp.vat, net = round2(out - inP - inE), h = '';
+  var R = rb(print, false), D = monthData(m), out = D.vat, inP = D.pur.vat, inE = D.exp.vat, net = round2(out - inP - inE), h = '';
   h += R.sec('Output VAT (collected on sales)') + R.row('Net sales without VAT', money(D.rev)) + R.row('VAT on sales', money(out), {b:1});
   h += R.sec('Input VAT (paid on purchases and expenses)') + R.row('VAT on purchases', money(inP), {i:1}) + R.row('VAT on expenses', money(inE), {i:1}) + R.row('Total input VAT', money(inP + inE), {b:1});
   h += R.sec('To pay') + R.row(net >= 0 ? 'VAT payable to the tax authority' : 'VAT refundable', money(Math.abs(net)), {b:1});
@@ -2741,13 +2741,13 @@ function vatRows(m, print){
 }
 function repHead(title, m){ var G = setg(); return '<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><img src="'+LOGO+'" alt="" style="height:54px"><div><div style="font-size:22px;font-weight:700">'+esc(G.shop)+'</div><div style="font-size:15px">'+esc(title)+' · '+esc(monthLabel(m))+'</div>'+(G.trn ? '<div style="font-size:12px">TRN '+esc(G.trn)+'</div>' : '')+'</div></div>'; }
 function repPrint(kind, m){
-  var R = rb(true), body;
+  var R = rb(true, kind === 'pnl'), body;
   if (kind === 'pnl'){ var x = pnlRows(m, true); body = R.wrap(x.html) + (x.P.warn.length ? '<p style="font-size:11px;margin-top:10px">Note: ' + esc(x.P.warn.join(' ')) + '</p>' : ''); return '<div style="color:#000;padding:4mm">' + repHead('Profit and loss', m) + body + '</div>'; }
   if (kind === 'vat') return '<div style="color:#000;padding:4mm">' + repHead('VAT report', m) + R.wrap(vatRows(m, true)) + '</div>';
   return '<div style="color:#000;padding:4mm">' + repHead('Monthly report', m) + R.wrap(monthlyRows(m, true)) + '<div style="display:flex;justify-content:space-between;margin-top:30px;font-size:12px"><span>Prepared by: '+esc(curName())+'</span><span>Approved by: ______________________</span></div></div>';
 }
 function vReports(){
-  var tabs = [['month', 'Monthly report'], ['pnl', 'Profit and loss'], ['vat', 'VAT'], ['lock', 'Lock months']], m = S.rm, R = rb(false);
+  var tabs = [['month', 'Monthly report'], ['pnl', 'Profit and loss'], ['vat', 'VAT'], ['lock', 'Lock months']], m = S.rm, R = rb(false, S.rt === 'pnl');
   var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="rtab" data-id="'+t[0]+'" aria-pressed="'+(S.rt === t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
   var bar = '<div class="bar" style="margin:10px 0"><button class="btn sm ghost" data-act="rmonth" data-v="-1">‹</button><b>'+monthLabel(m)+'</b><button class="btn sm ghost" data-act="rmonth" data-v="1">›</button>'+(db.locks[m] ? ' <span class="pill cash">Locked</span>' : '')+'<span class="sp"></span>'+(S.rt !== 'lock' ? '<button class="btn sm ghost" data-act="repprint">Print / PDF</button>' : '')+'</div>';
   var body = '';
