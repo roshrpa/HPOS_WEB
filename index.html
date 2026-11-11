@@ -951,7 +951,7 @@ function closeRefresh(){
 function vHeader(){
   function tab(id, label){ if (TAB_PERM[id] && !can(TAB_PERM[id])) return ''; return '<button data-act="tab" data-v="'+id+'" aria-current="'+(S.tab===id)+'">'+label+'</button>'; }
   return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+creditPill()+userChip()+'<nav class="tabs">'
-    + tab('sale','Sale') + tab('dash','Dashboard') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Stock') + tab('purch','Purchases') + tab('exp','Expenses') + tab('cash','Cash') + tab('credit','Credit') + tab('reports','Reports') + tab('menu','Menu') + tab('audit','Audit') + tab('users','Users') + tab('settings','Settings') + '</nav></header>';
+    + tab('sale','Sale') + tab('dash','Dashboard') + tab('sales','Sales') + tab('range','Cash &amp; report') + tab('inv','Inventory') + tab('stock','Stock') + tab('purch','Purchases') + tab('exp','Expenses') + tab('cash','Cash') + tab('credit','Credit') + tab('reports','Reports') + tab('menu','Menu') + tab('audit','Audit') + tab('users','Users') + tab('settings','Settings') + '</nav></header>';
 }
 
 function vSale(){
@@ -1354,7 +1354,7 @@ function render(){
   if (TAB_PERM[S.tab] && !can(TAB_PERM[S.tab])) S.tab = 'sale';
   var keep = {}; SCR.forEach(function(s){ var e = document.querySelector(s); if (e) keep[s] = [e.scrollTop, e.scrollLeft]; });
   var key = S.tab;
-  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'reports' ? vReports() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
+  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'reports' ? vReports() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'range' ? vRange() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
   document.getElementById('app').innerHTML = vHeader() + '<main>' + body + '</main>' + vSheets();
   paintSync();
   SCR.forEach(function(s){ var e = document.querySelector(s), k = keep[s]; if (e && k && key === lastKey && !(s === '.items' && S.catChanged)){ e.scrollTop = k[0]; e.scrollLeft = k[1]; } });
@@ -1655,11 +1655,11 @@ document.addEventListener('click', function(e){
 /* ---------- Users, PIN login, permissions, audit log ---------- */
 var ROLES = ['Owner', 'Manager', 'Cashier'];
 var PERMS = [
-  ['sales', 'Sales list'], ['reprint', 'Print receipts'], ['close', 'Day close'], ['inv', 'Inventory'], ['stock', 'Stock'],
+  ['sales', 'Sales list'], ['reprint', 'Print receipts'], ['close', 'Cash & report'], ['inv', 'Inventory'], ['stock', 'Stock'],
   ['exp', 'Expenses'], ['menu', 'Menu'], ['settings', 'Settings'], ['audit', 'Audit log'], ['users', 'Users and permissions'],
   ['void', 'Cancel bills (approve)'], ['discount', 'Give discounts (approve)'], ['price', 'Change price at sale (approve)']
 ];
-var TAB_PERM = {sales:'sales', close:'close', inv:'inv', stock:'stock', exp:'exp', menu:'menu', settings:'settings', audit:'audit', users:'users'};
+var TAB_PERM = {sales:'sales', close:'close', range:'close', inv:'inv', stock:'stock', exp:'exp', menu:'menu', settings:'settings', audit:'audit', users:'users'};
 var AUDIT_CATS = ['Sales', 'Purchases', 'Expenses', 'Cash', 'Stock', 'Day close', 'Credit', 'Menu', 'Settings', 'Users and Security'];
 var PRICE_REASONS = ['Customer bargain', 'Near expiry or damaged', 'Price entered wrongly', 'Staff or family', 'Promotion or offer', 'Other (write the reason)'];
 if (!db.users) db.users = [];
@@ -2866,6 +2866,95 @@ document.addEventListener('click', function(e){
     default: return;
   }
   save(); render();
+});
+
+
+/* ---------- Cash and report by date and time (replaces Day close in the tab bar) ---------- */
+function rgLocal(t){ var d = new Date(t), p = function(n){ return (n < 10 ? '0' : '') + n; }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); }
+function rgState(){
+  if (!S.rg){ var n = new Date(); n.setHours(0, 0, 0, 0); S.rg = {from:rgLocal(n.getTime()), to:rgLocal(Date.now()), open:'', counted:'', card:'', note:''}; }
+  return S.rg;
+}
+function rgNums(){
+  var g = rgState(), a = new Date(g.from).getTime(), b = new Date(g.to).getTime() + 59999; if (isNaN(a)) a = 0; if (isNaN(b)) b = Date.now();
+  var inR = function(t){ return t >= a && t <= b; };
+  var all = db.sales.filter(function(s){ return inR(s.t); }), ok = all.filter(function(s){ return !s.void; }), voids = all.filter(function(s){ return s.void; });
+  var sum = function(arr, f){ return arr.reduce(function(x, s){ return x + (f(s) || 0); }, 0); };
+  var net = sum(ok, function(s){ return s.total; }), disc = sum(ok, function(s){ return s.discount; });
+  var by = function(m){ return sum(ok.filter(function(s){ return s.pay === m; }), function(s){ return s.total; }); };
+  var cat = {}, units = 0;
+  ok.forEach(function(s){ s.lines.forEach(function(l){ units += l.qty; cat[l.cat] = cat[l.cat] || {qty:0, amt:0}; cat[l.cat].qty += l.qty; cat[l.cat].amt += l.qty * l.price; }); });
+  var da = new Date(a).toLocaleDateString('en-CA'), db2 = new Date(b).toLocaleDateString('en-CA');
+  var exps = db.exp.items.filter(function(e){ return e.from !== 'bank' && (typeof e.t === 'number' ? inR(e.t) : (e.date >= da && e.date <= db2)); });
+  var expOut = sum(exps, function(e){ return e.amt; });
+  var cpCash = sum((db.cpay || []).filter(function(x){ return x.method !== 'card' && (typeof x.t === 'number' ? inR(x.t) : (x.date >= da && x.date <= db2)); }), function(x){ return x.amt; });
+  var cpCard = sum((db.cpay || []).filter(function(x){ return x.method === 'card' && (typeof x.t === 'number' ? inR(x.t) : (x.date >= da && x.date <= db2)); }), function(x){ return x.amt; });
+  var man = 0, d = new Date(a); d.setHours(0, 0, 0, 0);
+  for (var t = d.getTime(), n = 0; t <= b && n < 400; t += 86400000, n++){ man += cashManualNet(new Date(t).toLocaleDateString('en-CA')); }
+  man = round2(man);
+  var open = parseFloat(g.open); if (isNaN(open)) open = 0;
+  var cash = by('cash'), card = by('card'), credit = by('credit');
+  var expected = round2(open + cash + cpCash + man - expOut);
+  var hasC = g.counted !== '' && !isNaN(parseFloat(g.counted)), hasK = g.card !== '' && !isNaN(parseFloat(g.card));
+  return {g:g, ok:ok, voids:voids, net:net, disc:disc, gross:net + disc, vat:sum(ok, function(s){ return s.vat; }), cash:cash, card:card, credit:credit, cat:cat, units:units, exps:exps, expOut:expOut, cpCash:cpCash, cpCard:cpCard, man:man, open:open, expected:expected,
+    diff:hasC ? round2(parseFloat(g.counted) - expected) : null, cardDiff:hasK ? round2(parseFloat(g.card) - (card + cpCard)) : null, voidTot:sum(voids, function(s){ return s.total; })};
+}
+function rgText(N){
+  var L = ['Report ' + fdate(new Date(N.g.from).getTime()) + ' to ' + fdate(new Date(N.g.to).getTime()) + ' - ' + setg().shop, ''];
+  L.push('Bills: ' + N.ok.length + '   Items: ' + N.units, 'Gross sales: AED ' + money(N.gross), 'Discounts: AED ' + money(N.disc), 'Net sales: AED ' + money(N.net));
+  if (N.vat > 0) L.push('VAT: AED ' + money(N.vat));
+  L.push('Cash sales: AED ' + money(N.cash), 'Card sales: AED ' + money(N.card)); if (N.credit > 0) L.push('Credit sales: AED ' + money(N.credit));
+  L.push('', 'Opening cash: ' + money(N.open));
+  if (N.cpCash) L.push('Credit payments received in cash: ' + money(N.cpCash));
+  if (N.man) L.push('Other cash in / out (Cash tab, purchases): ' + money(N.man));
+  L.push('Cash paid out (expenses): ' + money(N.expOut), 'Cash that should be in the drawer: ' + money(N.expected));
+  if (N.diff !== null) L.push('Cash counted: ' + money(parseFloat(N.g.counted)) + ' (' + diffText(N.diff) + ')');
+  if (N.cardDiff !== null) L.push('Card machine total: ' + money(parseFloat(N.g.card)) + ' (' + diffText(N.cardDiff) + ')');
+  L.push('', 'By category:'); Object.keys(N.cat).forEach(function(k){ L.push('  ' + k + ': ' + N.cat[k].qty + ' items, AED ' + money(N.cat[k].amt)); });
+  if (N.voids.length) L.push('', 'Cancelled bills: ' + N.voids.length + ' (AED ' + money(N.voidTot) + ')');
+  if (N.exps.length){ L.push('', 'Cash expenses:'); N.exps.forEach(function(e){ L.push('  AED ' + money(e.amt) + ' - ' + xLabel(e)); }); }
+  if (N.g.note) L.push('', 'Note: ' + N.g.note);
+  return L.join('\n');
+}
+function vRange(){
+  var N = rgNums(), g = N.g;
+  var row = function(a, b, st){ return '<tr><td>' + a + '</td><td class="n" style="' + (st || '') + '">' + b + '</td></tr>'; };
+  var catRows = Object.keys(N.cat).map(function(k){ return row(esc(k) + ' <span style="color:var(--muted)">× ' + N.cat[k].qty + '</span>', money(N.cat[k].amt)); }).join('') || '<tr><td colspan="2" style="color:var(--muted)">No sales in this period.</td></tr>';
+  var expRows = N.exps.map(function(e){ return row(esc(xLabel(e)) + (e.who ? ' <span style="color:var(--muted)">(' + esc(e.who) + ')</span>' : ''), money(e.amt)); }).join('');
+  return '<div class="card"><h3>Cash and report by date and time</h3>'
+    + '<div class="fgrid">' + fld('From', '<input class="inp" type="datetime-local" data-f="rg" data-k="from" value="' + esc(g.from) + '">') + fld('To', '<input class="inp" type="datetime-local" data-f="rg" data-k="to" value="' + esc(g.to) + '">') + '</div>'
+    + '<div class="btns" style="margin-top:10px;flex-wrap:wrap"><button class="btn ghost sm" data-act="rgq" data-v="today">Today</button><button class="btn ghost sm" data-act="rgq" data-v="yest">Yesterday</button><button class="btn ghost sm" data-act="rgq" data-v="week">Last 7 days</button><button class="btn ghost sm" data-act="rgq" data-v="month">This month</button><button class="btn ghost sm" data-act="rgq" data-v="now">Up to now</button></div></div>'
+    + '<div class="card"><h3>Sales</h3><table class="tbl" style="width:100%">' + row('Bills', N.ok.length + ' · ' + N.units + ' items') + row('Gross sales', money(N.gross)) + (N.disc ? row('Discounts', money(N.disc)) : '') + row('<b>Net sales</b>', '<b>' + money(N.net) + '</b>') + (N.vat > 0 ? row('VAT included', money(N.vat)) : '')
+    + row('Cash', money(N.cash)) + row('Card', money(N.card)) + (N.credit ? row('Credit', money(N.credit)) : '') + (N.voids.length ? row('Cancelled bills', N.voids.length + ' · ' + money(N.voidTot)) : '') + '</table></div>'
+    + '<div class="card"><h3>Drawer cash check</h3><div class="fgrid">' + fld('Cash in the drawer at the start (AED)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="open" value="' + esc(g.open) + '">') + fld('Cash counted now (AED)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="counted" value="' + esc(g.counted) + '">') + '</div>'
+    + '<table class="tbl" style="width:100%;margin-top:10px">' + row('Start cash', money(N.open)) + row('+ Cash sales', money(N.cash)) + (N.cpCash ? row('+ Credit payments in cash', money(N.cpCash)) : '') + (N.man ? row('+/− Other cash in / out', money(N.man)) : '') + row('− Cash expenses', money(N.expOut))
+    + row('<b>Should be in the drawer</b>', '<b>' + money(N.expected) + '</b>') + (N.diff !== null ? row('<b>Difference</b>', '<b>' + diffText(N.diff) + '</b>', diffStyle(N.diff)) : '') + '</table>'
+    + '<div class="fgrid" style="margin-top:10px">' + fld('Card machine total (optional)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="card" value="' + esc(g.card) + '">') + fld('Note', '<input class="inp" data-f="rg" data-k="note" value="' + esc(g.note) + '">') + '</div>'
+    + (N.cardDiff !== null ? '<p style="margin:8px 0 0;' + diffStyle(N.cardDiff) + '">Card: ' + diffText(N.cardDiff) + '</p>' : '') + '</div>'
+    + '<div class="card"><h3>By category</h3><table class="tbl" style="width:100%">' + catRows + '</table></div>'
+    + (expRows ? '<div class="card"><h3>Cash expenses in this period</h3><table class="tbl" style="width:100%">' + expRows + '</table></div>' : '')
+    + '<div class="btns" style="max-width:760px;flex-wrap:wrap"><button class="btn ghost" data-act="rgcopy">Copy report</button><button class="btn ghost" data-act="rgprint">Print or save as PDF</button></div>';
+}
+document.addEventListener('change', function(ev){
+  var el = ev.target.closest ? ev.target.closest('[data-f=rg]') : null; if (!el) return;
+  rgState()[el.getAttribute('data-k')] = el.value; render();
+});
+document.addEventListener('click', function(ev){
+  var b = ev.target.closest ? ev.target.closest('[data-act^=rg]') : null; if (!b) return;
+  var a = b.getAttribute('data-act'), g = rgState(), now = new Date(), s = new Date(); s.setHours(0, 0, 0, 0);
+  if (a === 'rgq'){
+    var v = b.getAttribute('data-v');
+    if (v === 'today'){ g.from = rgLocal(s.getTime()); g.to = rgLocal(Date.now()); }
+    else if (v === 'yest'){ g.from = rgLocal(s.getTime() - 86400000); g.to = rgLocal(s.getTime() - 60000); }
+    else if (v === 'week'){ g.from = rgLocal(s.getTime() - 6 * 86400000); g.to = rgLocal(Date.now()); }
+    else if (v === 'month'){ s.setDate(1); g.from = rgLocal(s.getTime()); g.to = rgLocal(Date.now()); }
+    else g.to = rgLocal(Date.now());
+    render();
+  } else if (a === 'rgcopy'){
+    var txt = rgText(rgNums()); try { navigator.clipboard.writeText(txt).then(function(){ toast('Report copied'); }, function(){ toast('Copy not allowed here'); }); } catch(e){ toast('Copy not allowed here'); }
+  } else if (a === 'rgprint'){
+    printHtml('<pre style="font:14px/1.5 monospace;white-space:pre-wrap">' + esc(rgText(rgNums())) + '</pre>');
+  }
 });
 
 render();
