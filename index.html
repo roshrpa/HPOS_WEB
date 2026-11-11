@@ -728,7 +728,7 @@ function vSettings(){
     + sw(G.allowZero, 'tgzero', 'Allow sale when item stock is 0', G.allowZero ? 'Staff can keep selling even if the stock count was not updated. Stock goes below zero so you can see it.' : 'An item with 0 stock shows Sold out and cannot be sold.')
     + sw(!!G.carryOpen, 'tgcarry', 'Carry the closing cash to the next day', G.carryOpen ? 'On Day close you enter how much cash stays in the counter. It becomes the opening cash of the next day automatically.' : 'Type the opening cash by hand every morning.')
     + '<div class="card"><p style="margin:0;color:var(--muted)">Logins, PINs and permissions are managed in the Users tab (Owner only).</p></div>'
-    + syncCard()
+    + backupCard() + syncCard()
     + '<div class="card"><h3>Shop and receipt</h3><div class="fgrid">'+inp('Shop name','shop',G.shop)+inp('Phone on receipt','tel',G.tel)+inp('Instagram on receipt','insta',G.insta)+inp('Low stock warning at (items)','lowAt',G.lowAt,'number')+'</div></div>'
     + '<p style="color:var(--muted);font-size:13px">Changes apply to new bills. Bills already made keep the VAT they were made with.</p></div>';
 }
@@ -951,7 +951,7 @@ function closeRefresh(){
 function vHeader(){
   function tab(id, label){ if (TAB_PERM[id] && !can(TAB_PERM[id])) return ''; return '<button data-act="tab" data-v="'+id+'" aria-current="'+(S.tab===id)+'">'+label+'</button>'; }
   return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+creditPill()+userChip()+'<nav class="tabs">'
-    + tab('sale','Sale') + tab('dash','Dashboard') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Stock') + tab('purch','Purchases') + tab('exp','Expenses') + tab('cash','Cash') + tab('credit','Credit') + tab('menu','Menu') + tab('audit','Audit') + tab('users','Users') + tab('settings','Settings') + '</nav></header>';
+    + tab('sale','Sale') + tab('dash','Dashboard') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Stock') + tab('purch','Purchases') + tab('exp','Expenses') + tab('cash','Cash') + tab('credit','Credit') + tab('reports','Reports') + tab('menu','Menu') + tab('audit','Audit') + tab('users','Users') + tab('settings','Settings') + '</nav></header>';
 }
 
 function vSale(){
@@ -1156,14 +1156,14 @@ function xTotals(items){
 }
 function expCashOn(date){ return db.exp.items.filter(function(e){ return e.date === date && e.from !== 'bank'; }); }
 function expCashSum(date){ return expCashOn(date).reduce(function(a, e){ return a + e.amt; }, 0); }
-function xNewForm(){ var c = db.exp.cats[0]; return {date:today(), cat:c ? c.id : '', sub:(c && c.subs[0]) ? c.subs[0].id : '', amt:'', from:'cash', who:'', bill:'', note:''}; }
+function xNewForm(){ var c = db.exp.cats[0]; return {date:today(), cat:c ? c.id : '', sub:(c && c.subs[0]) ? c.subs[0].id : '', amt:'', from:'cash', who:'', bill:'', note:'', vat:''}; }
 function xUsed(test){ return db.exp.items.filter(test).length; }
 
 function vExp(){
   if (!S.xf) S.xf = xNewForm();
-  var tabs = [['list','Expenses'],['sum','Summary and print'],['cat','Categories']];
+  var tabs = [['list','Expenses'],['rec','Recurring'],['sum','Summary and print'],['cat','Categories']];
   var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="xtab" data-id="'+t[0]+'" aria-pressed="'+(S.xt===t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
-  var body = S.xt === 'sum' ? xSummary() : S.xt === 'cat' ? xCats() : xList();
+  var body = S.xt === 'sum' ? xSummary() : S.xt === 'cat' ? xCats() : S.xt === 'rec' ? xRec() : xList();
   return '<div class="page"><div class="bar">'+seg+'</div>'+body+'</div>';
 }
 function xMonthBar(){
@@ -1178,6 +1178,7 @@ function xForm(){
     + '<label class="fld">Category'+sel('cat', db.exp.cats.map(function(x){ return [x.id, x.name]; }), f.cat)+'</label>'
     + '<label class="fld">Sub-category'+sel('sub', c ? c.subs.map(function(x){ return [x.id, x.name]; }) : [], f.sub)+'</label>'
     + '<label class="fld">Amount (AED)'+inp('amt', 'number', 'min="0" step="any" inputmode="decimal" ')+'</label>'
+    + (setg().vat ? '<label class="fld">VAT included in the amount (AED)'+inp('vat', 'number', 'min="0" step="any" inputmode="decimal" ')+'</label>' : '')
     + '<label class="fld">Paid from'+sel('from', [['cash','Counter cash'],['bank','Bank (card or transfer)']], f.from)+'</label>'
     + '<label class="fld">Paid to or supplier'+inp('who')+'</label>'
     + '<label class="fld">Bill no. (optional)'+inp('bill')+'</label>'
@@ -1353,7 +1354,7 @@ function render(){
   if (TAB_PERM[S.tab] && !can(TAB_PERM[S.tab])) S.tab = 'sale';
   var keep = {}; SCR.forEach(function(s){ var e = document.querySelector(s); if (e) keep[s] = [e.scrollTop, e.scrollLeft]; });
   var key = S.tab;
-  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
+  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'reports' ? vReports() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
   document.getElementById('app').innerHTML = vHeader() + '<main>' + body + '</main>' + vSheets();
   paintSync();
   SCR.forEach(function(s){ var e = document.querySelector(s), k = keep[s]; if (e && k && key === lastKey && !(s === '.items' && S.catChanged)){ e.scrollTop = k[0]; e.scrollLeft = k[1]; } });
@@ -1526,11 +1527,11 @@ document.addEventListener('click', function(e){
       var xf = S.xf, xa = parseFloat(xf.amt);
       if (!xf.date){ toast('Choose the date'); return; }
       if (!(xa > 0)){ toast('Enter the amount'); return; }
-      var xo = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:round2(xa), from:xf.from, who:(xf.who || '').trim(), bill:(xf.bill || '').trim(), note:(xf.note || '').trim()};
+      var xo = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:round2(xa), from:xf.from, vat:round2(parseFloat(xf.vat) || 0), who:(xf.who || '').trim(), bill:(xf.bill || '').trim(), note:(xf.note || '').trim()};
       if (S.xedit){ var xe = byId(db.exp.items, S.xedit); if (xe){ var xold = Object.assign({}, xe); Object.assign(xe, xo); xe.editBy = curName(); queueEvent('expense_update', xe); audit('Expenses', 'Expense edited', xAudDesc(xold) + '  →  ' + xAudDesc(xe), {flag:1}); } S.xedit = null; toast('Expense updated'); }
       else { xo.id = uid('e'); xo.t = Date.now(); xo.by = curName(); db.exp.items.push(xo); audit('Expenses', 'Expense added', xAudDesc(xo)); queueEvent('expense', xo); toast('Expense added'); }
-      S.xm = xf.date.slice(0, 7); S.xf = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:'', from:xf.from, who:'', bill:'', note:''}; save(); break;
-    case 'xedit': var xe2 = byId(db.exp.items, d.id); if (xe2){ S.xedit = xe2.id; S.xf = {date:xe2.date, cat:xe2.cat, sub:xe2.sub, amt:String(xe2.amt), from:xe2.from, who:xe2.who || '', bill:xe2.bill || '', note:xe2.note || ''}; S.xt = 'list'; var xpg = document.querySelector('.page'); if (xpg) xpg.scrollTop = 0; } break;
+      S.xm = xf.date.slice(0, 7); S.xf = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:'', from:xf.from, who:'', bill:'', note:'', vat:''}; save(); break;
+    case 'xedit': var xe2 = byId(db.exp.items, d.id); if (xe2){ S.xedit = xe2.id; S.xf = {date:xe2.date, cat:xe2.cat, sub:xe2.sub, amt:String(xe2.amt), from:xe2.from, vat:xe2.vat ? String(xe2.vat) : '', who:xe2.who || '', bill:xe2.bill || '', note:xe2.note || ''}; S.xt = 'list'; var xpg = document.querySelector('.page'); if (xpg) xpg.scrollTop = 0; } break;
     case 'xcancel': S.xedit = null; S.xf = xNewForm(); break;
     case 'xdel': S.xdel = d.id; break;
     case 'xdelno': S.xdel = null; break;
@@ -1661,7 +1662,7 @@ S.uid = null; try { S.uid = sessionStorage.getItem('hp_uid') || null; } catch(e)
 function hashPin(p){ var s = 'hp|' + String(p), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return 'h' + (h >>> 0).toString(36); }
 function curUser(){ var u = S.uid && byId(db.users, S.uid); return (u && u.active !== false) ? u : null; }
 function curName(){ var u = curUser(); return u ? u.name : 'System'; }
-function defPerm(role, p){ if (role === 'Owner') return true; if (p === 'creditgive') return true; if (role === 'Manager') return p !== 'users'; return p === 'sales' || p === 'reprint'; }
+function defPerm(role, p){ if (role === 'Owner') return true; if (p === 'creditgive') return true; if (role === 'Manager') return p !== 'users' && p !== 'lock'; return p === 'sales' || p === 'reprint'; }
 function roleCan(role, p){ if (role === 'Owner') return true; var r = db.perms[role]; if (r && r[p] !== undefined) return !!r[p]; return defPerm(role, p); }
 function can(p, u){ u = u || curUser(); return !!u && roleCan(u.role, p); }
 function pinUser(pin, perm){
@@ -2572,6 +2573,286 @@ document.addEventListener('click', function(e){
       c2.name = ed.name.trim(); c2.phone = ed.phone.trim(); c2.limit = nl; S.ced = null;
       if (chg.length) audit('Credit', 'Customer changed', chg.join(' · '), {ap:ap2.name, flag:chg.some(function(x){ return x.indexOf('limit') === 0; })}); toast('Saved'); break;
     case 'custtoggle': var c3 = custById(S.cc); c3.active = c3.active === false; audit('Credit', c3.active ? 'Customer activated' : 'Customer deactivated', c3.name); break;
+    default: return;
+  }
+  save(); render();
+});
+
+/* ---------- Recurring expenses, reports, profit and loss, VAT, month lock, backup ---------- */
+PERMS.push(['reports', 'Reports (monthly, profit and loss, VAT)'], ['lock', 'Lock and unlock months']);
+TAB_PERM.reports = 'reports';
+if (!db.rec) db.rec = [];
+if (!db.locks) db.locks = {};
+if (!db.openStock) db.openStock = {};
+if (!db.lastBackup) db.lastBackup = 0;
+S.rt = 'month'; S.rm = today().slice(0, 7); S.rpin = ''; S.rf = {name:'', cat:'', sub:'', amt:'', from:'bank', who:'', day:'1'}; S.recAmt = {}; S.recpin = ''; S.osv = ''; S.bkp = null; S.bkpin = '';
+function pad2(n){ return n < 10 ? '0' + n : '' + n; }
+function monthEnd(m){ var d = new Date(m + '-01T12:00:00'); d.setMonth(d.getMonth() + 1); d.setDate(0); return d.toLocaleDateString('en-CA'); }
+function isLocked(date){ return !!(date && db.locks[date.slice(0, 7)]); }
+
+/* ----- month lock guard (runs before every other click handler) ----- */
+function lockDateFor(a, d){
+  switch (a){
+    case 'xsave': var xe = S.xedit && byId(db.exp.items, S.xedit); return [S.xf && S.xf.date, xe && xe.date];
+    case 'xdelyes': var xd = byId(db.exp.items, d.id); return [xd && xd.date];
+    case 'purchsave': return [S.pf.date];
+    case 'pcany': var pv = byId(db.pur.list, d.id); return [pv && pv.date];
+    case 'cashadd': return [S.cf.date];
+    case 'cdely': var ce = byId(db.cash.entries, d.id); return [ce && ce.date];
+    case 'suppay': return [S.spf.date];
+    case 'crpay': return [S.crp.date];
+    case 'closeyes': return [S.closeDate || today()];
+    case 'voidyes': var vs = S.voidForm && byId(db.sales, S.voidForm.id); return [vs && vs.day];
+    case 'recpost': case 'recpostall': return [S.xm + '-01'];
+  }
+  return [];
+}
+document.addEventListener('click', function(e){
+  var el = e.target.closest('[data-act]'); if (!el) return;
+  var ds = lockDateFor(el.dataset.act, el.dataset), i;
+  for (i = 0; i < ds.length; i++){ if (ds[i] && isLocked(ds[i])){ e.stopPropagation(); toast(monthLabel(ds[i].slice(0, 7)) + ' is locked. The Owner can unlock it in Reports.'); return; } }
+}, true);
+
+/* ----- recurring expenses ----- */
+function recPosted(id, m){ return db.exp.items.some(function(e){ return e.rec === id && e.date.slice(0, 7) === m; }); }
+function recDate(r, m){ var last = +monthEnd(m).slice(8); return m + '-' + pad2(Math.min(Math.max(1, parseInt(r.day, 10) || 1), last)); }
+function recPending(m){ return db.rec.filter(function(r){ return r.active !== false && !recPosted(r.id, m); }); }
+function recDueNow(){ var t = today(), m = t.slice(0, 7); return recPending(m).filter(function(r){ return t >= recDate(r, m); }); }
+function xRec(){
+  var m = S.xm, f = S.rf, c = xCat(f.cat) || db.exp.cats[0];
+  if (c){ f.cat = c.id; if (!xSub(c, f.sub)) f.sub = c.subs[0] ? c.subs[0].id : ''; }
+  var rows = db.rec.map(function(r){
+    var done = recPosted(r.id, m), amt = S.recAmt[r.id] !== undefined ? S.recAmt[r.id] : r.amt;
+    return '<tr'+(r.active === false ? ' style="opacity:.55"' : '')+'><td><b>'+esc(r.name)+'</b><small style="display:block;color:var(--muted)">'+esc(xLabel({cat:r.cat, sub:r.sub}))+' · day '+esc(r.day)+' · '+xFromLabel(r.from)+'</small></td>'
+      + '<td style="text-align:right"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="recamt" data-id="'+r.id+'" value="'+esc(amt)+'" style="width:110px;display:inline-block" aria-label="Amount for '+esc(r.name)+'"></td>'
+      + '<td style="white-space:nowrap;text-align:right">'+(done ? '<span class="pill cash">Posted</span>' : (r.active === false ? '' : '<button class="btn sm primary" data-act="recpost" data-id="'+r.id+'">Post</button>'))+' <button class="btn sm ghost" data-act="recsave" data-id="'+r.id+'">Save amount</button> <button class="btn sm ghost" data-act="rectoggle" data-id="'+r.id+'">'+(r.active === false ? 'Activate' : 'Pause')+'</button> <button class="btn sm ghost" data-act="recdel" data-id="'+r.id+'">Delete</button></td></tr>';
+  }).join('');
+  var pend = recPending(m).length;
+  return xMonthBar() + '<div class="card"><h3>Recurring expenses</h3><p style="margin:0 0 8px;color:var(--muted)">Monthly costs like rent, salary and internet. Press Post to add this month\'s expense. You can change the amount first (electricity changes every month). A month cannot be posted twice.</p>'
+    + '<label class="fld" style="max-width:240px;margin-bottom:8px">'+pinLabel('exp')+'<input class="inp" type="password" inputmode="numeric" data-f="recpin" value="'+esc(S.recpin)+'" autocomplete="off"></label>'
+    + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Expense</th><th style="text-align:right">This month (AED)</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="3" class="empty">No recurring expenses yet.</td></tr>')+'</tbody></table></div>'
+    + (pend ? '<div class="btns"><button class="btn primary" data-act="recpostall">Post all '+pend+' pending for '+esc(monthLabel(m))+'</button></div>' : '')+'</div>'
+    + '<div class="card"><h3>Add a recurring expense</h3><div class="fgrid"><label class="fld">Name<input class="inp" data-f="rf" data-k="name" value="'+esc(f.name)+'" autocomplete="off"></label>'
+    + '<label class="fld">Category<select class="inp" data-f="rfs" data-k="cat">'+db.exp.cats.map(function(x){ return '<option value="'+x.id+'"'+(x.id === f.cat ? ' selected' : '')+'>'+esc(x.name)+'</option>'; }).join('')+'</select></label>'
+    + '<label class="fld">Sub-category<select class="inp" data-f="rfs" data-k="sub">'+(c ? c.subs.map(function(x){ return '<option value="'+x.id+'"'+(x.id === f.sub ? ' selected' : '')+'>'+esc(x.name)+'</option>'; }).join('') : '')+'</select></label>'
+    + '<label class="fld">Usual amount (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="rf" data-k="amt" value="'+esc(f.amt)+'"></label>'
+    + '<label class="fld">Paid from<select class="inp" data-f="rfs" data-k="from"><option value="cash"'+(f.from === 'cash' ? ' selected' : '')+'>Counter cash</option><option value="bank"'+(f.from === 'bank' ? ' selected' : '')+'>Bank</option></select></label>'
+    + '<label class="fld">Paid to (optional)<input class="inp" data-f="rf" data-k="who" value="'+esc(f.who)+'" autocomplete="off"></label>'
+    + '<label class="fld">Day of month<input class="inp" type="number" min="1" max="31" inputmode="numeric" data-f="rf" data-k="day" value="'+esc(f.day)+'"></label></div>'
+    + '<div class="btns"><button class="btn plum" data-act="recadd">Add</button></div></div>';
+}
+function postRec(r, m, ap){
+  var amt = parseFloat(S.recAmt[r.id] !== undefined ? S.recAmt[r.id] : r.amt);
+  if (!(amt > 0)) return false;
+  var xo = {id:uid('e'), t:Date.now(), date:recDate(r, m), cat:r.cat, sub:r.sub, amt:round2(amt), from:r.from, who:r.who || '', bill:'', note:'Recurring: ' + r.name, rec:r.id, by:ap.name};
+  db.exp.items.push(xo); queueEvent('expense', xo); audit('Expenses', 'Recurring expense posted', r.name + ' · ' + m + ' · AED ' + money(xo.amt), {ap:ap.name}); delete S.recAmt[r.id]; return true;
+}
+
+/* ----- report data ----- */
+function monthData(m){
+  var end = monthEnd(m), sales = db.sales.filter(function(s){ return (s.day || '').slice(0, 7) === m; }), ok = sales.filter(function(s){ return !s.void; }), voids = sales.filter(function(s){ return s.void; });
+  var sum = function(a, f){ return a.reduce(function(x, y){ return x + (f(y) || 0); }, 0); };
+  var D = {m:m, end:end, bills:ok.length, net:round2(sum(ok, function(s){ return s.total; })), disc:round2(sum(ok, function(s){ return s.discount; })), vat:round2(sum(ok, function(s){ return s.vat; })), voidN:voids.length, voidAmt:round2(sum(voids, function(s){ return s.total; })), pay:{cash:0, card:0, credit:0}, cat:{}};
+  ok.forEach(function(s){ D.pay[s.pay] = round2((D.pay[s.pay] || 0) + s.total); s.lines.forEach(function(l){ D.cat[l.cat] = round2((D.cat[l.cat] || 0) + l.qty * l.price); }); });
+  D.rev = round2(D.net - D.vat);
+  var pl = db.pur.list.filter(function(p){ return !p.void && p.date.slice(0, 7) === m; });
+  D.pur = {sub:round2(sum(pl, function(p){ return p.sub; })), vat:round2(sum(pl, function(p){ return p.vat; })), total:round2(sum(pl, function(p){ return p.total; })), cash:0, bank:0, credit:0};
+  pl.forEach(function(p){ D.pur[p.pay] = round2(D.pur[p.pay] + p.total); });
+  var ex = db.exp.items.filter(function(e){ return e.date.slice(0, 7) === m; });
+  D.exp = {total:round2(sum(ex, function(e){ return e.amt; })), vat:round2(sum(ex, function(e){ return e.vat; })), cash:round2(sum(ex.filter(function(e){ return e.from !== 'bank'; }), function(e){ return e.amt; })), bank:round2(sum(ex.filter(function(e){ return e.from === 'bank'; }), function(e){ return e.amt; })), cat:{}, cogs:0, opex:0, opexCat:{}};
+  ex.forEach(function(e){
+    var c = xCat(e.cat), net = e.amt - (e.vat || 0), id = e.cat, tp = c ? xCatType(c) : 'opex';
+    D.exp.cat[id] = round2((D.exp.cat[id] || 0) + e.amt);
+    if (tp === 'cogs') D.exp.cogs = round2(D.exp.cogs + net); else { D.exp.opex = round2(D.exp.opex + net); D.exp.opexCat[id] = round2((D.exp.opexCat[id] || 0) + net); }
+  });
+  D.fees = round2(db.cash.entries.reduce(function(a, e){ return a + (e.kind === 'settle' && e.date.slice(0, 7) === m ? (e.fee || 0) : 0); }, 0));
+  D.recv = round2(db.cust.reduce(function(a, c){ return a + db.sales.filter(function(s){ return !s.void && s.pay === 'credit' && s.cust === c.id && s.day <= end; }).reduce(function(x, s){ return x + s.total; }, 0) - db.cpay.filter(function(x){ return x.cust === c.id && x.date <= end; }).reduce(function(x, y){ return x + y.amt; }, 0); }, 0));
+  D.payb = round2(db.sup.reduce(function(a, s){ return a + db.pur.list.filter(function(p){ return !p.void && p.sup === s.id && p.pay === 'credit' && p.date <= end; }).reduce(function(x, p){ return x + p.total; }, 0) - db.pur.pays.filter(function(x){ return x.sup === s.id && x.date <= end; }).reduce(function(x, y){ return x + y.amt; }, 0); }, 0));
+  return D;
+}
+function stockAt(date){
+  var ks = Object.keys(db.days || {}).filter(function(k){ return k <= date && db.days[k].closed && db.days[k].closed.stockVal !== undefined; }).sort();
+  return ks.length ? {date:ks[ks.length - 1], val:db.days[ks[ks.length - 1]].closed.stockVal} : null;
+}
+function pnlOf(m){
+  var D = monthData(m), first = m + '-01', before = addDays(first, -1), endCap = D.end < today() ? D.end : today();
+  var op = db.openStock[m] !== undefined ? {val:+db.openStock[m], manual:true} : stockAt(before), cl = stockAt(endCap), P = {D:D, rev:D.rev, warn:[], opening:null, closing:null};
+  P.purch = D.pur.sub; P.cogsExp = D.exp.cogs;
+  if (op && cl){ P.method = 'stock'; P.opening = op.val; P.closing = cl.val; P.cogs = round2(op.val + P.purch + P.cogsExp - cl.val); if (cl.date < endCap && endCap === D.end) P.warn.push('The last Day close with a stock value is ' + cl.date + '. Close the last day of the month for an exact figure.'); }
+  else { P.method = 'purchases'; P.cogs = round2(P.purch + P.cogsExp); P.warn.push('No stock value at ' + (!op ? 'the start' : 'the end') + ' of this month, so the cost of goods is taken as purchases only. Close the last day of each month (or type the opening stock value below) for an exact profit.'); }
+  P.gp = round2(P.rev - P.cogs); P.gpPct = P.rev > 0 ? P.gp / P.rev * 100 : 0;
+  P.opex = round2(D.exp.opex + D.fees); P.np = round2(P.gp - P.opex); P.npPct = P.rev > 0 ? P.np / P.rev * 100 : 0;
+  var sv = stockValue(); if (sv.missing && P.method === 'stock') P.warn.push(sv.missing + ' item(s) on hand have no cost, so the stock value is understated.');
+  return P;
+}
+
+/* ----- report rendering (screen and print share one builder) ----- */
+function rb(print){
+  var td = print ? 'padding:4px 6px;border-bottom:1px solid #ccc;font-size:12px' : 'padding:7px 6px;border-bottom:1px solid #eee';
+  return {
+    sec:function(t, h2, h3){ return '<tr><td style="'+(print ? 'font-weight:700;font-size:13px;padding:12px 6px 3px;border-bottom:2px solid #000' : 'font-weight:700;padding:16px 6px 4px;border-bottom:2px solid #d8d2d6')+'">'+t+'</td><td style="text-align:right;color:#666;font-size:12px;padding-top:14px;border-bottom:2px solid '+(print ? '#000' : '#d8d2d6')+'">'+(h2 || '')+'</td><td style="text-align:right;color:#666;font-size:12px;padding-top:14px;border-bottom:2px solid '+(print ? '#000' : '#d8d2d6')+'">'+(h3 || '')+'</td></tr>'; },
+    row:function(a, b, o, c){ o = o || {}; var w = o.b ? ';font-weight:700' : ''; return '<tr><td style="'+td+(o.i ? ';padding-left:'+(6 + o.i * 18)+'px' : '')+w+'">'+a+'</td><td style="'+td+';text-align:right;white-space:nowrap'+w+'">'+b+'</td><td style="'+td+';text-align:right;white-space:nowrap;color:#666">'+(c === undefined ? '' : c)+'</td></tr>'; },
+    wrap:function(rows){ return '<table style="width:100%;border-collapse:collapse"><tbody>' + rows + '</tbody></table>'; }
+  };
+}
+function catName(id){ var c = xCat(id); return c ? c.name : 'Deleted category'; }
+function monthlyRows(m, print){
+  var R = rb(print), D = monthData(m), d = ledgerView('drawer', m), b = ledgerView('bank', m), h = '';
+  h += R.sec('Sales') + R.row('Bills', D.bills) + R.row('Sales before discount', money(D.net + D.disc)) + R.row('Discounts', '−' + money(D.disc)) + R.row('Net sales (including VAT)', money(D.net), {b:1}) + (D.vat ? R.row('VAT included', money(D.vat), {i:1}) + R.row('Net sales without VAT', money(D.rev), {i:1}) : '');
+  h += R.sec('Sales by payment type') + R.row('Cash', money(D.pay.cash), {i:1}) + R.row('Card', money(D.pay.card), {i:1}) + R.row('Credit (not yet received)', money(D.pay.credit), {i:1});
+  h += R.sec('Sales by category');
+  Object.keys(D.cat).sort(function(x, y){ return D.cat[y] - D.cat[x]; }).forEach(function(k){ h += R.row(esc(k), money(D.cat[k]), {i:1}); });
+  if (D.voidN) h += R.row('Cancelled bills (' + D.voidN + ')', money(D.voidAmt), {});
+  h += R.sec('Purchases') + R.row('Total purchases (without VAT)', money(D.pur.sub), {b:1}) + (D.pur.vat ? R.row('VAT paid on purchases', money(D.pur.vat), {i:1}) : '') + R.row('Paid from counter cash', money(D.pur.cash), {i:1}) + R.row('Paid from bank', money(D.pur.bank), {i:1}) + R.row('On credit (to pay later)', money(D.pur.credit), {i:1});
+  h += R.sec('Expenses') + R.row('Total expenses', money(D.exp.total), {b:1});
+  Object.keys(D.exp.cat).sort(function(x, y){ return D.exp.cat[y] - D.exp.cat[x]; }).forEach(function(k){ h += R.row(esc(catName(k)), money(D.exp.cat[k]), {i:1}); });
+  h += R.row('Paid from counter cash', money(D.exp.cash), {i:1}) + R.row('Paid from bank', money(D.exp.bank), {i:1}) + (D.fees ? R.row('Card and bank fees (from settlements)', money(D.fees), {i:1}) : '');
+  h += R.sec('Money in and out') + R.row('Counter drawer: start', money(d.start)) + R.row('In', money(d.inn), {i:1}) + R.row('Out', money(d.outt), {i:1}) + R.row('Counter drawer: end', money(d.end), {b:1})
+    + R.row('Bank: start', money(b.start)) + R.row('In', money(b.inn), {i:1}) + R.row('Out', money(b.outt), {i:1}) + R.row('Bank: end', money(b.end), {b:1});
+  h += R.sec('At the end of the month') + R.row('Customers owe us (credit)', money(D.recv)) + R.row('We owe suppliers', money(D.payb));
+  h += R.sec('Quick view') + R.row('Net sales without VAT − purchases − expenses', money(D.rev - D.pur.sub - D.exp.total), {b:1}) + R.row('This is not the profit. See Profit and loss.', '', {});
+  return h;
+}
+function pnlRows(m, print){
+  var R = rb(print), P = pnlOf(m), Q = pnlOf(shiftMonth(m, -1)), h = '', pm = monthLabel(shiftMonth(m, -1));
+  var pc = function(v){ return v.toFixed(1) + '%'; };
+  h += R.sec('', monthLabel(m), pm);
+  h += R.row('Sales without VAT', money(P.rev), {b:1}, money(Q.rev));
+  h += R.sec('Cost of goods sold');
+  if (P.method === 'stock') h += R.row('Opening stock value' + (P.D && db.openStock[m] !== undefined ? ' (typed)' : ''), money(P.opening), {i:1}, Q.method === 'stock' ? money(Q.opening) : '-');
+  h += R.row('+ Purchases', money(P.purch), {i:1}, money(Q.purch));
+  h += R.row('+ Cost-of-goods expenses', money(P.cogsExp), {i:1}, money(Q.cogsExp));
+  if (P.method === 'stock') h += R.row('− Closing stock value', '−' + money(P.closing), {i:1}, Q.method === 'stock' ? '−' + money(Q.closing) : '-');
+  h += R.row('Cost of goods sold', money(P.cogs), {b:1}, money(Q.cogs));
+  h += R.row('Gross profit', money(P.gp), {b:1}, money(Q.gp)) + R.row('Gross margin', pc(P.gpPct), {i:1}, pc(Q.gpPct));
+  h += R.sec('Operating expenses');
+  Object.keys(P.D.exp.opexCat).sort(function(x, y){ return P.D.exp.opexCat[y] - P.D.exp.opexCat[x]; }).forEach(function(k){ h += R.row(esc(catName(k)), money(P.D.exp.opexCat[k]), {i:1}, Q.D.exp.opexCat[k] ? money(Q.D.exp.opexCat[k]) : '-'); });
+  if (P.D.fees || Q.D.fees) h += R.row('Card and bank fees', money(P.D.fees), {i:1}, money(Q.D.fees));
+  h += R.row('Total operating expenses', money(P.opex), {b:1}, money(Q.opex));
+  h += R.sec('Result') + R.row('Net profit', money(P.np), {b:1}, money(Q.np)) + R.row('Net margin', pc(P.npPct), {i:1}, pc(Q.npPct));
+  return {html:h, P:P};
+}
+function vatRows(m, print){
+  var R = rb(print), D = monthData(m), out = D.vat, inP = D.pur.vat, inE = D.exp.vat, net = round2(out - inP - inE), h = '';
+  h += R.sec('Output VAT (collected on sales)') + R.row('Net sales without VAT', money(D.rev)) + R.row('VAT on sales', money(out), {b:1});
+  h += R.sec('Input VAT (paid on purchases and expenses)') + R.row('VAT on purchases', money(inP), {i:1}) + R.row('VAT on expenses', money(inE), {i:1}) + R.row('Total input VAT', money(inP + inE), {b:1});
+  h += R.sec('To pay') + R.row(net >= 0 ? 'VAT payable to the tax authority' : 'VAT refundable', money(Math.abs(net)), {b:1});
+  return h;
+}
+function repHead(title, m){ var G = setg(); return '<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><img src="'+LOGO+'" alt="" style="height:54px"><div><div style="font-size:22px;font-weight:700">'+esc(G.shop)+'</div><div style="font-size:15px">'+esc(title)+' · '+esc(monthLabel(m))+'</div>'+(G.trn ? '<div style="font-size:12px">TRN '+esc(G.trn)+'</div>' : '')+'</div></div>'; }
+function repPrint(kind, m){
+  var R = rb(true), body;
+  if (kind === 'pnl'){ var x = pnlRows(m, true); body = R.wrap(x.html) + (x.P.warn.length ? '<p style="font-size:11px;margin-top:10px">Note: ' + esc(x.P.warn.join(' ')) + '</p>' : ''); return '<div style="color:#000;padding:4mm">' + repHead('Profit and loss', m) + body + '</div>'; }
+  if (kind === 'vat') return '<div style="color:#000;padding:4mm">' + repHead('VAT report', m) + R.wrap(vatRows(m, true)) + '</div>';
+  return '<div style="color:#000;padding:4mm">' + repHead('Monthly report', m) + R.wrap(monthlyRows(m, true)) + '<div style="display:flex;justify-content:space-between;margin-top:30px;font-size:12px"><span>Prepared by: '+esc(curName())+'</span><span>Approved by: ______________________</span></div></div>';
+}
+function vReports(){
+  var tabs = [['month', 'Monthly report'], ['pnl', 'Profit and loss'], ['vat', 'VAT'], ['lock', 'Lock months']], m = S.rm, R = rb(false);
+  var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="rtab" data-id="'+t[0]+'" aria-pressed="'+(S.rt === t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
+  var bar = '<div class="bar" style="margin:10px 0"><button class="btn sm ghost" data-act="rmonth" data-v="-1">‹</button><b>'+monthLabel(m)+'</b><button class="btn sm ghost" data-act="rmonth" data-v="1">›</button>'+(db.locks[m] ? ' <span class="pill cash">Locked</span>' : '')+'<span class="sp"></span>'+(S.rt !== 'lock' ? '<button class="btn sm ghost" data-act="repprint">Print / PDF</button>' : '')+'</div>';
+  var body = '';
+  if (S.rt === 'pnl'){
+    var x = pnlRows(m, false), P = x.P;
+    body = '<div class="card"><h3 style="margin:0 0 4px">Profit and loss</h3><p style="margin:0;color:var(--muted);font-size:13px">Sales without VAT − cost of goods sold = gross profit. Gross profit − operating expenses = net profit. Cost of goods = opening stock + purchases + cost-of-goods expenses − closing stock.</p>'
+      + R.wrap(x.html) + (P.warn.length ? '<div style="margin-top:12px;padding:10px;border-radius:10px;background:#fff6dd;font-size:13px">'+P.warn.map(esc).join('<br>')+'</div>' : '')
+      + '<div style="margin-top:14px"><h3 style="font-size:15px;margin:0 0 6px">Opening stock value for '+esc(monthLabel(m))+'</h3><div class="fgrid"><label class="fld">Type it if there is no Day close before this month (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="osv" value="'+esc(S.osv)+'" placeholder="'+(db.openStock[m] !== undefined ? db.openStock[m] : '')+'"></label><label class="fld">'+pinLabel('reports')+'<input class="inp" type="password" inputmode="numeric" data-f="rpin" value="'+esc(S.rpin)+'" autocomplete="off"></label></div><div class="btns"><button class="btn sm plum" data-act="osvsave">Save opening stock value</button>'+(db.openStock[m] !== undefined ? ' <button class="btn sm ghost" data-act="osvclear">Use the Day close value</button>' : '')+'</div></div></div>';
+  } else if (S.rt === 'vat'){
+    body = setg().vat ? '<div class="card"><h3 style="margin:0 0 6px">VAT report</h3>' + R.wrap(vatRows(m, false)) + '<p style="color:var(--muted);font-size:13px;margin:10px 0 0">Input VAT comes from the VAT amount typed on purchases and expenses. Prices in the POS include VAT.</p></div>' : '<div class="card"><div class="empty">VAT is off. Turn it on in Settings to use this report.</div></div>';
+  } else if (S.rt === 'lock'){
+    var cur = today().slice(0, 7), ms = [], i; for (i = 1; i <= 12; i++) ms.push(shiftMonth(cur, -i));
+    bar = '';
+    body = '<div class="card"><h3>Lock months</h3><p style="margin:0 0 8px;color:var(--muted)">After you have checked a month and given the reports to your partners, lock it. Nothing dated in a locked month can be added, changed, cancelled or deleted. Only the Owner can unlock it, and it is recorded.</p>'
+      + '<label class="fld" style="max-width:240px;margin-bottom:8px">'+pinLabel('lock')+'<input class="inp" type="password" inputmode="numeric" data-f="rpin" value="'+esc(S.rpin)+'" autocomplete="off"></label>'
+      + '<table class="tbl"><tbody>' + ms.map(function(k){ var L = db.locks[k]; return '<tr><td><b>'+esc(monthLabel(k))+'</b>'+(L ? '<small style="display:block;color:var(--muted)">locked by '+esc(L.by)+' · '+auditTime(L.t)+'</small>' : '')+'</td><td style="text-align:right">'+(L ? '<span class="pill cash">Locked</span> <button class="btn sm ghost" data-act="mlock" data-m="'+k+'" data-v="0">Unlock</button>' : '<button class="btn sm primary" data-act="mlock" data-m="'+k+'" data-v="1">Lock</button>')+'</td></tr>'; }).join('') + '</tbody></table></div>';
+  } else body = '<div class="card"><h3 style="margin:0 0 4px">Monthly report</h3>' + R.wrap(monthlyRows(m, false)) + '</div>';
+  return '<div class="page"><div class="bar">'+seg+'</div>' + bar + body + '</div>';
+}
+
+/* ----- backup and restore ----- */
+function backupCard(){
+  var age = db.lastBackup ? Math.floor((Date.now() - db.lastBackup) / 864e5) : null, b = S.bkp;
+  return '<div class="card"><h3>Backup and restore</h3><p style="margin:0 0 8px;color:var(--muted)">All data is saved in this browser only. Download a backup every week and keep it safe (email it to yourself). '
+    + (db.lastBackup ? 'Last backup: <b>'+auditTime(db.lastBackup)+'</b> ('+(age === 0 ? 'today' : age + ' days ago')+').' : '<b style="color:var(--pink-dk)">No backup has been downloaded yet.</b>')+'</p>'
+    + '<div class="btns" style="justify-content:flex-start"><button class="btn primary" data-act="bkdl">Download backup</button></div>'
+    + '<h3 style="font-size:15px;margin:16px 0 6px">Restore from a backup file</h3><p style="margin:0 0 8px;color:var(--muted);font-size:13px">This replaces everything in this browser with the backup. Only the Owner can do it.</p>'
+    + '<input id="bkfile" type="file" accept=".json,application/json" class="inp">'
+    + (b ? '<p style="margin:8px 0 0;font-size:14px">Backup from <b>'+auditTime(b.t)+'</b>: '+b.sales+' bills, '+b.users+' users, '+b.exp+' expenses.</p><label class="fld" style="margin-top:8px;max-width:260px">Owner PIN<input class="inp" type="password" inputmode="numeric" data-f="bkpin" value="'+esc(S.bkpin)+'" autocomplete="off"></label><div class="btns" style="justify-content:flex-start"><button class="btn danger" data-act="bkrestore">Replace everything with this backup</button></div>' : '')+'</div>';
+}
+function backupAgeTile(tile){
+  if (!can('settings')) return '';
+  var age = db.lastBackup ? Math.floor((Date.now() - db.lastBackup) / 864e5) : null;
+  return tile('Backup', age === null ? 'Never' : (age === 0 ? 'Today' : age + ' days ago'), age === null || age >= 7 ? 'Download a backup now' : 'last download', 'gobackup', age === null || age >= 7);
+}
+
+/* ----- dashboard + events ----- */
+DASH_EXT.push(function(tile){ if (!can('exp')) return ''; var n = recDueNow().length; return n ? tile('Recurring expenses', n + ' not posted', 'rent, salary, bills this month', 'gorec', true) : ''; });
+DASH_EXT.push(backupAgeTile);
+document.addEventListener('input', function(e){
+  var t = e.target, f = t.dataset && t.dataset.f; if (!f) return;
+  if (f === 'rf') S.rf[t.dataset.k] = t.value; else if (f === 'recpin') S.recpin = t.value; else if (f === 'recamt') S.recAmt[t.dataset.id] = t.value;
+  else if (f === 'rpin') S.rpin = t.value; else if (f === 'osv') S.osv = t.value; else if (f === 'bkpin') S.bkpin = t.value;
+});
+document.addEventListener('change', function(e){
+  var t = e.target, f = t.dataset && t.dataset.f;
+  if (f === 'rfs'){ S.rf[t.dataset.k] = t.value; if (t.dataset.k === 'cat') S.rf.sub = ''; render(); return; }
+  if (t.id === 'bkfile' && t.files && t.files[0]){
+    var rd = new FileReader();
+    rd.onload = function(){
+      try { var d = JSON.parse(rd.result); if (!d || !d.db || !Array.isArray(d.db.sales)) throw 0; S.bkp = {data:d, t:d.t || Date.now(), sales:d.db.sales.length, users:(d.db.users || []).length, exp:((d.db.exp && d.db.exp.items) || []).length}; S.bkpin = ''; }
+      catch(er){ S.bkp = null; toast('This is not a Hollywood POS backup file'); }
+      render();
+    };
+    rd.readAsText(t.files[0]);
+  }
+});
+document.addEventListener('click', function(e){
+  var el = e.target.closest('[data-act]'); if (!el) return;
+  var a = el.dataset.act, d = el.dataset;
+  switch (a){
+    case 'gorec': S.tab = 'exp'; S.xt = 'rec'; S.xm = today().slice(0, 7); break;
+    case 'gobackup': S.tab = can('settings') ? 'settings' : S.tab; break;
+    case 'rtab': S.rt = d.id; break;
+    case 'rmonth': S.rm = shiftMonth(S.rm, +d.v); break;
+    case 'repprint': printHtml(repPrint(S.rt, S.rm)); return;
+    case 'recadd':
+      var f = S.rf; if (!f.name.trim()){ toast('Enter the name'); return; } if (!(parseFloat(f.amt) > 0)){ toast('Enter the usual amount'); return; }
+      var nr = {id:uid('q'), name:f.name.trim(), cat:f.cat, sub:f.sub, amt:round2(parseFloat(f.amt)), from:f.from, who:f.who.trim(), day:String(Math.min(31, Math.max(1, parseInt(f.day, 10) || 1))), active:true};
+      db.rec.push(nr); audit('Expenses', 'Recurring expense added', nr.name + ' · AED ' + money(nr.amt) + ' · day ' + nr.day); S.rf = {name:'', cat:f.cat, sub:f.sub, amt:'', from:f.from, who:'', day:'1'}; toast('Added'); break;
+    case 'recpost': case 'recpostall':
+      var ap = pinUser(S.recpin, 'exp'); if (!ap){ toast('Enter your PIN above'); return; }
+      var list = a === 'recpost' ? [byId(db.rec, d.id)] : recPending(S.xm), n = 0;
+      list.forEach(function(r){ if (r && r.active !== false && !recPosted(r.id, S.xm) && postRec(r, S.xm, ap)) n++; });
+      toast(n ? n + ' expense(s) posted' : 'Enter an amount first'); break;
+    case 'recsave':
+      var r2 = byId(db.rec, d.id), v = parseFloat(S.recAmt[d.id]);
+      if (!(v > 0)){ toast('Type the new amount first'); return; }
+      audit('Expenses', 'Recurring amount changed', r2.name + ': AED ' + money(r2.amt) + ' to AED ' + money(v)); r2.amt = round2(v); delete S.recAmt[d.id]; toast('Saved'); break;
+    case 'rectoggle': var r3 = byId(db.rec, d.id); r3.active = r3.active === false; audit('Expenses', r3.active ? 'Recurring expense resumed' : 'Recurring expense paused', r3.name); break;
+    case 'recdel': var r4 = byId(db.rec, d.id); db.rec = db.rec.filter(function(x){ return x.id !== d.id; }); audit('Expenses', 'Recurring expense deleted', r4.name, {flag:1}); break;
+    case 'mlock':
+      var lp = pinUser(S.rpin, 'lock'); if (!lp){ toast('Owner PIN needed'); return; }
+      if (d.v === '1'){ db.locks[d.m] = {by:lp.name, t:Date.now()}; audit('Day close', 'Month locked', monthLabel(d.m), {ap:lp.name, flag:1}); toast('Locked'); }
+      else { delete db.locks[d.m]; audit('Day close', 'Month unlocked', monthLabel(d.m), {ap:lp.name, flag:1}); toast('Unlocked'); } break;
+    case 'osvsave':
+      var op = pinUser(S.rpin, 'reports'); if (!op){ toast('Wrong PIN'); return; }
+      var ov = parseFloat(S.osv); if (!(ov >= 0)){ toast('Enter the value'); return; }
+      db.openStock[S.rm] = round2(ov); audit('Stock', 'Opening stock value typed', monthLabel(S.rm) + ' · AED ' + money(ov), {ap:op.name, flag:1}); S.osv = ''; toast('Saved'); break;
+    case 'osvclear': delete db.openStock[S.rm]; audit('Stock', 'Typed opening stock value removed', monthLabel(S.rm)); break;
+    case 'bkdl':
+      try {
+        var pack = {app:'hollywood-pos', v:1, t:Date.now(), db:db, menu:menu}, bl = new Blob([JSON.stringify(pack)], {type:'application/json'}), an = document.createElement('a');
+        an.href = URL.createObjectURL(bl); an.download = 'hollywood-pos-backup-' + today() + '.json'; document.body.appendChild(an); an.click(); document.body.removeChild(an);
+        db.lastBackup = Date.now(); audit('Settings', 'Backup downloaded', ''); toast('Backup downloaded');
+      } catch(er){ toast('Download is not available here'); } break;
+    case 'bkrestore':
+      var rp = pinUser(S.bkpin, 'users'); if (!rp){ toast('Owner PIN needed'); return; }
+      if (!S.bkp) return;
+      try {
+        var dd = S.bkp.data, k; for (k in db) delete db[k]; for (k in dd.db) db[k] = dd.db[k];
+        if (!db.audit) db.audit = []; db.audit.push({id:uid('a'), t:Date.now(), u:rp.name, uid:'', cat:'Settings', act:'Backup restored', d:'From backup of ' + auditTime(S.bkp.t) + ' · ' + S.bkp.sales + ' bills', flag:1});
+        mem = db; try { localStorage.setItem(K, JSON.stringify(db)); if (dd.menu) localStorage.setItem(K_MENU, JSON.stringify(dd.menu)); } catch(er){}
+        S.bkp = null; toast('Restored. Reloading'); setTimeout(function(){ location.reload(); }, 600);
+      } catch(er){ toast('Restore failed'); } return;
     default: return;
   }
   save(); render();
