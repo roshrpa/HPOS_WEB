@@ -29,6 +29,10 @@ header.top{display:flex;align-items:center;gap:14px;padding:8px 18px;background:
 .syncpill.wait,.syncpill.busy{color:var(--warn);background:var(--warn-bg)} .syncpill.wait::before,.syncpill.busy::before{background:#d99a1f}
 .syncpill.err{color:var(--pink-dk);background:#fde6ed} .syncpill.err::before{background:var(--pink)}
 nav.tabs{display:flex;gap:6px}
+.userchip{display:flex;flex-direction:column;line-height:1.1;font-size:13px;margin-left:auto} .userchip small{color:var(--muted);font-size:11px}
+.lockbtn{border-radius:99px;padding:6px 14px;font-size:12px;font-weight:700;background:#f1eef0;color:var(--ink,#333);min-height:32px}
+.pchg{margin-left:6px;padding:0 8px;border-radius:8px;background:#f1eef0;font-size:13px;min-height:24px;color:var(--pink-dk)}
+.tblwrap{overflow-x:auto}
 nav.tabs button{padding:10px 15px;border-radius:99px;font-weight:600;color:var(--muted);min-height:46px}
 nav.tabs button[aria-current="true"]{background:var(--pink);color:#fff}
 main{flex:1;min-height:0;display:flex}
@@ -633,8 +637,6 @@ function discAmt(){
   return Math.min(round2(S.disc.type === 'pct' ? sub * v / 100 : v), sub);
 }
 function billTotal(){ return totalOf(S.cart) - discAmt(); }
-function pinOn(){ return !!setg().pinOn; }
-function pinOk(f){ return !pinOn() || (f.pin || '') === String(setg().pin); }
 function reasonOk(f){ return !!f.reason && (f.reason.indexOf('Other') !== 0 || f.note.trim().length > 2); }
 function vatRate(){ return setg().vat ? (parseFloat(setg().rate) || 0) / 100 : 0; }
 function vatOf(total){ var r = vatRate(); return total * r / (1 + r); }
@@ -724,8 +726,7 @@ function vSettings(){
     + (G.vat ? '<div class="card"><div class="fgrid">'+inp('VAT rate (%)','rate',G.rate,'number')+inp('Tax registration number (TRN)','trn',G.trn)+'</div><p style="color:var(--muted);font-size:13px;margin:10px 0 0">Prices in the menu are treated as including VAT.</p></div>' : '')
     + sw(G.allowZero, 'tgzero', 'Allow sale when item stock is 0', G.allowZero ? 'Staff can keep selling even if the stock count was not updated. Stock goes below zero so you can see it.' : 'An item with 0 stock shows Sold out and cannot be sold.')
     + sw(!!G.carryOpen, 'tgcarry', 'Carry the closing cash to the next day', G.carryOpen ? 'On Day close you enter how much cash stays in the counter. It becomes the opening cash of the next day automatically.' : 'Type the opening cash by hand every morning.')
-    + sw(!!G.pinOn, 'tgpin', 'Ask for manager PIN', G.pinOn ? 'The PIN is asked when giving a discount, cancelling a bill, and opening Settings or Menu.' : 'Anyone using the POS can give discounts, cancel bills and change settings.')
-    + '<div class="card"><div class="fgrid">'+inp('Manager PIN (4 digits or more)','pin',G.pin)+'</div>'+(G.pinOn && String(G.pin||'').length < 4 ? '<p style="color:var(--pink-dk);font-size:13px;margin:8px 0 0">The PIN is too short. Use at least 4 digits.</p>' : '')+'</div>'
+    + '<div class="card"><p style="margin:0;color:var(--muted)">Logins, PINs and permissions are managed in the Users tab (Owner only).</p></div>'
     + syncCard()
     + '<div class="card"><h3>Shop and receipt</h3><div class="fgrid">'+inp('Shop name','shop',G.shop)+inp('Phone on receipt','tel',G.tel)+inp('Instagram on receipt','insta',G.insta)+inp('Low stock warning at (items)','lowAt',G.lowAt,'number')+'</div></div>'
     + '<p style="color:var(--muted);font-size:13px">Changes apply to new bills. Bills already made keep the VAT they were made with.</p></div>';
@@ -947,9 +948,9 @@ function closeRefresh(){
 }
 
 function vHeader(){
-  function tab(id, label){ return '<button data-act="tab" data-v="'+id+'" aria-current="'+(S.tab===id)+'">'+label+'</button>'; }
-  return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+'<nav class="tabs">'
-    + tab('sale','Sale') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Stock') + tab('exp','Expenses') + tab('menu','Menu') + tab('settings','Settings') + '</nav></header>';
+  function tab(id, label){ if (TAB_PERM[id] && !can(TAB_PERM[id])) return ''; return '<button data-act="tab" data-v="'+id+'" aria-current="'+(S.tab===id)+'">'+label+'</button>'; }
+  return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+userChip()+'<nav class="tabs">'
+    + tab('sale','Sale') + tab('sales','Sales') + tab('close','Day close') + tab('inv','Inventory') + tab('stock','Stock') + tab('exp','Expenses') + tab('menu','Menu') + tab('audit','Audit') + tab('users','Users') + tab('settings','Settings') + '</nav></header>';
 }
 
 function vSale(){
@@ -971,7 +972,7 @@ function vSale(){
   }).join('');
   var sub0 = totalOf(S.cart), dsc = discAmt(), total = sub0 - dsc, vat = vatOf(total);
   var lines = S.cart.length ? S.cart.map(function(l, i){
-    return '<div class="line"><div class="t"><b>'+(l.size?'<span class="size">'+esc(l.size)+'</span>':'')+esc(l.name)+'</b><span>AED '+money(l.price)+' · '+esc(l.cat)+'</span></div>'
+    return '<div class="line"><div class="t"><b>'+(l.size?'<span class="size">'+esc(l.size)+'</span>':'')+esc(l.name)+'</b><span>AED '+money(l.price)+(l.mod ? ' <s style="opacity:.6">'+money(l.orig)+'</s>' : '')+' · '+esc(l.cat)+'<button class="pchg" data-act="pricechg" data-i="'+i+'" aria-label="Change price">✎ Price</button></span></div>'
       + '<div class="qty"><button data-act="dec" data-i="'+i+'" aria-label="Less">−</button><output>'+l.qty+'</output><button data-act="inc" data-i="'+i+'" aria-label="More">+</button></div>'
       + '<div class="amt">'+money(l.qty*l.price)+'</div><button class="rm" data-act="rm" data-i="'+i+'" aria-label="Remove">×</button></div>';
   }).join('') : '<div class="empty">Bill is empty.<br>Tap an item to add it.</div>';
@@ -1242,6 +1243,7 @@ function xPrintHtml(m){
     + '<div style="font-weight:700;margin:6px 0">Details</div><table style="width:100%;border-collapse:collapse"><thead><tr><th style="'+th+'">Date</th><th style="'+th+'">Category</th><th style="'+th+'">Paid to / note</th><th style="'+th+'">Paid from</th><th style="'+th+';text-align:right">AED</th></tr></thead><tbody>'+det+'</tbody></table>'
     + '<div style="display:flex;justify-content:space-between;margin-top:36px;font-size:12px"><span>Prepared by: ______________________</span><span>Approved by: ______________________</span></div></div>';
 }
+function xAudDesc(e){ var c = xCat(e.cat); return xDate(e.date) + ' · ' + xLabel(e) + ' · AED ' + money(e.amt) + ' · ' + xFromLabel(e.from) + (e.who ? ' · ' + e.who : ''); }
 function xCsv(m){
   var rows = [['Date','Category','Sub-category','Paid to / supplier','Bill no.','Note','Paid from','Amount (AED)']];
   xMonthItems(m).slice().reverse().forEach(function(e){ var c = xCat(e.cat), s = xSub(c, e.sub); rows.push([e.date, c ? c.name : '', s ? s.name : '', e.who, e.bill, e.note, xFromLabel(e.from), money(e.amt)]); });
@@ -1301,12 +1303,13 @@ function vSheets(){
     return '<div class="scrim" data-act="tabclose"><div class="sheet" role="dialog" aria-label="Tablet orders"><h3>Tablet orders</h3><p>Orders taken at the cars that are not billed yet. Load one into the bill, then take payment.</p>'
       + (tl || '<div class="empty">No tablet orders waiting.</div>') + '<div class="btns"><button class="btn ghost" data-act="tabclose">Close</button></div></div></div>';
   }
+  if (S.priceForm) return vPriceSheet();
   if (S.voidForm){
     var vf = S.voidForm, vs = byId(db.sales, vf.id);
     if (vs) return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Cancel bill"><h3>Cancel bill #'+vs.no+'</h3><p>AED '+money(vs.total)+'. A reason is required and appears in the report.</p>'
       + '<label class="fld">Reason<select id="vreason" class="inp" data-f="vreason"><option value="">Choose a reason</option>'+VOID_REASONS.map(function(r){ return '<option'+(r===vf.reason?' selected':'')+'>'+esc(r)+'</option>'; }).join('')+'</select></label>'
       + '<label class="fld" style="margin-top:10px">Note'+(vf.reason.indexOf('Other')===0?' (required)':' (optional)')+'<input id="vnote" class="inp" data-f="vnote" value="'+esc(vf.note)+'" autocomplete="off"></label>'
-      + (pinOn() ? '<label class="fld" style="margin-top:10px">Manager PIN<input id="mpin" class="inp" type="password" inputmode="numeric" data-f="vpin" value="'+esc(vf.pin||'')+'" autocomplete="off"></label>' : '')
+      + (pinOn() ? '<label class="fld" style="margin-top:10px">'+pinLabel('void')+'<input id="mpin" class="inp" type="password" inputmode="numeric" data-f="vpin" value="'+esc(vf.pin||'')+'" autocomplete="off"></label>' : '')
       + '<div class="btns"><button class="btn ghost" data-act="voidclose">Keep the bill</button><button class="btn primary" data-act="voidyes"'+((reasonOk(vf) && pinOk(vf))?'':' disabled')+'>Cancel bill</button></div></div></div>';
   }
   if (S.discForm){
@@ -1317,7 +1320,7 @@ function vSheets(){
       + '<div class="quick">'+(df.type==='pct' ? [5,10,15,20].map(function(v){ return '<button data-act="dquick" data-v="'+v+'">'+v+'%</button>'; }).join('') : [2,5,10,20].map(function(v){ return '<button data-act="dquick" data-v="'+v+'">'+v+'</button>'; }).join(''))+'</div>'
       + '<label class="fld">Reason<select id="dreason" class="inp" data-f="dreason"><option value="">Choose a reason</option>'+DISC_REASONS.map(function(r){ return '<option'+(r===df.reason?' selected':'')+'>'+esc(r)+'</option>'; }).join('')+'</select></label>'
       + '<label class="fld" style="margin-top:10px">Note'+(df.reason.indexOf('Other')===0?' (required)':' (optional)')+'<input id="dnote" class="inp" data-f="dnote" value="'+esc(df.note)+'" autocomplete="off"></label>'
-      + (pinOn() ? '<label class="fld" style="margin-top:10px">Manager PIN<input id="mpin" class="inp" type="password" inputmode="numeric" data-f="dpin" value="'+esc(df.pin||'')+'" autocomplete="off"></label>' : '')
+      + (pinOn() ? '<label class="fld" style="margin-top:10px">'+pinLabel('discount')+'<input id="mpin" class="inp" type="password" inputmode="numeric" data-f="dpin" value="'+esc(df.pin||'')+'" autocomplete="off"></label>' : '')
       + '<div class="change"><span>New total</span><span id="dnew">AED '+money(sb - dam)+'</span></div>'
       + '<div class="btns"><button class="btn ghost" data-act="discclose">Back</button><button class="btn primary" data-act="discapply"'+((dv > 0 && reasonOk(df) && pinOk(df)) ? '' : ' disabled')+'>Apply discount</button></div></div></div>';
   }
@@ -1343,9 +1346,11 @@ function normalizeDisc(){ if (!S.cart.length){ S.disc = null; S.fromOrder = null
 var SCR = ['.items', '.cats', '.rail', '.lines', '.page', '.ed .main', '.ed .list'], lastKey = '';
 function render(){
   normalizeDisc();
+  var au = authScreen(); if (au){ document.getElementById('app').innerHTML = au; var lp0 = document.getElementById('lpin'); if (lp0) lp0.focus(); return; }
+  if (TAB_PERM[S.tab] && !can(TAB_PERM[S.tab])) S.tab = 'sale';
   var keep = {}; SCR.forEach(function(s){ var e = document.querySelector(s); if (e) keep[s] = [e.scrollTop, e.scrollLeft]; });
   var key = S.tab;
-  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : (pinOn() && !S.unlocked && (S.tab === 'settings' || S.tab === 'menu' || S.tab === 'exp')) ? vGate() : S.tab === 'close' ? vClose() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
+  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
   document.getElementById('app').innerHTML = vHeader() + '<main>' + body + '</main>' + vSheets();
   paintSync();
   SCR.forEach(function(s){ var e = document.querySelector(s), k = keep[s]; if (e && k && key === lastKey && !(s === '.items' && S.catChanged)){ e.scrollTop = k[0]; e.scrollLeft = k[1]; } });
@@ -1357,16 +1362,18 @@ function addLine(c, item, size){
   var left = stockLeft(c.name, item.name);
   if (left !== null && !setg().allowZero && inCart(c.name, item.name) >= left){ toast('Only ' + left + ' left in stock'); return; }
   var label = size.label, price = priceOf(item, size);
-  var f = S.cart.filter(function(l){ return l.cat === c.name && l.name === item.name && l.size === label && l.price === price; })[0];
+  var f = S.cart.filter(function(l){ return l.cat === c.name && l.name === item.name && l.size === label && l.price === price && !l.mod; })[0];
   if (f) f.qty++; else S.cart.push({cat:c.name, name:item.name, size:label, price:price, qty:1});
 }
 function finishSale(){
   if (db.day !== today()){ db.day = today(); db.counter = 0; }
   db.counter++;
-  var s = {id:uuid(), dev:sync.dev || '', no:db.counter, t:Date.now(), day:today(), lines:S.cart.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty}; }), subtotal:totalOf(S.cart), discount:discAmt(), discReason:S.disc ? S.disc.reason : '', discNote:S.disc ? S.disc.note : '', total:billTotal(), pay:S.pay, tendered:S.pay==='cash'?parseFloat(S.tendered):0, void:false, vat:vatOf(billTotal()), vatRate:setg().vat ? setg().rate : 0};
+  var s = {by:curName(), uid:S.uid, id:uuid(), dev:sync.dev || '', no:db.counter, t:Date.now(), day:today(), lines:S.cart.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty, orig:l.orig, mod:l.mod, modBy:l.modBy, modWhy:l.modWhy}; }), subtotal:totalOf(S.cart), discount:discAmt(), discReason:S.disc ? S.disc.reason : '', discNote:S.disc ? S.disc.note : '', discBy:S.disc ? S.disc.by : '', total:billTotal(), pay:S.pay, tendered:S.pay==='cash'?parseFloat(S.tendered):0, void:false, vat:vatOf(billTotal()), vatRate:setg().vat ? setg().rate : 0};
   s.lines.forEach(function(l){ var k = skey(l.cat, l.name), v = db.stock[k]; if (v !== undefined && v !== null && v !== '') db.stock[k] = setg().allowZero ? +v - l.qty : Math.max(0, +v - l.qty); });
   db.sales.push(s); save();
-  queueEvent('sale', {id:s.id, no:(s.dev ? s.dev + '-' : '') + s.no, day:s.day, t:s.t, pay:s.pay, subtotal:s.subtotal, discount:s.discount, discReason:s.discReason, discNote:s.discNote, total:s.total, vat:s.vat, vatRate:s.vatRate, tendered:s.tendered, lines:s.lines});
+  s.lines.forEach(function(l){ if (l.mod) audit('Sales', 'Price changed at sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty + ': AED ' + money(l.orig) + ' to AED ' + money(l.price) + '. Reason: ' + l.modWhy, {ap:l.modBy, flag:1}); });
+  if (s.discount > 0) audit('Sales', 'Discount given', 'Bill #' + s.no + ' · AED ' + money(s.discount) + '. Reason: ' + s.discReason + (s.discNote ? ' – ' + s.discNote : ''), {ap:s.discBy, flag:1});
+  queueEvent('sale', {by:s.by, discBy:s.discBy, id:s.id, no:(s.dev ? s.dev + '-' : '') + s.no, day:s.day, t:s.t, pay:s.pay, subtotal:s.subtotal, discount:s.discount, discReason:s.discReason, discNote:s.discNote, total:s.total, vat:s.vat, vatRate:s.vatRate, tendered:s.tendered, lines:s.lines});
   if (S.fromOrder){ var fo = (db.tOrders || []).filter(function(x){ return String(x.id) === String(S.fromOrder); })[0]; if (fo) fo.status = 'done'; queueEvent('order_done', {id:S.fromOrder, done:true, sale:s.id}); S.fromOrder = null; save(); }
   S.disc = null; S.cart = []; S.pay = null; S.tendered = ''; S.receipt = s.id;
 }
@@ -1470,7 +1477,7 @@ document.addEventListener('click', function(e){
     case 'payok': if (S.pay === 'cash' && !(parseFloat(S.tendered) >= billTotal())) break; finishSale(); break;
     case 'closerec': S.receipt = null; break;
     case 'view': S.receipt = d.id; break;
-    case 'print': document.body.classList.add('pr'); try { window.print(); } catch(err){ toast('Printing is not available here'); } document.body.classList.remove('pr'); return;
+    case 'print': var prs = byId(db.sales, S.receipt); if (prs) audit('Sales', 'Receipt printed', 'Bill #' + prs.no + ' · AED ' + money(prs.total)); document.body.classList.add('pr'); try { window.print(); } catch(err){ toast('Printing is not available here'); } document.body.classList.remove('pr'); return;
     case 'range': S.range = d.id; break;
     case 'addout':
       var coa = parseFloat(document.getElementById('co_a').value);
@@ -1495,8 +1502,8 @@ document.addEventListener('click', function(e){
     case 'closeyes':
       S.closeAsk = false;
       var cdt = S.closeDate || today(), cn = closeNums(cdt);
-      cn.R.closed = {t:Date.now(), net:cn.D.net, cash:cn.D.cash, card:cn.D.card, expected:cn.expected, cashDiff:cn.cashDiff, cardDiff:cn.cardDiff, bills:cn.D.ok.length, kept:cn.kept, taken:cn.taken};
-      queueEvent('day_close', {day:cdt, opening:cn.opening, counted:cn.R.counted, cardMachine:cn.R.cardMachine, note:cn.R.note, closed:cn.R.closed}); save(); toast('Day closed'); break;
+      cn.R.closed = {by:curName(), t:Date.now(), net:cn.D.net, cash:cn.D.cash, card:cn.D.card, expected:cn.expected, cashDiff:cn.cashDiff, cardDiff:cn.cardDiff, bills:cn.D.ok.length, kept:cn.kept, taken:cn.taken};
+      queueEvent('day_close', {day:cdt, opening:cn.opening, counted:cn.R.counted, cardMachine:cn.R.cardMachine, note:cn.R.note, closed:cn.R.closed}); audit('Day close', 'Day closed', cdt + ' · sales AED ' + money(cn.D.net) + ' · cash difference ' + money(cn.cashDiff) + ' · taken out ' + money(cn.taken), {flag:Math.abs(cn.cashDiff) >= 0.5 || Math.abs(cn.cardDiff) >= 0.5}); save(); toast('Day closed'); break;
     case 'copyclose':
       try { navigator.clipboard.writeText(closeText(S.closeDate || today())).then(function(){ toast('Report copied'); }, function(){ toast('Copy not allowed here'); }); } catch(err){ toast('Copy not allowed here'); }
       return;
@@ -1517,14 +1524,14 @@ document.addEventListener('click', function(e){
       if (!xf.date){ toast('Choose the date'); return; }
       if (!(xa > 0)){ toast('Enter the amount'); return; }
       var xo = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:round2(xa), from:xf.from, who:(xf.who || '').trim(), bill:(xf.bill || '').trim(), note:(xf.note || '').trim()};
-      if (S.xedit){ var xe = byId(db.exp.items, S.xedit); if (xe){ Object.assign(xe, xo); queueEvent('expense_update', xe); } S.xedit = null; toast('Expense updated'); }
-      else { xo.id = uid('e'); xo.t = Date.now(); db.exp.items.push(xo); queueEvent('expense', xo); toast('Expense added'); }
+      if (S.xedit){ var xe = byId(db.exp.items, S.xedit); if (xe){ var xold = Object.assign({}, xe); Object.assign(xe, xo); xe.editBy = curName(); queueEvent('expense_update', xe); audit('Expenses', 'Expense edited', xAudDesc(xold) + '  →  ' + xAudDesc(xe), {flag:1}); } S.xedit = null; toast('Expense updated'); }
+      else { xo.id = uid('e'); xo.t = Date.now(); xo.by = curName(); db.exp.items.push(xo); audit('Expenses', 'Expense added', xAudDesc(xo)); queueEvent('expense', xo); toast('Expense added'); }
       S.xm = xf.date.slice(0, 7); S.xf = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:'', from:xf.from, who:'', bill:'', note:''}; save(); break;
     case 'xedit': var xe2 = byId(db.exp.items, d.id); if (xe2){ S.xedit = xe2.id; S.xf = {date:xe2.date, cat:xe2.cat, sub:xe2.sub, amt:String(xe2.amt), from:xe2.from, who:xe2.who || '', bill:xe2.bill || '', note:xe2.note || ''}; S.xt = 'list'; var xpg = document.querySelector('.page'); if (xpg) xpg.scrollTop = 0; } break;
     case 'xcancel': S.xedit = null; S.xf = xNewForm(); break;
     case 'xdel': S.xdel = d.id; break;
     case 'xdelno': S.xdel = null; break;
-    case 'xdelyes': db.exp.items = db.exp.items.filter(function(e){ return e.id !== d.id; }); queueEvent('expense_delete', {id:d.id}); if (S.xedit === d.id){ S.xedit = null; S.xf = xNewForm(); } S.xdel = null; save(); toast('Expense deleted'); break;
+    case 'xdelyes': var xdi = byId(db.exp.items, d.id); if (xdi) audit('Expenses', 'Expense deleted', xAudDesc(xdi), {flag:1}); db.exp.items = db.exp.items.filter(function(e){ return e.id !== d.id; }); queueEvent('expense_delete', {id:d.id}); if (S.xedit === d.id){ S.xedit = null; S.xf = xNewForm(); } S.xdel = null; save(); toast('Expense deleted'); break;
     case 'xaddcat': var xnc = {id:uid('c'), name:'New category', subs:[{id:uid('s'), name:'General'}]}; db.exp.cats.push(xnc); save(); break;
     case 'xaddsub': xCat(d.c).subs.push({id:uid('s'), name:'New sub-category'}); save(); break;
     case 'xdelcat': var xn1 = xUsed(function(e){ return e.cat === d.c; }); if (xn1){ toast('Used by ' + xn1 + ' expenses. Rename it instead.'); return; } if (db.exp.cats.length < 2){ toast('Keep at least one category'); return; } db.exp.cats = db.exp.cats.filter(function(c){ return c.id !== d.c; }); S.xf = xNewForm(); save(); break;
@@ -1557,6 +1564,7 @@ document.addEventListener('click', function(e){
         if (whl === 'wh') db.wh.qty[whf.key] = num(whQty(whf.key) + whs * whp); else shopAdd(whit, whs * whp, whf.reason);
         whb.type = 'adjust'; whb.loc = whl; whb.dir = whs; whb.reason = whf.reason; whb.note = (whf.note || '').trim(); whLog(whb); toast('Adjustment saved');
       }
+      audit('Stock', whk === 'in' ? 'Stock in' : whk === 'tr' ? 'Transfer to shop' : 'Stock adjustment', whit.name + ' · ' + num(whp) + ' pcs' + (whk === 'in' ? (whf.to === 'shop' ? ' direct to shop' : ' to warehouse') : whk === 'adj' || whk === 'ad' ? '' : '') + (whk !== 'in' && whk !== 'tr' ? ' · ' + (whf.loc === 'wh' ? 'warehouse' : 'shop') + ' ' + (whf.dir === '+' ? 'added' : 'removed') + ' · ' + whf.reason : '') + (whf.note ? ' · ' + whf.note : ''), {flag:(whk !== 'in' && whk !== 'tr')});
       whf.qty = ''; whf.cost = ''; whf.note = ''; save(); break;
     case 'reccat': S.recCat = d.id; break;
     case 'addrec': db.inv.recipes[d.k] = db.inv.recipes[d.k] || []; db.inv.recipes[d.k].push({m:db.inv.materials[0].id, q:1}); save(); break;
@@ -1606,7 +1614,7 @@ document.addEventListener('click', function(e){
     case 'noimg': c = edCat(); (d.id ? byId(c.items, d.id) : c).img = ''; saveMenu(); break;
     case 'resetask': S.resetAsk = true; break;
     case 'resetno': S.resetAsk = false; break;
-    case 'resetyes': menu = defaultMenu(); try { localStorage.removeItem(K_MENU); } catch(err){} S.edCat = menu[0].id; S.cat = menu[0].id; S.cart = []; S.resetAsk = false; toast('Original menu restored'); break;
+    case 'resetyes': audit('Menu', 'Menu reset to original', '', {flag:1}); menu = defaultMenu(); try { localStorage.removeItem(K_MENU); } catch(err){} S.edCat = menu[0].id; S.cat = menu[0].id; S.cart = []; S.resetAsk = false; toast('Original menu restored'); break;
     case 'tabopen': S.tabOpen = true; kickSync(); break;
     case 'tabclose': S.tabOpen = false; break;
     case 'loadorder':
@@ -1616,20 +1624,283 @@ document.addEventListener('click', function(e){
       break;
     case 'syncnow': kickSync(); toast(syncOn() ? 'Syncing' : 'Not connected yet'); return;
     case 'synctest': testSync(); return;
-    case 'voidopen': S.voidForm = {id:d.id, reason:'', note:'', pin:''}; break;
+    case 'voidopen': S.voidForm = {id:d.id, reason:'', note:'', pin:'', perm:'void'}; break;
     case 'voidclose': S.voidForm = null; break;
-    case 'discopen': S.discForm = S.disc ? {type:S.disc.type, val:S.disc.val, reason:S.disc.reason, note:S.disc.note, pin:''} : {type:'pct', val:'', reason:'', note:'', pin:''}; break;
+    case 'discopen': S.discForm = S.disc ? {type:S.disc.type, val:S.disc.val, reason:S.disc.reason, note:S.disc.note, pin:'', perm:'discount'} : {type:'pct', val:'', reason:'', note:'', pin:'', perm:'discount'}; break;
     case 'discclose': S.discForm = null; break;
     case 'dtype': S.discForm.type = d.id; S.discForm.val = ''; break;
     case 'dquick': S.discForm.val = String(d.v); break;
-    case 'discapply': if (S.discForm && reasonOk(S.discForm) && pinOk(S.discForm) && parseFloat(S.discForm.val) > 0){ S.disc = {type:S.discForm.type, val:S.discForm.val, reason:S.discForm.reason, note:S.discForm.note.trim()}; S.discForm = null; toast('Discount applied'); } break;
+    case 'discapply': if (S.discForm && reasonOk(S.discForm) && pinOk(S.discForm) && parseFloat(S.discForm.val) > 0){ S.disc = {type:S.discForm.type, val:S.discForm.val, reason:S.discForm.reason, note:S.discForm.note.trim(), by:apprName(S.discForm)}; S.discForm = null; toast('Discount applied'); } break;
     case 'discoff': S.disc = null; break;
     case 'voidyes': var s = S.voidForm && byId(db.sales, S.voidForm.id);
-      if (s && !s.void && reasonOk(S.voidForm) && pinOk(S.voidForm)){ s.void = true; s.voidReason = S.voidForm.reason; s.voidNote = S.voidForm.note.trim(); s.voidT = Date.now(); s.lines.forEach(function(l){ var k = skey(l.cat, l.name), v = db.stock[k]; if (v !== undefined && v !== null && v !== '') db.stock[k] = +v + l.qty; }); save(); if (isUuid(s.id)) queueEvent('sale_cancel', {id:s.id, reason:s.voidReason, note:s.voidNote}); toast('Bill #' + s.no + ' cancelled'); S.voidForm = null; }
+      if (s && !s.void && reasonOk(S.voidForm) && pinOk(S.voidForm)){ s.void = true; s.voidBy = apprName(S.voidForm); s.voidReason = S.voidForm.reason; s.voidNote = S.voidForm.note.trim(); s.voidT = Date.now(); s.lines.forEach(function(l){ var k = skey(l.cat, l.name), v = db.stock[k]; if (v !== undefined && v !== null && v !== '') db.stock[k] = +v + l.qty; }); save(); if (isUuid(s.id)) queueEvent('sale_cancel', {id:s.id, reason:s.voidReason, note:s.voidNote}); audit('Sales', 'Bill cancelled', 'Bill #' + s.no + ' · AED ' + money(s.total) + ' · ' + s.pay + '. Reason: ' + s.voidReason + (s.voidNote ? ' – ' + s.voidNote : ''), {ap:s.voidBy, flag:1}); toast('Bill #' + s.no + ' cancelled'); S.voidForm = null; }
       break;
   }
   render();
 });
+/* ---------- Users, PIN login, permissions, audit log ---------- */
+var ROLES = ['Owner', 'Manager', 'Cashier'];
+var PERMS = [
+  ['sales', 'Sales list'], ['reprint', 'Print receipts'], ['close', 'Day close'], ['inv', 'Inventory'], ['stock', 'Stock'],
+  ['exp', 'Expenses'], ['menu', 'Menu'], ['settings', 'Settings'], ['audit', 'Audit log'], ['users', 'Users and permissions'],
+  ['void', 'Cancel bills (approve)'], ['discount', 'Give discounts (approve)'], ['price', 'Change price at sale (approve)']
+];
+var TAB_PERM = {sales:'sales', close:'close', inv:'inv', stock:'stock', exp:'exp', menu:'menu', settings:'settings', audit:'audit', users:'users'};
+var AUDIT_CATS = ['Sales', 'Purchases', 'Expenses', 'Cash', 'Stock', 'Day close', 'Credit', 'Menu', 'Settings', 'Users and Security'];
+var PRICE_REASONS = ['Customer bargain', 'Near expiry or damaged', 'Price entered wrongly', 'Staff or family', 'Promotion or offer', 'Other (write the reason)'];
+if (!db.users) db.users = [];
+if (!db.perms) db.perms = {};
+if (!db.audit) db.audit = [];
+S.su = {name:'', pin:'', pin2:''}; S.lu = null; S.lpin = ''; S.lerr = ''; S.upc = ''; S.uadd = {name:'', role:'Cashier', pin:''}; S.urs = null; S.urspin = '';
+S.priceForm = null; S.af = {cat:'', user:'', from:'', to:'', q:'', flag:false};
+S.uid = null; try { S.uid = sessionStorage.getItem('hp_uid') || null; } catch(e){}
+
+function hashPin(p){ var s = 'hp|' + String(p), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return 'h' + (h >>> 0).toString(36); }
+function curUser(){ var u = S.uid && byId(db.users, S.uid); return (u && u.active !== false) ? u : null; }
+function curName(){ var u = curUser(); return u ? u.name : 'System'; }
+function defPerm(role, p){ if (role === 'Owner') return true; if (role === 'Manager') return p !== 'users'; return p === 'sales' || p === 'reprint'; }
+function roleCan(role, p){ if (role === 'Owner') return true; var r = db.perms[role]; if (r && r[p] !== undefined) return !!r[p]; return defPerm(role, p); }
+function can(p, u){ u = u || curUser(); return !!u && roleCan(u.role, p); }
+function pinUser(pin, perm){
+  if (!pin) return null; var h = hashPin(pin), i, u;
+  for (i = 0; i < db.users.length; i++){ u = db.users[i]; if (u.active !== false && u.pin === h && (!perm || can(perm, u))) return u; }
+  return null;
+}
+function apprName(f){ var u = pinUser(f.pin, f.perm); return u ? u.name : ''; }
+function pinOn(){ return true; }
+function pinOk(f){ return !!pinUser(f.pin, f.perm); }
+function pinLabel(perm){ return can(perm) ? 'Your PIN' : 'Approver PIN (manager or owner)'; }
+function audit(cat, act, detail, o){
+  o = o || {};
+  var r = {id:uid('a'), t:Date.now(), u:curName(), uid:S.uid || '', cat:cat, act:act, d:detail || ''};
+  if (o.ap && o.ap !== r.u) r.ap = o.ap; if (o.flag) r.flag = 1;
+  db.audit.push(r); save(); queueEvent('audit', r);
+}
+function lockNow(){ if (curUser()) audit('Users and Security', 'Locked', ''); S.uid = null; try { sessionStorage.removeItem('hp_uid'); } catch(e){} S.lu = null; S.lpin = ''; S.lerr = ''; S.tab = 'sale'; }
+
+/* ----- login and first-run setup ----- */
+function vSetup(){
+  var f = S.su;
+  return '<div class="page"><div class="card" style="max-width:400px;margin:40px auto"><div style="text-align:center"><img class="rlogo" src="'+LOGO+'" alt="" style="height:64px"><h3 style="font-size:20px;margin:8px 0 4px">Set up the Owner</h3><p style="color:var(--muted);margin:0 0 12px">First time here. Create the Owner login. Everyone who uses the POS gets a name and a PIN.</p></div>'
+    + '<label class="fld">Owner name<input class="inp" data-f="sun" value="'+esc(f.name)+'" autocomplete="off"></label>'
+    + '<label class="fld" style="margin-top:10px">PIN (4 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="spin" value="'+esc(f.pin)+'" autocomplete="off"></label>'
+    + '<label class="fld" style="margin-top:10px">Repeat PIN<input class="inp" type="password" inputmode="numeric" data-f="spin2" value="'+esc(f.pin2)+'" autocomplete="off"></label>'
+    + (S.lerr ? '<p style="color:var(--pink-dk);margin:10px 0 0">'+esc(S.lerr)+'</p>' : '')
+    + '<div class="btns"><button class="btn primary" data-act="setupok">Create Owner</button></div></div></div>';
+}
+function vLogin(){
+  var us = db.users.filter(function(u){ return u.active !== false; });
+  var sel = S.lu && byId(us, S.lu);
+  return '<div class="page"><div class="card" style="max-width:420px;margin:40px auto;text-align:center"><img class="rlogo" src="'+LOGO+'" alt="" style="height:64px"><h3 style="font-size:20px;margin:8px 0 4px">'+esc(setg().shop || 'Hollywood POS')+'</h3><p style="color:var(--muted);margin:0 0 12px">Choose your name and enter your PIN.</p>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:12px">'
+    + us.map(function(u){ return '<button class="btn '+(sel && sel.id === u.id ? 'primary' : 'ghost')+'" data-act="loginpick" data-id="'+u.id+'">'+esc(u.name)+'<small style="display:block;font-weight:500;opacity:.8">'+u.role+'</small></button>'; }).join('') + '</div>'
+    + (sel ? '<input id="lpin" class="inp" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" value="'+esc(S.lpin)+'" style="text-align:center;font-size:22px;letter-spacing:6px">'
+      + (S.lerr ? '<p style="color:var(--pink-dk);margin:10px 0 0">'+esc(S.lerr)+'</p>' : '')
+      + '<div class="btns"><button class="btn primary" data-act="loginok">Open POS</button></div>' : '')
+    + '</div></div>';
+}
+function authScreen(){
+  if (!db.users.length) return vSetup();
+  if (!curUser()) return vLogin();
+  return null;
+}
+function userChip(){
+  var u = curUser(); if (!u) return '';
+  return '<span class="userchip"><b>'+esc(u.name)+'</b><small>'+u.role+'</small></span><button class="lockbtn" data-act="locknow" aria-label="Lock">Lock</button>';
+}
+
+/* ----- price change at sale ----- */
+function vPriceSheet(){
+  var pf = S.priceForm, l = S.cart[pf.i]; if (!l) return '';
+  var base = l.orig != null ? l.orig : l.price, nv = parseFloat(pf.val);
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Change price"><h3>Change price</h3><p>'+esc(l.name)+(l.size ? ' · '+esc(l.size) : '')+'. Menu price AED '+money(base)+'. The change is recorded with the reason and who approved it.</p>'
+    + '<label class="fld">New price (AED, each)<input id="pnew" class="inp" type="number" inputmode="decimal" step="0.01" min="0" data-f="pval" value="'+esc(pf.val)+'" autocomplete="off"></label>'
+    + '<label class="fld" style="margin-top:10px">Reason<select id="preason" class="inp" data-f="preason"><option value="">Choose a reason</option>'+PRICE_REASONS.map(function(r){ return '<option'+(r === pf.reason ? ' selected' : '')+'>'+esc(r)+'</option>'; }).join('')+'</select></label>'
+    + '<label class="fld" style="margin-top:10px">Note'+(pf.reason.indexOf('Other') === 0 ? ' (required)' : ' (optional)')+'<input id="pnote" class="inp" data-f="pnote" value="'+esc(pf.note)+'" autocomplete="off"></label>'
+    + '<label class="fld" style="margin-top:10px">'+pinLabel('price')+'<input id="ppin" class="inp" type="password" inputmode="numeric" data-f="ppin" value="'+esc(pf.pin || '')+'" autocomplete="off"></label>'
+    + '<div class="btns"><button class="btn ghost" data-act="pricecancel">Cancel</button><button class="btn primary" data-act="priceok"'+(priceFormOk() ? '' : ' disabled')+'>Apply price</button></div></div></div>';
+}
+function priceFormOk(){ var pf = S.priceForm; if (!pf) return false; var v = parseFloat(pf.val); return v >= 0 && pf.val !== '' && reasonOk(pf) && pinOk(pf); }
+
+/* ----- Users tab ----- */
+function userPinCheck(){ var u = pinUser(S.upc, 'users'); if (!u){ toast('Enter your PIN above to confirm'); return null; } return u; }
+function vUsers(){
+  var rows = db.users.map(function(u){
+    var me = u.id === S.uid;
+    return '<tr><td><input class="inp" data-f="uname" data-id="'+u.id+'" value="'+esc(u.name)+'" style="min-width:130px"></td>'
+      + '<td><select class="inp" data-f="urole" data-id="'+u.id+'">'+ROLES.map(function(r){ return '<option'+(r === u.role ? ' selected' : '')+'>'+r+'</option>'; }).join('')+'</select></td>'
+      + '<td>'+(u.active === false ? '<span class="pill void">Inactive</span>' : '<span class="pill cash">Active</span>')+(me ? ' <small style="color:var(--muted)">you</small>' : '')+'</td>'
+      + '<td style="white-space:nowrap">'+(S.urs === u.id
+        ? '<input class="inp" type="password" inputmode="numeric" placeholder="New PIN" data-f="urspin" value="'+esc(S.urspin)+'" style="width:110px;display:inline-block"> <button class="btn sm primary" data-act="urssave" data-id="'+u.id+'">Save</button> <button class="btn sm ghost" data-act="ursno">×</button>'
+        : '<button class="btn sm ghost" data-act="urs" data-id="'+u.id+'">Reset PIN</button> <button class="btn sm ghost" data-act="utoggle" data-id="'+u.id+'">'+(u.active === false ? 'Activate' : 'Deactivate')+'</button>')+'</td></tr>';
+  }).join('');
+  var mx = PERMS.map(function(p){
+    return '<tr><td>'+p[1]+'</td><td style="text-align:center">✓</td>'
+      + ['Manager', 'Cashier'].map(function(r){ return '<td style="text-align:center"><input type="checkbox" data-f="permck" data-role="'+r+'" data-p="'+p[0]+'"'+(roleCan(r, p[0]) ? ' checked' : '')+' style="width:22px;height:22px"></td>'; }).join('') + '</tr>';
+  }).join('');
+  return '<div class="page"><div class="card"><h3>Users</h3><p style="color:var(--muted);margin:0 0 10px">Every person who bills, cancels, discounts or changes anything has a name and a PIN. All actions are recorded with the name. PINs must be different for each person.</p>'
+    + '<label class="fld" style="max-width:260px">Confirm changes with your PIN<input class="inp" type="password" inputmode="numeric" data-f="upc" value="'+esc(S.upc)+'" autocomplete="off"></label>'
+    + '<div class="tblwrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
+    + '<div class="card"><h3>Add a user</h3><div class="fgrid"><label class="fld">Name<input class="inp" data-f="uan" value="'+esc(S.uadd.name)+'" autocomplete="off"></label>'
+    + '<label class="fld">Role<select class="inp" data-f="uar">'+ROLES.map(function(r){ return '<option'+(r === S.uadd.role ? ' selected' : '')+'>'+r+'</option>'; }).join('')+'</select></label>'
+    + '<label class="fld">PIN (4 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="uap" value="'+esc(S.uadd.pin)+'" autocomplete="off"></label></div>'
+    + '<div class="btns"><button class="btn primary" data-act="uadd">Add user</button></div></div>'
+    + '<div class="card"><h3>What each role can do</h3><p style="color:var(--muted);margin:0 0 10px">Owner can do everything. Tabs a role cannot use are hidden. For "approve" rows, a person without the permission asks someone who has it to enter their PIN.</p>'
+    + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Permission</th><th>Owner</th><th>Manager</th><th>Cashier</th></tr></thead><tbody>'+mx+'</tbody></table></div></div></div>';
+}
+
+/* ----- Audit tab ----- */
+function auditList(){
+  var f = S.af, q = (f.q || '').toLowerCase();
+  return db.audit.filter(function(r){
+    if (f.cat && r.cat !== f.cat) return false;
+    if (f.user && r.u !== f.user) return false;
+    if (f.flag && !r.flag) return false;
+    var dk = new Date(r.t - new Date(r.t).getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    if (f.from && dk < f.from) return false;
+    if (f.to && dk > f.to) return false;
+    if (q && (r.act + ' ' + r.d + ' ' + r.u + ' ' + (r.ap || '')).toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  }).slice().reverse();
+}
+function auditTime(t){ var d = new Date(t), p = function(n){ return n < 10 ? '0' + n : '' + n; }; return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
+function vAudit(){
+  var f = S.af, list = auditList(), shown = list.slice(0, 300);
+  var names = {}; db.audit.forEach(function(r){ names[r.u] = 1; });
+  var rows = shown.map(function(r){
+    return '<tr'+(r.flag ? ' style="background:#fff0f5"' : '')+'><td style="white-space:nowrap">'+auditTime(r.t)+'</td><td>'+esc(r.u)+(r.ap ? '<small style="display:block;color:var(--muted)">approved by '+esc(r.ap)+'</small>' : '')+'</td><td><span class="pill cash">'+esc(r.cat)+'</span></td><td><b>'+(r.flag ? '⚑ ' : '')+esc(r.act)+'</b><span style="display:block;color:var(--muted);font-size:13px">'+esc(r.d)+'</span></td></tr>';
+  }).join('');
+  return '<div class="page"><div class="card"><h3>Audit log</h3><p style="color:var(--muted);margin:0 0 10px">A permanent record of who did what. It cannot be edited or deleted. Flagged (⚑) lines are price changes, discounts, cancellations, deletions and adjustments.</p>'
+    + '<div class="fgrid"><label class="fld">Category<select class="inp" data-f="afs" data-k="cat"><option value="">All</option>'+AUDIT_CATS.map(function(c){ return '<option'+(c === f.cat ? ' selected' : '')+'>'+c+'</option>'; }).join('')+'</select></label>'
+    + '<label class="fld">User<select class="inp" data-f="afs" data-k="user"><option value="">All</option>'+Object.keys(names).sort().map(function(n){ return '<option'+(n === f.user ? ' selected' : '')+'>'+esc(n)+'</option>'; }).join('')+'</select></label>'
+    + '<label class="fld">From<input class="inp" type="date" data-f="afs" data-k="from" value="'+esc(f.from)+'"></label>'
+    + '<label class="fld">To<input class="inp" type="date" data-f="afs" data-k="to" value="'+esc(f.to)+'"></label>'
+    + '<label class="fld">Search<input class="inp" data-f="afq" value="'+esc(f.q)+'" autocomplete="off"></label></div>'
+    + '<label style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" data-f="afflag"'+(f.flag ? ' checked' : '')+' style="width:22px;height:22px"> Flagged lines only</label>'
+    + '<div class="bar"><span style="color:var(--muted)">'+list.length+' records'+(list.length > shown.length ? ' (showing latest '+shown.length+', print or CSV has all)' : '')+'</span><span class="sp"></span><button class="btn sm ghost" data-act="auditprint">Print / PDF</button> <button class="btn sm ghost" data-act="auditcsv">CSV</button></div></div>'
+    + '<div class="card"><div class="tblwrap"><table class="tbl"><thead><tr><th>When</th><th>User</th><th>Category</th><th>Action</th></tr></thead><tbody>'+(rows || '<tr><td colspan="4" class="empty">No records.</td></tr>')+'</tbody></table></div></div></div>';
+}
+function auditPrintHtml(list){
+  var G = setg(), th = 'text-align:left;border-bottom:2px solid #000;padding:5px 6px;font-size:11px', td = 'padding:4px 6px;border-bottom:1px solid #ccc;font-size:11px;vertical-align:top', f = S.af;
+  var sub = [f.cat || 'All categories', f.user || 'All users', (f.from || f.to) ? (f.from || '…') + ' to ' + (f.to || '…') : 'All dates'].join(' · ');
+  return '<div style="color:#000;padding:4mm"><div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><img src="'+LOGO+'" alt="" style="height:54px"><div><div style="font-size:22px;font-weight:700">'+esc(G.shop)+'</div><div style="font-size:15px">Audit log · '+esc(sub)+'</div></div></div>'
+    + '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="'+th+'">When</th><th style="'+th+'">User</th><th style="'+th+'">Category</th><th style="'+th+'">Action</th><th style="'+th+'">Details</th></tr></thead><tbody>'
+    + list.map(function(r){ return '<tr><td style="'+td+';white-space:nowrap">'+auditTime(r.t)+'</td><td style="'+td+'">'+esc(r.u)+(r.ap ? '<br>appr. '+esc(r.ap) : '')+'</td><td style="'+td+'">'+esc(r.cat)+'</td><td style="'+td+';font-weight:700">'+(r.flag ? '⚑ ' : '')+esc(r.act)+'</td><td style="'+td+'">'+esc(r.d)+'</td></tr>'; }).join('')
+    + '</tbody></table><div style="margin-top:14px;font-size:11px">Printed '+auditTime(Date.now())+' by '+esc(curName())+'</div></div>';
+}
+function auditCsv(list){
+  var rows = [['When', 'User', 'Approved by', 'Category', 'Action', 'Details', 'Flag']];
+  list.forEach(function(r){ rows.push([auditTime(r.t), r.u, r.ap || '', r.cat, r.act, r.d, r.flag ? 'Yes' : '']); });
+  return '﻿' + rows.map(function(r){ return r.map(function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
+}
+
+/* ----- menu and settings change detection ----- */
+function menuSnap(){
+  var o = {};
+  try { menu.forEach(function(c){ c.items.forEach(function(it){ c.sizes.forEach(function(s){ o[c.name + ' / ' + it.name + (c.sizes.length > 1 ? ' / ' + s.label : '')] = priceOf(it, s); }); o[c.name + ' / ' + it.name + ' (off)'] = it.off ? 1 : 0; }); }); } catch(e){}
+  return o;
+}
+var menuPrev = menuSnap(), setPrev = JSON.stringify(setg());
+function auditDiffs(){
+  var m = menuSnap(), k;
+  for (k in m){ if (!(k in menuPrev)){ if (!/\(off\)$/.test(k)) audit('Menu', 'Item or size added', k + ' at AED ' + money(m[k])); } else if (m[k] !== menuPrev[k]){ if (/\(off\)$/.test(k)) audit('Menu', m[k] ? 'Item switched off' : 'Item switched on', k.replace(' (off)', '')); else audit('Menu', 'Price changed', k + ': AED ' + money(menuPrev[k]) + ' to AED ' + money(m[k]), {flag:1}); } }
+  for (k in menuPrev){ if (!(k in m) && !/\(off\)$/.test(k)) audit('Menu', 'Item or size removed', k, {flag:1}); }
+  menuPrev = m;
+  var sNow = JSON.stringify(setg());
+  if (sNow !== setPrev){
+    var a = JSON.parse(setPrev), b = JSON.parse(sNow), key;
+    for (key in b){ if (key === 'pin' || key === 'pinOn') continue; if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) audit('Settings', 'Setting changed', key + ': ' + String(a[key] == null ? '(empty)' : a[key]).slice(0, 60) + ' to ' + String(b[key]).slice(0, 60)); }
+    setPrev = sNow;
+  }
+}
+
+/* ----- events ----- */
+document.addEventListener('input', function(e){
+  var t = e.target, f = t.dataset && t.dataset.f;
+  if (t.id === 'lpin'){ S.lpin = t.value; return; }
+  if (!f) return;
+  if (f === 'sun') S.su.name = t.value; else if (f === 'spin') S.su.pin = t.value; else if (f === 'spin2') S.su.pin2 = t.value;
+  else if (f === 'upc') S.upc = t.value; else if (f === 'uan') S.uadd.name = t.value; else if (f === 'uap') S.uadd.pin = t.value; else if (f === 'urspin') S.urspin = t.value;
+  else if (f === 'afq'){ S.af.q = t.value; clearTimeout(S._aft); S._aft = setTimeout(function(){ var p = t.selectionStart; render(); var n = document.querySelector('[data-f=afq]'); if (n){ n.focus(); try { n.setSelectionRange(p, p); } catch(er){} } }, 350); }
+  else if (S.priceForm && (f === 'pval' || f === 'pnote' || f === 'ppin')){ S.priceForm[f === 'pval' ? 'val' : f === 'pnote' ? 'note' : 'pin'] = t.value; var pb = document.querySelector('[data-act=priceok]'); if (pb) pb.disabled = !priceFormOk(); }
+});
+document.addEventListener('change', function(e){
+  var t = e.target, f = t.dataset && t.dataset.f;
+  if (f === 'preason' && S.priceForm){ S.priceForm.reason = t.value; render(); return; }
+  if (f === 'afs'){ S.af[t.dataset.k] = t.value; render(); return; }
+  if (f === 'afflag'){ S.af.flag = t.checked; render(); return; }
+  if (f === 'uname'){ var u = byId(db.users, t.dataset.id), nm = t.value.trim(); if (u && nm && nm !== u.name){ if (!userPinCheck()){ t.value = u.name; return; } audit('Users and Security', 'User renamed', u.name + ' to ' + nm); u.name = nm; save(); render(); } return; }
+  if (f === 'urole'){ var u2 = byId(db.users, t.dataset.id); if (u2 && t.value !== u2.role){ if (!userPinCheck()){ render(); return; } if (u2.role === 'Owner' && ownerCount() < 2){ toast('There must be at least one Owner'); render(); return; } audit('Users and Security', 'Role changed', u2.name + ': ' + u2.role + ' to ' + t.value, {flag:1}); u2.role = t.value; save(); render(); } return; }
+  if (f === 'uar'){ S.uadd.role = t.value; return; }
+  if (f === 'permck'){ if (!userPinCheck()){ render(); return; } var rr = t.dataset.role, pp = t.dataset.p; db.perms[rr] = db.perms[rr] || {}; db.perms[rr][pp] = t.checked; var pl = PERMS.filter(function(x){ return x[0] === pp; })[0]; audit('Users and Security', 'Permission changed', rr + ' · ' + (pl ? pl[1] : pp) + ': ' + (t.checked ? 'allowed' : 'not allowed'), {flag:1}); save(); render(); return; }
+  auditDiffs();
+});
+function ownerCount(){ return db.users.filter(function(u){ return u.role === 'Owner' && u.active !== false; }).length; }
+document.addEventListener('keydown', function(e){ if (e.key === 'Enter' && e.target.id === 'lpin'){ var b = document.querySelector('[data-act=loginok]'); if (b) b.click(); } });
+document.addEventListener('click', function(e){
+  var el = e.target.closest('[data-act]'); if (!el){ auditDiffs(); return; }
+  if (el.classList.contains('scrim') && e.target !== el) return;
+  var a = el.dataset.act, d = el.dataset, i;
+  switch (a){
+    case 'setupok':
+      var f = S.su, nm = f.name.trim();
+      if (!nm){ S.lerr = 'Enter a name.'; break; }
+      if (!/^\d{4,}$/.test(f.pin)){ S.lerr = 'PIN must be 4 digits or more (numbers only).'; break; }
+      if (f.pin !== f.pin2){ S.lerr = 'The two PINs do not match.'; break; }
+      var ou = {id:uid('u'), name:nm, role:'Owner', pin:hashPin(f.pin), active:true, t:Date.now()};
+      db.users.push(ou); S.uid = ou.id; try { sessionStorage.setItem('hp_uid', ou.id); } catch(er){}
+      S.su = {name:'', pin:'', pin2:''}; S.lerr = ''; audit('Users and Security', 'Owner created', nm); toast('Welcome, ' + nm); break;
+    case 'loginpick': S.lu = d.id; S.lpin = ''; S.lerr = ''; break;
+    case 'loginok':
+      var lu = byId(db.users, S.lu);
+      if (lu && lu.pin === hashPin(S.lpin)){ S.uid = lu.id; try { sessionStorage.setItem('hp_uid', lu.id); } catch(er){} S.lpin = ''; S.lerr = ''; S.tab = 'sale'; audit('Users and Security', 'Login', ''); }
+      else if (lu){ S.lerr = 'Wrong PIN. Try again.'; S.lpin = ''; var keepU = S.uid; S.uid = ''; audit('Users and Security', 'Wrong PIN at login', lu.name, {flag:1}); S.uid = keepU; }
+      break;
+    case 'locknow': lockNow(); break;
+    case 'pricechg': S.priceForm = {i:+d.i, val:'', reason:'', note:'', pin:'', perm:'price'}; break;
+    case 'pricecancel': S.priceForm = null; break;
+    case 'priceok':
+      if (priceFormOk()){
+        var pf = S.priceForm, l = S.cart[pf.i], nv = round2(parseFloat(pf.val)), ap = apprName(pf);
+        if (l){
+          if (l.orig == null) l.orig = l.price;
+          if (nv === l.orig){ delete l.orig; delete l.mod; delete l.modBy; delete l.modWhy; l.price = nv; }
+          else { l.price = nv; l.mod = 1; l.modBy = ap; l.modWhy = pf.reason + (pf.note.trim() ? ' – ' + pf.note.trim() : ''); }
+        }
+        S.priceForm = null; toast('Price changed');
+      }
+      break;
+    case 'uadd':
+      if (!userPinCheck()) break;
+      var ua = S.uadd, un = ua.name.trim();
+      if (!un){ toast('Enter a name'); break; }
+      if (!/^\d{4,}$/.test(ua.pin)){ toast('PIN must be 4 digits or more'); break; }
+      if (db.users.some(function(x){ return x.pin === hashPin(ua.pin); })){ toast('That PIN is already used. Choose another.'); break; }
+      var nu = {id:uid('u'), name:un, role:ua.role, pin:hashPin(ua.pin), active:true, t:Date.now()};
+      db.users.push(nu); audit('Users and Security', 'User added', un + ' (' + ua.role + ')', {flag:1}); S.uadd = {name:'', role:'Cashier', pin:''}; toast('User added'); break;
+    case 'urs': S.urs = d.id; S.urspin = ''; break;
+    case 'ursno': S.urs = null; break;
+    case 'urssave':
+      if (!userPinCheck()) break;
+      var ur = byId(db.users, d.id);
+      if (!/^\d{4,}$/.test(S.urspin)){ toast('PIN must be 4 digits or more'); break; }
+      if (db.users.some(function(x){ return x.id !== d.id && x.pin === hashPin(S.urspin); })){ toast('That PIN is already used. Choose another.'); break; }
+      ur.pin = hashPin(S.urspin); audit('Users and Security', 'PIN reset', ur.name, {flag:1}); S.urs = null; S.urspin = ''; toast('PIN changed'); break;
+    case 'utoggle':
+      if (!userPinCheck()) break;
+      var ut = byId(db.users, d.id);
+      if (ut.active !== false){ if (ut.role === 'Owner' && ownerCount() < 2){ toast('There must be at least one active Owner'); break; } if (ut.id === S.uid){ toast('You cannot deactivate yourself'); break; } ut.active = false; audit('Users and Security', 'User deactivated', ut.name, {flag:1}); }
+      else { ut.active = true; audit('Users and Security', 'User activated', ut.name); }
+      save(); break;
+    case 'auditprint': printHtml(auditPrintHtml(auditList())); return;
+    case 'auditcsv':
+      try { var bl = new Blob([auditCsv(auditList())], {type:'text/csv;charset=utf-8'}), an = document.createElement('a'); an.href = URL.createObjectURL(bl); an.download = 'audit-log.csv'; document.body.appendChild(an); an.click(); document.body.removeChild(an); toast('CSV downloaded'); }
+      catch(er){ toast('Download is not available here'); } return;
+    default: auditDiffs(); return;
+  }
+  save(); render();
+});
+
 render();
 kickSync();
 </script>
