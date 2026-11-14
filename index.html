@@ -538,6 +538,8 @@ async function runSync(){
       sync.lastSeq = p.last_seq; saveSync();
       more = p.events.length >= 500;
     }
+    try { var us = await syncApi('/users'); if (us && us.users && us.users.length && us.ver !== sync.uver){ applyServerUsers(us.users, us.ver); changed = true; } }
+    catch(e){ if (e.status === 401) throw e; }
     sync.lastOk = Date.now();
     if (changed) renderSafe();
   } catch(e){ sync.err = e.status === 401 ? 'The device token is wrong or switched off' : (e.message || 'Offline'); }
@@ -575,28 +577,11 @@ async function testSync(){
   catch(e){ sync.err = e.status === 401 ? 'The device token is wrong or switched off' : e.message; toast(sync.err); }
   paintSync();
 }
-/* One-time connect with the shop code: the server hands this device its own token, so nothing long has to be typed.
-   Change SERVER_DEFAULT when the shop moves to its final web address. */
+/* Server address that devices use when a user signs in. Change it when the shop moves to its final web address. */
 var SERVER_DEFAULT = 'https://hollywood-test.duckdns.org';
-async function connectShop(){
-  var el = document.getElementById('shopkey'), key = el ? el.value.trim() : '';
-  if (!key){ toast('Type the shop code'); return; }
-  var url = String(sync.url || window.HP_SERVER || SERVER_DEFAULT).replace(/\/+$/, '');
-  if (!/^https?:\/\//i.test(url)) url = 'http://' + url;
-  var ctl = new AbortController(), to = setTimeout(function(){ ctl.abort(); }, 10000);
-  try {
-    var r = await fetch(url + '/enroll', {method:'POST', signal:ctl.signal, headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({key:key, name:'Counter ' + uuid().slice(0, 4), kind:'pos'})});
-    var j = null; try { j = await r.json(); } catch(e){}
-    if (!r.ok || !j || !j.token){ toast((j && j.error) || ('Server answered ' + r.status)); return; }
-    sync.url = url; sync.token = j.token; sync.err = ''; saveSync();
-    toast('Connected'); runSync(); render();
-  } catch(e){ toast(e.name === 'AbortError' ? 'The server did not answer' : 'Cannot reach the server'); }
-  finally { clearTimeout(to); }
-}
 function syncCard(){
   return '<div class="card"><h3>Sync with the server</h3>'
-    + (syncOn() ? '' : '<div class="fgrid">' + fld('Shop code (type once)','<input class="inp" id="shopkey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">') + '</div><div style="margin:10px 0 16px"><button class="btn primary sm" data-act="shopconnect">Connect with shop code</button></div><p style="color:var(--muted);font-size:13px;margin:0 0 14px">Or type the server address and a device token by hand below.</p>')
+    + (syncOn() ? '' : '<p style="color:var(--muted);font-size:13px;margin:0 0 14px">This device connects by itself when a user signs in. Typing here is only needed for special cases.</p>')
     + '<div class="fgrid">'
     + fld('Server address','<input class="inp" data-f="sync" data-k="url" placeholder="'+esc(window.HP_SERVER || SERVER_DEFAULT)+'" value="'+esc(sync.url)+'" autocomplete="off" autocapitalize="off" spellcheck="false">')
     + fld('Device token','<input class="inp" data-f="sync" data-k="token" value="'+esc(sync.token)+'" autocomplete="off" autocapitalize="off" spellcheck="false">')
@@ -1659,7 +1644,6 @@ document.addEventListener('click', function(e){
       break;
     case 'syncnow': kickSync(); toast(syncOn() ? 'Syncing' : 'Not connected yet'); return;
     case 'synctest': testSync(); return;
-    case 'shopconnect': connectShop(); return;
     case 'voidopen': S.voidForm = {id:d.id, reason:'', note:'', pin:'', perm:'void'}; break;
     case 'voidclose': S.voidForm = null; break;
     case 'discopen': S.discForm = S.disc ? {type:S.disc.type, val:S.disc.val, reason:S.disc.reason, note:S.disc.note, pin:'', perm:'discount'} : {type:'pct', val:'', reason:'', note:'', pin:'', perm:'discount'}; break;
@@ -1689,6 +1673,7 @@ if (!db.perms) db.perms = {};
 if (!db.audit) db.audit = [];
 S.su = {name:'', pin:'', pin2:''}; S.lu = null; S.lpin = ''; S.lerr = ''; S.upc = ''; S.uadd = {name:'', role:'Cashier', pin:''}; S.urs = null; S.urspin = '';
 S.priceForm = null; S.af = {cat:'', user:'', from:'', to:'', q:'', flag:false};
+S.srv = {st:'', busy:false}; S.sl = {name:'', pin:''};
 S.uid = null; try { S.uid = sessionStorage.getItem('hp_uid') || null; } catch(e){}
 
 function hashPin(p){ var s = 'hp|' + String(p), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return 'h' + (h >>> 0).toString(36); }
@@ -1719,7 +1704,7 @@ function vSetup(){
   var f = S.su;
   return '<div class="page"><div class="card" style="max-width:400px;margin:40px auto"><div style="text-align:center"><img class="rlogo" src="'+LOGO+'" alt="" style="height:64px"><h3 style="font-size:20px;margin:8px 0 4px">Create your user</h3><p style="color:var(--muted);margin:0 0 12px">First time here. Create the first user login. You can add more users later; everyone who uses the POS gets a name and a PIN.</p></div>'
     + '<label class="fld">User name<input class="inp" data-f="sun" value="'+esc(f.name)+'" autocomplete="off"></label>'
-    + '<label class="fld" style="margin-top:10px">PIN (4 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="spin" value="'+esc(f.pin)+'" autocomplete="off"></label>'
+    + '<label class="fld" style="margin-top:10px">PIN (6 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="spin" value="'+esc(f.pin)+'" autocomplete="off"></label>'
     + '<label class="fld" style="margin-top:10px">Repeat PIN<input class="inp" type="password" inputmode="numeric" data-f="spin2" value="'+esc(f.pin2)+'" autocomplete="off"></label>'
     + (S.lerr ? '<p style="color:var(--pink-dk);margin:10px 0 0">'+esc(S.lerr)+'</p>' : '')
     + '<div class="btns"><button class="btn primary" data-act="setupok">Create user</button></div></div></div>';
@@ -1735,8 +1720,105 @@ function vLogin(){
       + '<div class="btns"><button class="btn primary" data-act="loginok">Open POS</button></div>' : '')
     + '</div></div>';
 }
+/* ----- server login: users live on the server, a device gets its own token when a user signs in ----- */
+function srvUrl(){ var u = String(sync.url || window.HP_SERVER || SERVER_DEFAULT).replace(/\/+$/, ''); if (!/^https?:\/\//i.test(u)) u = 'http://' + u; return u; }
+async function srvCall(path, o){
+  o = o || {};
+  var ctl = new AbortController(), to = setTimeout(function(){ ctl.abort(); }, 10000);
+  try {
+    var h = o.body ? {'Content-Type': 'application/json'} : {};
+    if (o.bearer && sync.token) h['Authorization'] = 'Bearer ' + sync.token;
+    var r = await fetch(srvUrl() + path, {method: o.method || 'GET', signal: ctl.signal, headers: h, body: o.body ? JSON.stringify(o.body) : undefined});
+    var j = null; try { j = await r.json(); } catch(e){}
+    return {ok: r.ok, status: r.status, json: j};
+  } catch(e){ var er = new Error(e.name === 'AbortError' ? 'The server did not answer' : 'Cannot reach the server'); er.net = true; throw er; }
+  finally { clearTimeout(to); }
+}
+function deviceInfo(){ return {name: window.HP_DESKTOP ? 'Windows counter' : 'Web POS', kind: 'pos'}; }
+async function checkServer(){
+  S.srv.st = 'check'; S.lerr = '';
+  try { var r = await srvCall('/auth/status'); S.srv.st = r.ok && r.json && Number(r.json.users) > 0 ? 'login' : r.ok ? 'setup' : 'down'; }
+  catch(e){ S.srv.st = 'down'; }
+  render();
+}
+function applyServerUsers(list, ver){
+  if (!Array.isArray(list)) return;
+  db.users = list.map(function(u){ return {id:u.id, name:u.name, role:u.role, active:u.active !== false, pin:u.pin, t:u.t}; });
+  sync.uver = ver; saveSync(); save();
+}
+async function serverSignIn(path, body){
+  body.device = deviceInfo(); body.token = sync.token || '';
+  var r = await srvCall(path, {method: 'POST', body: body});
+  if (!r.ok){ var er = new Error((r.json && r.json.error) || ('Server answered ' + r.status)); er.status = r.status; throw er; }
+  if (r.json.token){ sync.url = srvUrl(); sync.token = r.json.token; sync.err = ''; saveSync(); }
+  else if (!sync.url){ sync.url = srvUrl(); saveSync(); }
+  applyServerUsers(r.json.users, r.json.ver);
+  return r.json.user;
+}
+function finishSignIn(u, auditAct){
+  S.uid = u.id; try { sessionStorage.setItem('hp_uid', u.id); } catch(er){}
+  S.lpin = ''; S.lerr = ''; S.tab = 'sale'; S.sl = {name:'', pin:''}; S.su = {name:'', pin:'', pin2:''}; S.srv.busy = false;
+  audit('Users and Security', auditAct, ''); kickSync(); render();
+}
+function srvFail(e){ S.srv.busy = false; S.lpin = ''; S.lerr = e.net ? 'Cannot reach the server. Check the internet and try again.' : (e.message || 'Could not sign in'); render(); }
+async function doLogin(){
+  var lu = byId(db.users, S.lu); if (!lu) return;
+  if (!/^\d+$/.test(S.lpin)){ S.lerr = 'Enter your PIN.'; render(); return; }
+  if (!sync.token){   /* this device is not connected to a server: check on the device only */
+    if (lu.pin === hashPin(S.lpin)) return finishSignIn(lu, 'Login');
+    S.lerr = 'Wrong PIN. Try again.'; S.lpin = ''; render(); return;
+  }
+  S.srv.busy = true; S.lerr = '';
+  try { var u = await serverSignIn('/auth/login', {name: lu.name, pin: S.lpin}); finishSignIn(u, 'Login'); }
+  catch(e){
+    if (e.net){   /* offline: the device's own copy of the PIN decides, so the counter keeps working */
+      S.srv.busy = false;
+      if (lu.pin === hashPin(S.lpin)) return finishSignIn(lu, 'Login (offline)');
+      S.lerr = 'Wrong PIN. Try again.'; S.lpin = ''; render(); return;
+    }
+    S.srv.busy = false; S.lpin = ''; S.lerr = e.status === 401 ? 'Wrong PIN. Try again.' : e.message;
+    if (e.status === 401){ var keepU = S.uid; S.uid = ''; audit('Users and Security', 'Wrong PIN at login', lu.name, {flag:1}); S.uid = keepU; }
+    render();
+  }
+}
+async function userOp(op, user){
+  var au = pinUser(S.upc, 'users'); if (!au){ toast('Enter your PIN above to confirm'); return false; }
+  if (!sync.token){   /* this device is not connected to a server: the user list lives on the device only */
+    var tu = user.id ? byId(db.users, user.id) : null;
+    if (op === 'create') db.users.push({id: uid('u'), name: user.name, role: user.role, pin: hashPin(user.pin), active: true, t: Date.now()});
+    else if (!tu) return false;
+    else if (op === 'setpin') tu.pin = hashPin(user.pin);
+    else { if (user.name !== undefined) tu.name = user.name; if (user.role !== undefined) tu.role = user.role; if (user.active !== undefined) tu.active = !!user.active; }
+    save(); return true;
+  }
+  try {
+    var r = await srvCall('/users/manage', {method: 'POST', bearer: true, body: {actor: {id: au.id, pin: S.upc}, op: op, user: user}});
+    if (!r.ok){ toast((r.json && r.json.error) || 'The server refused'); return false; }
+    applyServerUsers(r.json.users, r.json.ver); return true;
+  } catch(e){ toast(e.net ? 'Connect to the server to change users' : e.message); return false; }
+}
+function vServerBox(inner){
+  return '<div class="page"><div class="card" style="max-width:400px;margin:40px auto"><div style="text-align:center"><img class="rlogo" src="'+LOGO+'" alt="" style="height:64px"></div>'+inner+'</div></div>';
+}
+function vServerCheck(){ return vServerBox('<h3 style="font-size:20px;margin:8px 0 4px;text-align:center">Connecting to the server</h3><p style="color:var(--muted);text-align:center;margin:0">One moment.</p>'); }
+function vServerDown(){
+  return vServerBox('<h3 style="font-size:20px;margin:8px 0 4px;text-align:center">Cannot reach the server</h3><p style="color:var(--muted);margin:0 0 12px;text-align:center">Check the internet connection, then try again.</p>'
+    + '<div class="btns"><button class="btn primary" data-act="srvretry">Try again</button></div>'
+    + '<p style="text-align:center;margin:14px 0 0"><button class="btn ghost sm" data-act="srvlocal">Use on this device only</button></p>');
+}
+function vServerLogin(){
+  return vServerBox('<h3 style="font-size:20px;margin:8px 0 4px;text-align:center">Sign in</h3><p style="color:var(--muted);margin:0 0 12px;text-align:center">Enter your user name and PIN.</p>'
+    + '<label class="fld">User name<input id="slname" class="inp" data-f="slname" value="'+esc(S.sl.name)+'" autocomplete="off" autocapitalize="off" spellcheck="false"></label>'
+    + '<label class="fld" style="margin-top:10px">PIN<input id="slpin" class="inp" type="password" inputmode="numeric" data-f="slpin" value="'+esc(S.sl.pin)+'" autocomplete="off"></label>'
+    + (S.lerr ? '<p style="color:var(--pink-dk);margin:10px 0 0">'+esc(S.lerr)+'</p>' : '')
+    + '<div class="btns"><button class="btn primary" data-act="srvlogin"'+(S.srv.busy ? ' disabled' : '')+'>'+(S.srv.busy ? 'Signing in' : 'Sign in')+'</button></div>');
+}
 function authScreen(){
-  if (!db.users.length) return vSetup();
+  if (!db.users.length){
+    if (S.srv.st === 'local') return vSetup();
+    if (!S.srv.st) checkServer();
+    return S.srv.st === 'setup' ? vSetup() : S.srv.st === 'login' ? vServerLogin() : S.srv.st === 'down' ? vServerDown() : vServerCheck();
+  }
   if (!curUser()) return vLogin();
   return null;
 }
@@ -1779,7 +1861,7 @@ function vUsers(){
     + '<div class="tblwrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
     + '<div class="card"><h3>Add a user</h3><div class="fgrid"><label class="fld">Name<input class="inp" data-f="uan" value="'+esc(S.uadd.name)+'" autocomplete="off"></label>'
     + '<label class="fld">Role<select class="inp" data-f="uar">'+ROLES.map(function(r){ return '<option'+(r === S.uadd.role ? ' selected' : '')+'>'+r+'</option>'; }).join('')+'</select></label>'
-    + '<label class="fld">PIN (4 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="uap" value="'+esc(S.uadd.pin)+'" autocomplete="off"></label></div>'
+    + '<label class="fld">PIN (6 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="uap" value="'+esc(S.uadd.pin)+'" autocomplete="off"></label></div>'
     + '<div class="btns"><button class="btn primary" data-act="uadd">Add user</button></div></div>'
     + '<div class="card"><h3>What each role can do</h3><p style="color:var(--muted);margin:0 0 10px">Owner can do everything. Tabs a role cannot use are hidden. For "approve" rows, a person without the permission asks someone who has it to enter their PIN.</p>'
     + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Permission</th><th>Owner</th><th>Manager</th><th>Cashier</th></tr></thead><tbody>'+mx+'</tbody></table></div></div></div>';
@@ -1855,7 +1937,7 @@ document.addEventListener('input', function(e){
   var t = e.target, f = t.dataset && t.dataset.f;
   if (t.id === 'lpin'){ S.lpin = t.value; return; }
   if (!f) return;
-  if (f === 'sun') S.su.name = t.value; else if (f === 'spin') S.su.pin = t.value; else if (f === 'spin2') S.su.pin2 = t.value;
+  if (f === 'sun') S.su.name = t.value; else if (f === 'spin') S.su.pin = t.value; else if (f === 'spin2') S.su.pin2 = t.value; else if (f === 'slname') S.sl.name = t.value; else if (f === 'slpin') S.sl.pin = t.value;
   else if (f === 'upc') S.upc = t.value; else if (f === 'uan') S.uadd.name = t.value; else if (f === 'uap') S.uadd.pin = t.value; else if (f === 'urspin') S.urspin = t.value;
   else if (f === 'afq'){ S.af.q = t.value; clearTimeout(S._aft); S._aft = setTimeout(function(){ var p = t.selectionStart; render(); var n = document.querySelector('[data-f=afq]'); if (n){ n.focus(); try { n.setSelectionRange(p, p); } catch(er){} } }, 350); }
   else if (S.priceForm && (f === 'pval' || f === 'pnote' || f === 'ppin')){ S.priceForm[f === 'pval' ? 'val' : f === 'pnote' ? 'note' : 'pin'] = t.value; var pb = document.querySelector('[data-act=priceok]'); if (pb) pb.disabled = !priceFormOk(); }
@@ -1865,14 +1947,14 @@ document.addEventListener('change', function(e){
   if (f === 'preason' && S.priceForm){ S.priceForm.reason = t.value; render(); return; }
   if (f === 'afs'){ S.af[t.dataset.k] = t.value; render(); return; }
   if (f === 'afflag'){ S.af.flag = t.checked; render(); return; }
-  if (f === 'uname'){ var u = byId(db.users, t.dataset.id), nm = t.value.trim(); if (u && nm && nm !== u.name){ if (!userPinCheck()){ t.value = u.name; return; } audit('Users and Security', 'User renamed', u.name + ' to ' + nm); u.name = nm; save(); render(); } return; }
-  if (f === 'urole'){ var u2 = byId(db.users, t.dataset.id); if (u2 && t.value !== u2.role){ if (!userPinCheck()){ render(); return; } if (u2.role === 'Owner' && ownerCount() < 2){ toast('There must be at least one Owner'); render(); return; } audit('Users and Security', 'Role changed', u2.name + ': ' + u2.role + ' to ' + t.value, {flag:1}); u2.role = t.value; save(); render(); } return; }
+  if (f === 'uname'){ var u = byId(db.users, t.dataset.id), nm = t.value.trim(); if (u && nm && nm !== u.name){ if (!userPinCheck()){ t.value = u.name; return; } var oldNm = u.name; userOp('update', {id: u.id, name: nm}).then(function(ok){ if (ok) audit('Users and Security', 'User renamed', oldNm + ' to ' + nm); render(); }); } return; }
+  if (f === 'urole'){ var u2 = byId(db.users, t.dataset.id); if (u2 && t.value !== u2.role){ if (!userPinCheck()){ render(); return; } if (u2.role === 'Owner' && ownerCount() < 2){ toast('There must be at least one Owner'); render(); return; } var oldRole = u2.role, newRole = t.value; userOp('update', {id: u2.id, role: newRole}).then(function(ok){ if (ok) audit('Users and Security', 'Role changed', u2.name + ': ' + oldRole + ' to ' + newRole, {flag:1}); render(); }); } return; }
   if (f === 'uar'){ S.uadd.role = t.value; return; }
   if (f === 'permck'){ if (!userPinCheck()){ render(); return; } var rr = t.dataset.role, pp = t.dataset.p; db.perms[rr] = db.perms[rr] || {}; db.perms[rr][pp] = t.checked; var pl = PERMS.filter(function(x){ return x[0] === pp; })[0]; audit('Users and Security', 'Permission changed', rr + ' · ' + (pl ? pl[1] : pp) + ': ' + (t.checked ? 'allowed' : 'not allowed'), {flag:1}); save(); render(); return; }
   auditDiffs();
 });
 function ownerCount(){ return db.users.filter(function(u){ return u.role === 'Owner' && u.active !== false; }).length; }
-document.addEventListener('keydown', function(e){ if (e.key === 'Enter' && e.target.id === 'lpin'){ var b = document.querySelector('[data-act=loginok]'); if (b) b.click(); } });
+document.addEventListener('keydown', function(e){ if (e.key !== 'Enter') return; var id = e.target.id, b = null; if (id === 'lpin') b = document.querySelector('[data-act=loginok]'); else if (id === 'slpin' || id === 'slname') b = document.querySelector('[data-act=srvlogin]'); if (b) b.click(); });
 document.addEventListener('click', function(e){
   var el = e.target.closest('[data-act]'); if (!el){ auditDiffs(); return; }
   if (el.classList.contains('scrim') && e.target !== el) return;
@@ -1881,17 +1963,28 @@ document.addEventListener('click', function(e){
     case 'setupok':
       var f = S.su, nm = f.name.trim();
       if (!nm){ S.lerr = 'Enter a name.'; break; }
-      if (!/^\d{4,}$/.test(f.pin)){ S.lerr = 'PIN must be 4 digits or more (numbers only).'; break; }
+      if (!/^\d{6,}$/.test(f.pin)){ S.lerr = 'PIN must be 6 digits or more (numbers only).'; break; }
       if (f.pin !== f.pin2){ S.lerr = 'The two PINs do not match.'; break; }
+      if (S.srv.st === 'setup'){
+        S.srv.busy = true; S.lerr = '';
+        serverSignIn('/auth/setup', {name: nm, pin: f.pin}).then(function(u){ toast('Welcome, ' + u.name); finishSignIn(u, 'Owner created'); }).catch(function(e){
+          if (e.status === 409){ S.srv.st = 'login'; S.lerr = ''; S.srv.busy = false; render(); } else srvFail(e); });
+        return;
+      }
       var ou = {id:uid('u'), name:nm, role:'Owner', pin:hashPin(f.pin), active:true, t:Date.now()};
       db.users.push(ou); S.uid = ou.id; try { sessionStorage.setItem('hp_uid', ou.id); } catch(er){}
       S.su = {name:'', pin:'', pin2:''}; S.lerr = ''; audit('Users and Security', 'Owner created', nm); toast('Welcome, ' + nm); break;
+    case 'srvlogin':
+      if (S.srv.busy) return;
+      if (!S.sl.name.trim() || !S.sl.pin){ S.lerr = 'Enter your user name and PIN.'; break; }
+      S.srv.busy = true; S.lerr = ''; render();
+      serverSignIn('/auth/login', {name: S.sl.name.trim(), pin: S.sl.pin}).then(function(u){ finishSignIn(u, 'Login'); }).catch(function(e){ S.sl.pin = ''; srvFail(e); });
+      return;
+    case 'srvretry': S.srv.st = ''; render(); return;
+    case 'srvlocal': S.srv.st = 'local'; break;
     case 'loginpick': S.lu = d.id; S.lpin = ''; S.lerr = ''; break;
     case 'loginok':
-      var lu = byId(db.users, S.lu);
-      if (lu && lu.pin === hashPin(S.lpin)){ S.uid = lu.id; try { sessionStorage.setItem('hp_uid', lu.id); } catch(er){} S.lpin = ''; S.lerr = ''; S.tab = 'sale'; audit('Users and Security', 'Login', ''); }
-      else if (lu){ S.lerr = 'Wrong PIN. Try again.'; S.lpin = ''; var keepU = S.uid; S.uid = ''; audit('Users and Security', 'Wrong PIN at login', lu.name, {flag:1}); S.uid = keepU; }
-      break;
+      doLogin(); return;
     case 'locknow': lockNow(); break;
     case 'pricechg': S.priceForm = {i:+d.i, val:'', reason:'', note:'', pin:'', perm:'price'}; break;
     case 'pricecancel': S.priceForm = null; break;
@@ -1910,24 +2003,25 @@ document.addEventListener('click', function(e){
       if (!userPinCheck()) break;
       var ua = S.uadd, un = ua.name.trim();
       if (!un){ toast('Enter a name'); break; }
-      if (!/^\d{4,}$/.test(ua.pin)){ toast('PIN must be 4 digits or more'); break; }
+      if (!/^\d{6,}$/.test(ua.pin)){ toast('PIN must be 6 digits or more'); break; }
       if (db.users.some(function(x){ return x.pin === hashPin(ua.pin); })){ toast('That PIN is already used. Choose another.'); break; }
-      var nu = {id:uid('u'), name:un, role:ua.role, pin:hashPin(ua.pin), active:true, t:Date.now()};
-      db.users.push(nu); audit('Users and Security', 'User added', un + ' (' + ua.role + ')', {flag:1}); S.uadd = {name:'', role:'Cashier', pin:''}; toast('User added'); break;
+      userOp('create', {name: un, role: ua.role, pin: ua.pin}).then(function(ok){ if (ok){ audit('Users and Security', 'User added', un + ' (' + ua.role + ')', {flag:1}); S.uadd = {name:'', role:'Cashier', pin:''}; toast('User added'); } render(); });
+      return;
     case 'urs': S.urs = d.id; S.urspin = ''; break;
     case 'ursno': S.urs = null; break;
     case 'urssave':
       if (!userPinCheck()) break;
       var ur = byId(db.users, d.id);
-      if (!/^\d{4,}$/.test(S.urspin)){ toast('PIN must be 4 digits or more'); break; }
+      if (!/^\d{6,}$/.test(S.urspin)){ toast('PIN must be 6 digits or more'); break; }
       if (db.users.some(function(x){ return x.id !== d.id && x.pin === hashPin(S.urspin); })){ toast('That PIN is already used. Choose another.'); break; }
-      ur.pin = hashPin(S.urspin); audit('Users and Security', 'PIN reset', ur.name, {flag:1}); S.urs = null; S.urspin = ''; toast('PIN changed'); break;
+      userOp('setpin', {id: d.id, pin: S.urspin}).then(function(ok){ if (ok){ audit('Users and Security', 'PIN reset', ur.name, {flag:1}); S.urs = null; S.urspin = ''; toast('PIN changed'); } render(); });
+      return;
     case 'utoggle':
       if (!userPinCheck()) break;
       var ut = byId(db.users, d.id);
-      if (ut.active !== false){ if (ut.role === 'Owner' && ownerCount() < 2){ toast('There must be at least one active Owner'); break; } if (ut.id === S.uid){ toast('You cannot deactivate yourself'); break; } ut.active = false; audit('Users and Security', 'User deactivated', ut.name, {flag:1}); }
-      else { ut.active = true; audit('Users and Security', 'User activated', ut.name); }
-      save(); break;
+      if (ut.active !== false){ if (ut.role === 'Owner' && ownerCount() < 2){ toast('There must be at least one active Owner'); break; } if (ut.id === S.uid){ toast('You cannot deactivate yourself'); break; } }
+      userOp('update', {id: ut.id, active: ut.active === false}).then(function(ok){ if (ok) audit('Users and Security', ut.active === false ? 'User deactivated' : 'User activated', ut.name, ut.active === false ? {flag:1} : undefined); render(); });
+      return;
     case 'auditprint': printHtml(auditPrintHtml(auditList())); return;
     case 'auditcsv':
       try { var bl = new Blob([auditCsv(auditList())], {type:'text/csv;charset=utf-8'}), an = document.createElement('a'); an.href = URL.createObjectURL(bl); an.download = 'audit-log.csv'; document.body.appendChild(an); an.click(); document.body.removeChild(an); toast('CSV downloaded'); }

@@ -5,6 +5,7 @@ const http = require('http');
 const fs = require('fs');
 const nodePath = require('path');
 const { Pool } = require('pg');
+const users = require('./users');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
@@ -85,6 +86,14 @@ async function route(req, res) {
   const m = req.method;
   if (m === 'GET' && path === '/health') { await pool.query('select 1'); return send(res, 200, { ok: true }); }
 
+  if (path.startsWith('/auth/') || path === '/users' || path.startsWith('/users/')) {
+    const done = await users.handle(req, res, path, m, pool, {
+      send: send, readJson: readJson, device: device,
+      registerDevice: function (name, kind) { return one('select register_device($1, $2) as r', [name, kind.slice(0, 20)]); },
+      bearerDevice: function (token) { return token ? one('select auth_device($1) as r', [String(token)]) : Promise.resolve(null); }
+    });
+    if (done !== false) return;
+  }
   if (path === '/enroll' && m === 'POST') {
     if (SHOP_KEY.length < 4) return send(res, 404, { error: 'enrolling is not switched on' });
     const now = Date.now();
@@ -148,5 +157,7 @@ const server = http.createServer(function (req, res) {
     if (!res.headersSent) send(res, status, { error: status >= 500 ? 'server error' : e.message });
   });
 });
-server.listen(PORT, function () { console.log('Hollywood POS API listening on ' + PORT); });
+users.ensureSchema(pool).then(function () {
+  server.listen(PORT, function () { console.log('Hollywood POS API listening on ' + PORT); });
+}).catch(function (e) { console.error('Could not prepare the users table', e); process.exit(1); });
 process.on('SIGTERM', function () { server.close(function () { pool.end().then(function () { process.exit(0); }); }); });

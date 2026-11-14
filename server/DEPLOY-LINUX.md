@@ -84,27 +84,19 @@ curl https://pos.yourshop.com/health
 
 It must answer `{"ok":true}`. If it does not, see "If something goes wrong" at the end.
 
-## 6. Register each device (once)
+## 6. Create the first user and connect the apps
 
-Each tablet and the counter POS gets its own name and token. The token is shown only once, so copy it straight away.
+Nothing to register by hand and no tokens to copy any more. Users live on the server and a device connects when a user signs in.
 
-```sh
-curl -X POST https://pos.yourshop.com/admin/devices \
-  -H "X-Admin-Token: YOUR_ADMIN_TOKEN" -H "Content-Type: application/json" \
-  -d '{"name":"Tablet 1","kind":"tablet"}'
-```
+- Open `https://pos.yourshop.com/pos/` (or the Windows app, or the APK). On the first run the server has no users, so the screen says *Create your user*. That user becomes the **Owner** (PIN: 6 digits or more).
+- On every other device the screen is *Sign in*: user name and PIN. The server then gives that device its own token behind the scenes.
+- Add staff in the POS **Users** tab (Owner only). New users can sign in on any device straight away. A user who is deactivated is signed out of every device within a minute.
+- Tablet order pad: ☰ > Edit menu > *Sync with the server* > user name and PIN of any shop user > *Connect to the server*.
+- After 5 wrong PINs for one user the server blocks that user for 15 minutes.
 
-Repeat with `"name":"Tablet 2"`, `"Tablet 3"`, and for the counter `"name":"Counter","kind":"pos"`.
+Without internet a device still works: it keeps its own copy of the users and checks the PIN on the device. It signs in against the server again whenever the internet is back.
 
-## 7. Connect the apps
-
-- Order pad on a tablet or phone: open `https://pos.yourshop.com/`, then ☰ > Edit menu, scroll to *Sync with the server*, and enter the server address `https://pos.yourshop.com` and that device's token, then press Save and test. The label at the top changes from *This device only* to *Synced*.
-- Counter POS: open `https://pos.yourshop.com/pos/`, Settings > *Sync with the server*, same address and the Counter token.
-- The Android APK works the same way: ☰ > Edit menu > *Sync with the server*.
-
-Use these addresses, not the GitHub ones, for the shop. They are on the same domain as the database, so there is nothing to block.
-
-## 8. Daily backup (do not skip)
+## 7. Daily backup (do not skip)
 
 ```sh
 cd /opt/hpos/server
