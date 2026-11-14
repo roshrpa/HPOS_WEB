@@ -284,7 +284,7 @@ var K = 'hollywood_pos_v1', mem = null;
 function today(){ return new Date().toLocaleDateString('en-CA'); }
 var db = (function(){ try { var r = localStorage.getItem(K); if (r) return JSON.parse(r); } catch(e){} return mem || {sales:[], counter:0, day:today(), stock:{}}; })();
 db.sales.forEach(function(s){ if (typeof s.id !== 'string'){ s.id = String(s.id); s.legacy = true; } });
-function save(){ mem = db; try { localStorage.setItem(K, JSON.stringify(db)); } catch(e){} }
+function save(){ mem = db; try { localStorage.setItem(K, JSON.stringify(db)); } catch(e){} if (typeof stateDiffSoon === 'function') stateDiffSoon(); }
 
 /* ---------- Inventory: materials, recipes, purchases, waste, stock count, variance ---------- */
 function invDefault(){
@@ -496,8 +496,78 @@ function isUuid(x){ return UUID_RE.test(String(x)); }
 function syncOn(){ return !!(sync.url && sync.token); }
 function queueEvent(type, payload){
   sync.outbox.push({id:uuid(), type:type, t:Date.now(), payload:payload});
-  if (sync.outbox.length > 5000) sync.outbox.splice(0, sync.outbox.length - 5000);
+  if (sync.outbox.length > 20000) sync.outbox.splice(0, sync.outbox.length - 20000);
   saveSync(); paintSync(); kickSync();
+}
+
+/* ---------- Every device keeps the same records ----------
+   Lists (expenses, purchases, customers ...) and settings are compared after each change; what changed is sent as
+   "rec" / "recdel" events and the newest change wins. Stock quantities are sent as plus/minus amounts ("num") so two
+   devices that sell at the same time both count. Each device applies the events the others sent. */
+var SYNC_ARR = ['exp.items','exp.cats','pur.list','pur.pays','sup','cust','cpay','cash.entries','inv.materials','inv.purchases','inv.waste','inv.counts','rec'];
+var SYNC_MAP = ['days','avg','openStock','locks','perms','wh.carton','wh.direct','cash.open','inv.recipes','inv.base','settings'];
+var SYNC_NUM = {'stock':'stock', 'whqty':'wh.qty'};
+var SYNC_SKIP = {settings:{pin:1, pinOn:1}};
+function pget(path){ var o = db, a = path.split('.'); for (var i = 0; i < a.length; i++){ if (o === undefined || o === null) return undefined; o = o[a[i]]; } return o; }
+function pset(path, v){ var a = path.split('.'), o = db; for (var i = 0; i < a.length - 1; i++){ if (o[a[i]] === undefined || o[a[i]] === null) o[a[i]] = {}; o = o[a[i]]; } o[a[a.length - 1]] = v; }
+function hsh(x){ var t = JSON.stringify(x === undefined ? null : x), h = 5381; for (var i = 0; i < t.length; i++) h = (((h << 5) + h) + t.charCodeAt(i)) | 0; return t.length + ':' + h; }
+function syState(){ if (!db.sy) db.sy = {h:{}, u:{}, n:{}}; return db.sy; }
+function collect(c){
+  var o = {}, v = pget(c);
+  if (SYNC_ARR.indexOf(c) >= 0){ (v || []).forEach(function(r){ if (r && r.id !== undefined && r.id !== null) o[String(r.id)] = r; }); }
+  else if (v && typeof v === 'object'){ Object.keys(v).forEach(function(k){ if (!(SYNC_SKIP[c] && SYNC_SKIP[c][k])) o[k] = v[k]; }); }
+  return o;
+}
+function rd4(n){ return Math.round(n * 10000) / 10000; }
+function stateDiff(){
+  if (!syncOn()) return;
+  var sy = syState(), out = [], now = Date.now();
+  SYNC_ARR.concat(SYNC_MAP).forEach(function(c){
+    var cur = collect(c), H = sy.h[c] = sy.h[c] || {}, U = sy.u[c] = sy.u[c] || {}, id;
+    for (id in cur){ var hh = hsh(cur[id]); if (H[id] !== hh){ H[id] = hh; U[id] = now; out.push({type:'rec', payload:{c:c, id:id, r:cur[id], u:now}}); } }
+    for (id in H){ if (!(id in cur)){ delete H[id]; U[id] = now; out.push({type:'recdel', payload:{c:c, id:id, u:now}}); } }
+  });
+  Object.keys(SYNC_NUM).forEach(function(n){
+    var cur = pget(SYNC_NUM[n]) || {}, N = sy.n[n], k;
+    if (!N){ sy.n[n] = {}; for (k in cur) sy.n[n][k] = +cur[k] || 0; return; }
+    for (k in cur){ var d = rd4((+cur[k] || 0) - (N[k] || 0)); if (d !== 0){ out.push({type:'num', payload:{n:n, k:k, d:d}}); N[k] = (+cur[k] || 0); } }
+  });
+  if (out.length){
+    out.forEach(function(e){ sync.outbox.push({id:uuid(), type:e.type, t:now, payload:e.payload}); });
+    if (sync.outbox.length > 20000) sync.outbox.splice(0, sync.outbox.length - 20000);
+    saveSync(); mem = db; try { localStorage.setItem(K, JSON.stringify(db)); } catch(e){}
+    paintSync(); kickSync();
+  }
+}
+var diffT = null;
+function stateDiffSoon(){ if (typeof sync === 'undefined' || !sync || !syncOn()) return; clearTimeout(diffT); diffT = setTimeout(stateDiff, 400); }
+function applyState(type, p){
+  var sy = syState();
+  if (type === 'num'){
+    var path = SYNC_NUM[p.n]; if (!path || !p.k) return false;
+    var m = pget(path); if (!m){ pset(path, {}); m = pget(path); }
+    m[p.k] = rd4((+m[p.k] || 0) + p.d);
+    sy.n[p.n] = sy.n[p.n] || {}; sy.n[p.n][p.k] = (sy.n[p.n][p.k] || 0) + p.d; sy.n[p.n][p.k] = rd4(sy.n[p.n][p.k]);
+    return true;
+  }
+  var c = p.c, isArr = SYNC_ARR.indexOf(c) >= 0;
+  if (!isArr && SYNC_MAP.indexOf(c) < 0) return false;
+  var H = sy.h[c] = sy.h[c] || {}, U = sy.u[c] = sy.u[c] || {}, id = String(p.id);
+  if ((U[id] || 0) > (p.u || 0)) return false;           // this device has a newer change
+  if (!isArr && SYNC_SKIP[c] && SYNC_SKIP[c][id]) return false;
+  var v = pget(c);
+  if (v === undefined || v === null){ pset(c, isArr ? [] : {}); v = pget(c); }
+  if (type === 'rec'){
+    if (isArr){ var i = -1; for (var j = 0; j < v.length; j++){ if (v[j] && String(v[j].id) === id){ i = j; break; } } if (i >= 0) v[i] = p.r; else v.push(p.r); }
+    else v[id] = p.r;
+    H[id] = hsh(p.r); U[id] = p.u || 0; return true;
+  }
+  if (type === 'recdel'){
+    if (isArr){ for (var j2 = v.length - 1; j2 >= 0; j2--){ if (v[j2] && String(v[j2].id) === id) v.splice(j2, 1); } }
+    else delete v[id];
+    delete H[id]; U[id] = p.u || 0; return true;
+  }
+  return false;
 }
 function kickSync(){ clearTimeout(syncTimer); syncTimer = setTimeout(function(){ runSync(); }, 500); }
 async function syncApi(path, o){
@@ -522,6 +592,7 @@ async function runSync(){
   if (!syncOn() || syncBusy) return;
   syncBusy = true; sync.err = ''; paintSync();
   try {
+    try { stateDiff(); } catch(e){}
     while (sync.outbox.length){
       var batch = sync.outbox.slice(0, 100);
       try { await syncApi('/sync/push', {method:'POST', body:{events:batch}}); }
@@ -641,7 +712,7 @@ window.addEventListener('online', kickSync);
 document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible') kickSync(); });
 
 /* Changes made on other devices */
-function stockMove(lines, dir){ lines.forEach(function(l){ var k = skey(l.cat, l.name), v = db.stock[k]; if (v !== undefined && v !== null && v !== '') db.stock[k] = setg().allowZero || dir > 0 ? +v + dir * l.qty : Math.max(0, +v + dir * l.qty); }); }
+function stockMove(lines, dir){ lines.forEach(function(l){ var k = skey(l.cat, l.name), v = db.stock[k]; if (v !== undefined && v !== null && v !== ''){ var nv = setg().allowZero || dir > 0 ? +v + dir * l.qty : Math.max(0, +v + dir * l.qty); db.stock[k] = nv; var N = db.sy && db.sy.n && db.sy.n.stock; if (N) N[k] = rd4((N[k] || 0) + (nv - +v)); } }); }
 function applyRemote(events){
   var changed = false; db.tOrders = db.tOrders || [];
   function tord(id){ return db.tOrders.filter(function(x){ return String(x.id) === String(id); })[0]; }
@@ -650,7 +721,7 @@ function applyRemote(events){
     if (e.type === 'sale'){
       if (isUuid(p.id) && !byId(db.sales, p.id)){
         db.sales.push({id:p.id, no:p.no, t:p.t || e.t, day:p.day || new Date(p.t || e.t).toLocaleDateString('en-CA'), lines:p.lines || [], subtotal:p.subtotal != null ? p.subtotal : p.total, discount:p.discount || 0,
-          discReason:p.discReason || '', discNote:p.discNote || '', total:p.total, pay:p.pay, tendered:p.tendered || 0, void:false, vat:p.vat || 0, vatRate:p.vatRate || 0, remote:true});
+          discReason:p.discReason || '', discNote:p.discNote || '', total:p.total, pay:p.pay, tendered:p.tendered || 0, void:false, vat:p.vat || 0, vatRate:p.vatRate || 0, remote:true, cust:p.cust || '', custName:p.custName || '', custPhone:p.custPhone || '', givenBy:p.givenBy || '', due:p.due || '', by:p.by || '', discBy:p.discBy || ''});
         stockMove(p.lines || [], -1); changed = true;
       }
     } else if (e.type === 'sale_cancel'){
@@ -662,6 +733,12 @@ function applyRemote(events){
       var o = tord(p.id); if (o && o.status === 'new'){ o.lines = p.lines || o.lines; o.note = p.note || ''; if (p.pay !== undefined) o.pay = p.pay || ''; if (p.credit !== undefined) o.credit = p.credit || null; changed = true; }
     } else if (e.type === 'order_pay'){
       var o4 = tord(p.id); if (o4 && o4.status === 'new'){ o4.pay = p.pay || ''; changed = true; }
+    } else if (e.type === 'rec' || e.type === 'recdel' || e.type === 'num'){
+      if (applyState(e.type, p)) changed = true;
+    } else if (e.type === 'audit'){
+      if (p && p.id && !byId(db.audit, p.id)){ db.audit.push(p); changed = true; }
+    } else if (e.type === 'wh_move'){
+      if (p && p.id && !byId(db.wh.log, p.id)){ db.wh.log.push(p); if (db.wh.log.length > 1000) db.wh.log.splice(0, db.wh.log.length - 1000); changed = true; }
     } else if (e.type === 'order_cancel'){
       var o2 = tord(p.id); if (o2){ o2.status = 'cancelled'; changed = true; }
     } else if (e.type === 'order_done'){
@@ -1425,7 +1502,7 @@ function finishSale(){
   if (db.day !== today()){ db.day = today(); db.counter = 0; }
   db.counter++;
   var cs = S.creditSel || {}, s = {cust:cs.cust || '', custName:cs.name || '', custPhone:cs.phone || '', givenBy:cs.givenBy || '', due:cs.due || '', by:curName(), uid:S.uid, id:uuid(), dev:sync.dev || '', no:db.counter, t:Date.now(), day:today(), lines:S.cart.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty, orig:l.orig, mod:l.mod, modBy:l.modBy, modWhy:l.modWhy}; }), subtotal:totalOf(S.cart), discount:discAmt(), discReason:S.disc ? S.disc.reason : '', discNote:S.disc ? S.disc.note : '', discBy:S.disc ? S.disc.by : '', total:billTotal(), pay:S.pay, tendered:S.pay==='cash'?parseFloat(S.tendered):0, void:false, vat:vatOf(billTotal()), vatRate:setg().vat ? setg().rate : 0};
-  s.lines.forEach(function(l){ var k = skey(l.cat, l.name), v = db.stock[k]; if (v !== undefined && v !== null && v !== '') db.stock[k] = setg().allowZero ? +v - l.qty : Math.max(0, +v - l.qty); });
+  stockMove(s.lines, -1);
   db.sales.push(s); save();
   s.lines.forEach(function(l){ if (l.mod) audit('Sales', 'Price changed at sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty + ': AED ' + money(l.orig) + ' to AED ' + money(l.price) + '. Reason: ' + l.modWhy, {ap:l.modBy, flag:1}); });
   if (s.discount > 0) audit('Sales', 'Discount given', 'Bill #' + s.no + ' · AED ' + money(s.discount) + '. Reason: ' + s.discReason + (s.discNote ? ' – ' + s.discNote : ''), {ap:s.discBy, flag:1});
@@ -1707,7 +1784,7 @@ document.addEventListener('click', function(e){
     case 'discapply': if (S.discForm && reasonOk(S.discForm) && pinOk(S.discForm) && parseFloat(S.discForm.val) > 0){ S.disc = {type:S.discForm.type, val:S.discForm.val, reason:S.discForm.reason, note:S.discForm.note.trim(), by:apprName(S.discForm)}; S.discForm = null; toast('Discount applied'); } break;
     case 'discoff': S.disc = null; break;
     case 'voidyes': var s = S.voidForm && byId(db.sales, S.voidForm.id);
-      if (s && !s.void && reasonOk(S.voidForm) && pinOk(S.voidForm)){ s.void = true; s.voidBy = apprName(S.voidForm); s.voidReason = S.voidForm.reason; s.voidNote = S.voidForm.note.trim(); s.voidT = Date.now(); s.lines.forEach(function(l){ var k = skey(l.cat, l.name), v = db.stock[k]; if (v !== undefined && v !== null && v !== '') db.stock[k] = +v + l.qty; }); save(); if (isUuid(s.id)) queueEvent('sale_cancel', {id:s.id, reason:s.voidReason, note:s.voidNote}); audit('Sales', 'Bill cancelled', 'Bill #' + s.no + ' · AED ' + money(s.total) + ' · ' + s.pay + '. Reason: ' + s.voidReason + (s.voidNote ? ' – ' + s.voidNote : ''), {ap:s.voidBy, flag:1}); toast('Bill #' + s.no + ' cancelled'); S.voidForm = null; }
+      if (s && !s.void && reasonOk(S.voidForm) && pinOk(S.voidForm)){ s.void = true; s.voidBy = apprName(S.voidForm); s.voidReason = S.voidForm.reason; s.voidNote = S.voidForm.note.trim(); s.voidT = Date.now(); stockMove(s.lines, +1); save(); if (isUuid(s.id)) queueEvent('sale_cancel', {id:s.id, reason:s.voidReason, note:s.voidNote}); audit('Sales', 'Bill cancelled', 'Bill #' + s.no + ' · AED ' + money(s.total) + ' · ' + s.pay + '. Reason: ' + s.voidReason + (s.voidNote ? ' – ' + s.voidNote : ''), {ap:s.voidBy, flag:1}); toast('Bill #' + s.no + ' cancelled'); S.voidForm = null; }
       break;
   }
   render();

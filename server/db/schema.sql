@@ -31,7 +31,7 @@ create table if not exists sales (
   bill_no          text not null,
   day              date not null,
   sold_at          timestamptz not null,
-  pay              text not null check (pay in ('cash','card')),
+  pay              text not null check (pay in ('cash','card','credit')),
   subtotal         numeric(12,2) not null,
   discount         numeric(12,2) not null default 0,
   discount_reason  text,
@@ -191,6 +191,7 @@ language sql as $$
     'vat', coalesce((select sum(vat) from paid), 0),
     'cash', coalesce((select sum(total) from paid where pay = 'cash'), 0),
     'card', coalesce((select sum(total) from paid where pay = 'card'), 0),
+    'credit', coalesce((select sum(total) from paid where pay = 'credit'), 0),
     'cancelled', jsonb_build_object('count', (select count(*) from s where status = 'cancelled'),
                                     'amount', coalesce((select sum(total) from s where status = 'cancelled'), 0)),
     'by_category', coalesce((select jsonb_agg(jsonb_build_object('category', category, 'qty', q, 'amount', a) order by a desc)

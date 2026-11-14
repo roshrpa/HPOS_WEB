@@ -33,6 +33,40 @@ async function ensureSchema(pool) {
       ver bigint not null default nextval('users_ver_seq')
     );
     create unique index if not exists users_name_ci on users (lower(name));`);
+  // Older databases only allowed cash and card on a bill: allow credit bills too (idempotent).
+  await pool.query(`
+    do $mig$ declare c text; begin
+      for c in select conname from pg_constraint where conrelid = 'sales'::regclass and contype = 'c'
+                 and pg_get_constraintdef(oid) like '%cash%' and pg_get_constraintdef(oid) like '%card%' and pg_get_constraintdef(oid) not like '%credit%' loop
+        execute format('alter table sales drop constraint %I', c);
+      end loop;
+      if not exists (select 1 from pg_constraint where conrelid = 'sales'::regclass and conname = 'sales_pay_allowed') then
+        alter table sales add constraint sales_pay_allowed check (pay in ('cash','card','credit'));
+      end if;
+    end $mig$;
+  `);
+  await pool.query(`create or replace function report_day(p_day date) returns jsonb
+language sql as $$
+  with s as (select * from sales where day = p_day),
+  paid as (select * from s where status = 'paid')
+  select jsonb_build_object(
+    'day', p_day,
+    'bills', (select count(*) from paid),
+    'gross', coalesce((select sum(subtotal) from paid), 0),
+    'discount', coalesce((select sum(discount) from paid), 0),
+    'net', coalesce((select sum(total) from paid), 0),
+    'vat', coalesce((select sum(vat) from paid), 0),
+    'cash', coalesce((select sum(total) from paid where pay = 'cash'), 0),
+    'card', coalesce((select sum(total) from paid where pay = 'card'), 0),
+    'credit', coalesce((select sum(total) from paid where pay = 'credit'), 0),
+    'cancelled', jsonb_build_object('count', (select count(*) from s where status = 'cancelled'),
+                                    'amount', coalesce((select sum(total) from s where status = 'cancelled'), 0)),
+    'by_category', coalesce((select jsonb_agg(jsonb_build_object('category', category, 'qty', q, 'amount', a) order by a desc)
+                               from (select l.category, sum(l.qty) q, sum(l.qty * l.price) a
+                                       from sale_lines l join paid p on p.id = l.sale_id group by l.category) c), '[]'::jsonb)
+  );
+$$;
+`);
 }
 
 function publicUser(r) { return { id: r.id, name: r.name, role: r.role, active: r.active, pin: r.pin_local, t: new Date(r.created_at).getTime() }; }
