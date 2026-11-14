@@ -756,9 +756,6 @@ function vMenu(){
     + '<div class="card"><h3>Category actions</h3><div style="display:flex;gap:8px;flex-wrap:wrap">'
     + (catDel ? '<button class="btn primary sm" data-act="delcatyes">Delete "'+esc(c.name)+'" and its items</button><button class="btn ghost sm" data-act="delno">Keep</button>'
               : '<button class="btn danger sm" data-act="delcat">Delete category</button>') + '</div></div>'
-    + '<div class="card"><h3>Reset</h3><div style="display:flex;gap:8px;flex-wrap:wrap">'
-    + (S.resetAsk ? '<button class="btn primary sm" data-act="resetyes">Yes, restore the printed menu</button><button class="btn ghost sm" data-act="resetno">Cancel</button>'
-                  : '<button class="btn ghost sm" data-act="resetask">Restore original menu</button>') + '</div></div>'
     + '</div></div>';
 }
 
