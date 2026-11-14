@@ -275,7 +275,7 @@ var menu = (function(){ try { var r = JSON.parse(localStorage.getItem(K_MENU)); 
 menu.forEach(function(c){ if (c.name === 'Mini Melts Ice Cream' || c.name === 'Minimals Ice Cream') c.name = 'Minimelts Ice Cream'; });
 var saveT, dirty = false;
 function flushMenu(){ if (!dirty) return; dirty = false; try { localStorage.setItem(K_MENU, JSON.stringify(menu)); } catch(e){ toast('Could not save the menu. Storage is full or blocked.'); } }
-function saveMenu(){ dirty = true; clearTimeout(saveT); saveT = setTimeout(flushMenu, 300); }
+function saveMenu(){ dirty = true; clearTimeout(saveT); saveT = setTimeout(function(){ flushMenu(); if (typeof menuEdited === 'function') menuEdited(); }, 300); }
 window.addEventListener('pagehide', flushMenu);
 document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') flushMenu(); });
 
@@ -540,10 +540,60 @@ async function runSync(){
     }
     try { var us = await syncApi('/users'); if (us && us.users && us.users.length && us.ver !== sync.uver){ applyServerUsers(us.users, us.ver); changed = true; } }
     catch(e){ if (e.status === 401) throw e; }
+    if (await cfgSync()) changed = true;
     sync.lastOk = Date.now();
     if (changed) renderSafe();
   } catch(e){ sync.err = e.status === 401 ? 'The device token is wrong or switched off' : (e.message || 'Offline'); }
   syncBusy = false; saveSync(); paintSync();
+}
+var IS_POS_APP = true;
+function applyServerMenu(list){
+  menu = list; dirty = true; flushMenu();
+  if (!byId(menu, S.edCat)) S.edCat = menu[0].id;
+  if (S.cat && !byId(menu, S.cat)) S.cat = menu[0].id;
+}
+function stockMap(){
+  var items = {}; Object.keys(db.stock || {}).forEach(function(k){ var v = db.stock[k]; if (v !== undefined && v !== null && v !== '') items[k] = +v; });
+  return {items:items, allowZero:!!setg().allowZero};
+}
+/* ---------- Menu and stock shared through the server ----------
+   The menu is kept on the server (config "menu"): whoever edits it sends it, every other device takes the newest.
+   The POS also sends the shop stock (config "stock") so the order pad can grey out items that ran out. */
+sync.cfg = sync.cfg || {};
+var menuPushT = null;
+function menuEdited(){
+  if (!syncOn()) return;
+  sync.cfg.mdirty = true; saveSync();
+  clearTimeout(menuPushT); menuPushT = setTimeout(function(){ runSync(); }, 1500);
+}
+async function cfgSync(){
+  var changed = false, m = null, sv = 0;
+  try { m = await syncApi('/config/menu'); } catch(e){ if (e.status === 401) throw e; }
+  if (m){
+    sv = m.version || 0;
+    if (sync.cfg.mdirty || (sv === 0 && typeof IS_POS_APP !== 'undefined')){
+      try { var r = await syncApi('/config/menu', {method:'PUT', body:{value:{menu:menu, t:Date.now()}, version:sv}}); sync.cfg.menu = r.version; sync.cfg.mdirty = false; saveSync(); }
+      catch(e){ if (e.status === 401) throw e; }   // a clash with another device: tried again next time
+    } else if (sv > (sync.cfg.menu || 0) && m.value && m.value.menu && m.value.menu.length){
+      applyServerMenu(m.value.menu); sync.cfg.menu = sv; saveSync(); changed = true;
+    }
+  }
+  if (typeof stockMap === 'function'){
+    var sm = stockMap(), h = JSON.stringify(sm);
+    if (h !== sync.cfg.shash){
+      try {
+        var sg = await syncApi('/config/stock');
+        await syncApi('/config/stock', {method:'PUT', body:{value:sm, version:(sg && sg.version) || 0}});
+        sync.cfg.shash = h; saveSync();
+      } catch(e){ if (e.status === 401) throw e; }
+    }
+  } else {
+    try {
+      var s2 = await syncApi('/config/stock');
+      if (s2 && (s2.version || 0) > (sync.cfg.stock || 0) && s2.value){ applyServerStock(s2.value); sync.cfg.stock = s2.version; saveSync(); changed = true; }
+    } catch(e){ if (e.status === 401) throw e; }
+  }
+  return changed;
 }
 function renderSafe(){
   var a = document.activeElement;
@@ -607,9 +657,11 @@ function applyRemote(events){
       var s = byId(db.sales, p.id);
       if (s && !s.void){ s.void = true; s.voidReason = p.reason || ''; s.voidNote = p.note || ''; s.voidT = e.t; stockMove(s.lines, +1); changed = true; }
     } else if (e.type === 'order'){
-      if (isUuid(p.id) && !tord(p.id)){ db.tOrders.push({id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, lines:p.lines || [], note:p.note || '', status:'new'}); changed = true; }
+      if (isUuid(p.id) && !tord(p.id)){ db.tOrders.push({id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, lines:p.lines || [], note:p.note || '', pay:p.pay || '', credit:p.credit || null, status:'new'}); changed = true; }
     } else if (e.type === 'order_update'){
-      var o = tord(p.id); if (o && o.status === 'new'){ o.lines = p.lines || o.lines; o.note = p.note || ''; changed = true; }
+      var o = tord(p.id); if (o && o.status === 'new'){ o.lines = p.lines || o.lines; o.note = p.note || ''; if (p.pay !== undefined) o.pay = p.pay || ''; if (p.credit !== undefined) o.credit = p.credit || null; changed = true; }
+    } else if (e.type === 'order_pay'){
+      var o4 = tord(p.id); if (o4 && o4.status === 'new'){ o4.pay = p.pay || ''; changed = true; }
     } else if (e.type === 'order_cancel'){
       var o2 = tord(p.id); if (o2){ o2.status = 'cancelled'; changed = true; }
     } else if (e.type === 'order_done'){
@@ -1303,7 +1355,7 @@ function vSheets(){
   if (S.tabOpen){
     var tl = tabletOrders().map(function(o){
       var q = o.lines.reduce(function(a,l){ return a + l.qty; }, 0), amt = o.lines.reduce(function(a,l){ return a + l.qty * l.price; }, 0);
-      return '<div class="line"><div class="t"><b>#'+esc(tOrderLabel(o))+' · '+q+' items · AED '+money(amt)+'</b><span>'+fdate(o.t)+(o.note?' · '+esc(o.note):'')+'<br>'+o.lines.map(function(l){ return l.qty+' x '+esc(l.name)+(l.size?' ('+esc(l.size)+')':''); }).join(', ')+'</span></div>'
+      return '<div class="line"><div class="t"><b>#'+esc(tOrderLabel(o))+' · '+q+' items · AED '+money(amt)+'</b><span>'+fdate(o.t)+(o.note?' · '+esc(o.note):'')+' · <b>'+(o.pay === 'cash' ? 'Cash' : o.pay === 'card' ? 'Card' : o.pay === 'credit' ? 'Credit: '+esc(o.credit ? o.credit.name : '') : 'Pay later')+'</b><br>'+o.lines.map(function(l){ return l.qty+' x '+esc(l.name)+(l.size?' ('+esc(l.size)+')':''); }).join(', ')+'</span></div>'
         + '<button class="btn primary sm" data-act="loadorder" data-id="'+esc(o.id)+'">Load</button></div>';
     }).join('');
     return '<div class="scrim" data-act="tabclose"><div class="sheet" role="dialog" aria-label="Tablet orders"><h3>Tablet orders</h3><p>Orders taken at the cars that are not billed yet. Load one into the bill, then take payment.</p>'
@@ -1631,13 +1683,21 @@ document.addEventListener('click', function(e){
     case 'noimg': c = edCat(); (d.id ? byId(c.items, d.id) : c).img = ''; saveMenu(); break;
     case 'resetask': S.resetAsk = true; break;
     case 'resetno': S.resetAsk = false; break;
-    case 'resetyes': audit('Menu', 'Menu reset to original', '', {flag:1}); menu = defaultMenu(); try { localStorage.removeItem(K_MENU); } catch(err){} S.edCat = menu[0].id; S.cat = menu[0].id; S.cart = []; S.resetAsk = false; toast('Original menu restored'); break;
+    case 'resetyes': audit('Menu', 'Menu reset to original', '', {flag:1}); menu = defaultMenu(); try { localStorage.removeItem(K_MENU); } catch(err){} setTimeout(function(){ if (typeof menuEdited === 'function') menuEdited(); }, 50); S.edCat = menu[0].id; S.cat = menu[0].id; S.cart = []; S.resetAsk = false; toast('Original menu restored'); break;
     case 'tabopen': S.tabOpen = true; kickSync(); break;
     case 'tabclose': S.tabOpen = false; break;
     case 'loadorder':
       if (S.cart.length){ toast('Finish or clear the current bill first'); break; }
       var lo = (db.tOrders || []).filter(function(x){ return String(x.id) === d.id; })[0];
-      if (lo){ S.cart = lo.lines.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty}; }); S.fromOrder = lo.id; S.tabOpen = false; S.tab = 'sale'; }
+      if (lo){ S.cart = lo.lines.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty}; }); S.fromOrder = lo.id; S.tabOpen = false; S.tab = 'sale';
+        S.pay = null; S.cr = null;
+        if (lo.pay === 'cash' || lo.pay === 'card'){ S.pay = lo.pay; S.tendered = ''; }
+        else if (lo.pay === 'credit' && lo.credit){
+          S.pay = 'credit'; creditInit();
+          var dg = String(lo.credit.phone || '').replace(/\D/g, ''), cm = (db.cust || []).filter(function(x){ return dg && String(x.phone || '').replace(/\D/g, '') === dg; })[0];
+          if (cm){ S.cr.cust = cm.id; } else { S.cr.cust = '__new'; S.cr.name = lo.credit.name || ''; S.cr.phone = lo.credit.phone || ''; }
+        }
+      }
       break;
     case 'syncnow': kickSync(); toast(syncOn() ? 'Syncing' : 'Not connected yet'); return;
     case 'synctest': testSync(); return;
