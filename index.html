@@ -494,8 +494,9 @@ function uuid(){
 }
 function isUuid(x){ return UUID_RE.test(String(x)); }
 function syncOn(){ return !!(sync.url && sync.token); }
-function queueEvent(type, payload){
-  sync.outbox.push({id:uuid(), type:type, t:Date.now(), payload:payload});
+function queueEvent(type, payload, eid){
+  if (eid && sync.outbox.some(function(x){ return x.id === eid; })) return;
+  sync.outbox.push({id:eid || uuid(), type:type, t:Date.now(), payload:payload});
   if (sync.outbox.length > 20000) sync.outbox.splice(0, sync.outbox.length - 20000);
   saveSync(); paintSync(); kickSync();
 }
@@ -713,6 +714,42 @@ document.addEventListener('visibilitychange', function(){ if (document.visibilit
 
 /* Changes made on other devices */
 function stockMove(lines, dir){ lines.forEach(function(l){ var k = skey(l.cat, l.name), v = db.stock[k]; if (v !== undefined && v !== null && v !== ''){ var nv = setg().allowZero || dir > 0 ? +v + dir * l.qty : Math.max(0, +v + dir * l.qty); db.stock[k] = nv; var N = db.sy && db.sy.n && db.sy.n.stock; if (N) N[k] = rd4((N[k] || 0) + (nv - +v)); } }); }
+/* Tablet orders become sales by themselves; every POS makes the same sale (same ids), the server keeps one copy */
+function detUuid(str){
+  var h = [0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344];
+  for (var i = 0; i < str.length; i++){ var c = str.charCodeAt(i); h[0] = Math.imul(h[0] ^ c, 597399067); h[1] = Math.imul(h[1] ^ c, 2869860233); h[2] = Math.imul(h[2] ^ c, 951274213); h[3] = Math.imul(h[3] ^ c, 2716044179); }
+  h[0] = Math.imul(h[2] ^ (h[0] >>> 18), 597399067); h[1] = Math.imul(h[3] ^ (h[1] >>> 22), 2869860233); h[2] = Math.imul(h[0] ^ (h[2] >>> 17), 951274213); h[3] = Math.imul(h[1] ^ (h[3] >>> 19), 2716044179);
+  var x = h.map(function(n){ return ('00000000' + (n >>> 0).toString(16)).slice(-8); }).join('');
+  return x.slice(0, 8) + '-' + x.slice(8, 12) + '-4' + x.slice(13, 16) + '-8' + x.slice(17, 20) + '-' + x.slice(20, 32);
+}
+function tabVoid(s, why){
+  s.void = true; s.voidReason = why; s.voidNote = ''; s.voidT = Date.now(); stockMove(s.lines, +1);
+  queueEvent('sale_cancel', {id:s.id, reason:why, note:''}, detUuid(s.id + '|cancel'));
+}
+function tabCust(c){
+  var ph = String((c && c.phone) || '').trim(), nm = String((c && c.name) || '').trim(), key = ph.replace(/\s|-/g, '');
+  var cu = key ? db.cust.filter(function(x){ return String(x.phone || '').replace(/\s|-/g, '') === key; })[0] : null;
+  if (!cu){ var id = 'kt' + (key || detUuid(nm).slice(0, 8)); cu = byId(db.cust, id); if (!cu){ cu = {id:id, name:nm || 'Customer', phone:ph, limit:0, active:true, t:Date.now()}; db.cust.push(cu); } }
+  return cu;
+}
+function tabSale(o){
+  if (!o || o.legacy) return false;
+  var ch = false, want = null;
+  var okPay = o.pay === 'cash' || o.pay === 'card' || (o.pay === 'credit' && o.credit);
+  if (o.status === 'new' && okPay && o.lines && o.lines.length)
+    want = detUuid(o.id + '|' + (o.rev || 0) + '|' + JSON.stringify([o.lines.map(function(l){ return [l.cat, l.name, l.size, l.price, l.qty]; }), o.pay, o.credit ? [o.credit.name, o.credit.phone] : 0]));
+  db.sales.filter(function(s){ return s.tord === o.id && !s.void && s.id !== want; }).forEach(function(s){ tabVoid(s, o.status === 'cancelled' ? 'Cancelled on tablet' : 'Order changed on tablet'); ch = true; });
+  if (want && !byId(db.sales, want)){
+    var tot = round2(o.lines.reduce(function(a, l){ return a + l.qty * l.price; }, 0)), cu = o.pay === 'credit' ? tabCust(o.credit) : null, day = o.day || new Date(o.t).toLocaleDateString('en-CA');
+    var sl = {id:want, tord:o.id, auto:1, no:tOrderLabel(o), dev:'', t:o.t, day:day, lines:o.lines.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty}; }),
+      subtotal:tot, discount:0, discReason:'', discNote:'', discBy:'', total:tot, pay:o.pay, tendered:o.pay === 'cash' ? tot : 0, void:false, vat:vatOf(tot), vatRate:setg().vat ? setg().rate : 0, by:o.by || 'Tablet',
+      cust:cu ? cu.id : '', custName:cu ? cu.name : '', custPhone:cu ? cu.phone : '', givenBy:(o.credit && o.credit.by) || '', due:cu ? addDays(day, creditDays()) : ''};
+    stockMove(sl.lines, -1); db.sales.push(sl); ch = true;
+    queueEvent('sale', {id:sl.id, tord:o.id, no:sl.no, day:sl.day, t:sl.t, pay:sl.pay, subtotal:sl.subtotal, discount:0, discReason:'', discNote:'', total:sl.total, vat:sl.vat, vatRate:sl.vatRate, tendered:sl.tendered,
+      cust:sl.cust, custName:sl.custName, custPhone:sl.custPhone, givenBy:sl.givenBy, due:sl.due, by:sl.by, discBy:'', lines:sl.lines}, detUuid(sl.id + '|sale'));
+  }
+  return ch;
+}
 function applyRemote(events){
   var changed = false; db.tOrders = db.tOrders || [];
   function tord(id){ return db.tOrders.filter(function(x){ return String(x.id) === String(id); })[0]; }
@@ -721,18 +758,18 @@ function applyRemote(events){
     if (e.type === 'sale'){
       if (isUuid(p.id) && !byId(db.sales, p.id)){
         db.sales.push({id:p.id, no:p.no, t:p.t || e.t, day:p.day || new Date(p.t || e.t).toLocaleDateString('en-CA'), lines:p.lines || [], subtotal:p.subtotal != null ? p.subtotal : p.total, discount:p.discount || 0,
-          discReason:p.discReason || '', discNote:p.discNote || '', total:p.total, pay:p.pay, tendered:p.tendered || 0, void:false, vat:p.vat || 0, vatRate:p.vatRate || 0, remote:true, cust:p.cust || '', custName:p.custName || '', custPhone:p.custPhone || '', givenBy:p.givenBy || '', due:p.due || '', by:p.by || '', discBy:p.discBy || ''});
+          discReason:p.discReason || '', discNote:p.discNote || '', total:p.total, pay:p.pay, tendered:p.tendered || 0, void:false, tord:p.tord || '', auto:p.tord ? 1 : 0, vat:p.vat || 0, vatRate:p.vatRate || 0, remote:true, cust:p.cust || '', custName:p.custName || '', custPhone:p.custPhone || '', givenBy:p.givenBy || '', due:p.due || '', by:p.by || '', discBy:p.discBy || ''});
         stockMove(p.lines || [], -1); changed = true;
       }
     } else if (e.type === 'sale_cancel'){
       var s = byId(db.sales, p.id);
       if (s && !s.void){ s.void = true; s.voidReason = p.reason || ''; s.voidNote = p.note || ''; s.voidT = e.t; stockMove(s.lines, +1); changed = true; }
     } else if (e.type === 'order'){
-      if (isUuid(p.id) && !tord(p.id)){ db.tOrders.push({id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, lines:p.lines || [], note:p.note || '', pay:p.pay || '', credit:p.credit || null, status:'new'}); changed = true; }
+      if (isUuid(p.id) && !tord(p.id)){ var no1 = {id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, day:p.day || '', by:p.by || '', rev:0, lines:p.lines || [], note:p.note || '', pay:p.pay || '', credit:p.credit || null, status:'new'}; db.tOrders.push(no1); tabSale(no1); changed = true; }
     } else if (e.type === 'order_update'){
-      var o = tord(p.id); if (o && o.status === 'new'){ o.lines = p.lines || o.lines; o.note = p.note || ''; if (p.pay !== undefined) o.pay = p.pay || ''; if (p.credit !== undefined) o.credit = p.credit || null; changed = true; }
+      var o = tord(p.id); if (o && o.status === 'new'){ o.lines = p.lines || o.lines; o.note = p.note || ''; if (p.pay !== undefined) o.pay = p.pay || ''; if (p.credit !== undefined) o.credit = p.credit || null; o.rev = (o.rev || 0) + 1; tabSale(o); changed = true; }
     } else if (e.type === 'order_pay'){
-      var o4 = tord(p.id); if (o4 && o4.status === 'new'){ o4.pay = p.pay || ''; changed = true; }
+      var o4 = tord(p.id); if (o4 && o4.status === 'new'){ o4.pay = p.pay || ''; o4.rev = (o4.rev || 0) + 1; tabSale(o4); changed = true; }
     } else if (e.type === 'rec' || e.type === 'recdel' || e.type === 'num'){
       if (applyState(e.type, p)) changed = true;
     } else if (e.type === 'audit'){
@@ -740,9 +777,9 @@ function applyRemote(events){
     } else if (e.type === 'wh_move'){
       if (p && p.id && !byId(db.wh.log, p.id)){ db.wh.log.push(p); if (db.wh.log.length > 1000) db.wh.log.splice(0, db.wh.log.length - 1000); changed = true; }
     } else if (e.type === 'order_cancel'){
-      var o2 = tord(p.id); if (o2){ o2.status = 'cancelled'; changed = true; }
+      var o2 = tord(p.id); if (o2){ o2.status = 'cancelled'; tabSale(o2); changed = true; }
     } else if (e.type === 'order_done'){
-      var o3 = tord(p.id); if (o3){ o3.status = p.done === false ? 'new' : 'done'; changed = true; }
+      var o3 = tord(p.id); if (o3 && p.sale){ o3.legacy = true; o3.status = p.done === false ? 'new' : 'done'; db.sales.filter(function(s){ return s.tord === o3.id && s.auto && !s.void && s.id !== p.sale; }).forEach(function(s){ tabVoid(s, 'Billed at the counter'); }); changed = true; }
     }
   });
   if (changed){ db.sales.sort(function(a, b){ return a.t - b.t; }); save(); }
@@ -1109,8 +1146,6 @@ function vSale(){
   var has = S.cart.length > 0;
   return '<div class="sale"><nav class="rail" aria-label="Categories">'+cats+'</nav><section class="menu"><div class="items">'+items+'</div></section>'
     + '<aside class="panel"><h2>Bill #'+nextNo()+'<small>'+S.cart.reduce(function(a,l){return a+l.qty;},0)+' items</small></h2>'
-    + (S.fromOrder ? '<div class="editing" style="background:var(--done-bg);color:var(--done)">From tablet order #'+esc(tOrderLabel((db.tOrders||[]).filter(function(x){ return String(x.id) === String(S.fromOrder); })[0] || {no:'?'}))+'</div>' : '')
-    + ((syncOn() || tabletOrders().length) ? '<div style="padding:0 14px 8px"><button class="btn ghost sm" style="width:100%" data-act="tabopen">Tablet orders'+(tabletOrders().length ? ' ('+tabletOrders().length+')' : '')+'</button></div>' : '')
     + '<div class="lines">'+lines+'</div>'
     + '<div class="foot">'+(setg().vat ? '<div class="sum"><span>Subtotal (excl. VAT)</span><span>'+money(total-vat)+'</span></div><div class="sum"><span>VAT '+num(setg().rate)+'%</span><span>'+money(vat)+'</span></div>' : '')
     + (dsc > 0 ? '<div class="sum"><span>Subtotal</span><span>'+money(sub0)+'</span></div><div class="sum" style="color:var(--pink-dk);font-weight:600"><span>Discount <button class="link" style="min-height:28px" data-act="discoff">remove</button></span><span>−'+money(dsc)+'</span></div>' : '')
@@ -1426,15 +1461,6 @@ function vSheets(){
       + c.sizes.map(function(z){ return '<button class="sizebtn" data-act="size" data-z="'+z.id+'"><b>'+esc(z.label)+'</b><span>AED '+money(priceOf(item, z))+'</span></button>'; }).join('')
       + '</div><button class="btn ghost" style="width:100%" data-act="closesheet">Cancel</button></div></div>';
   }
-  if (S.tabOpen){
-    var tl = tabletOrders().map(function(o){
-      var q = o.lines.reduce(function(a,l){ return a + l.qty; }, 0), amt = o.lines.reduce(function(a,l){ return a + l.qty * l.price; }, 0);
-      return '<div class="line"><div class="t"><b>#'+esc(tOrderLabel(o))+' · '+q+' items · AED '+money(amt)+'</b><span>'+fdate(o.t)+(o.note?' · '+esc(o.note):'')+' · <b>'+(o.pay === 'cash' ? 'Cash' : o.pay === 'card' ? 'Card' : o.pay === 'credit' ? 'Credit: '+esc(o.credit ? o.credit.name : '') : 'Pay later')+'</b><br>'+o.lines.map(function(l){ return l.qty+' x '+esc(l.name)+(l.size?' ('+esc(l.size)+')':''); }).join(', ')+'</span></div>'
-        + '<button class="btn primary sm" data-act="loadorder" data-id="'+esc(o.id)+'">Load</button></div>';
-    }).join('');
-    return '<div class="scrim" data-act="tabclose"><div class="sheet" role="dialog" aria-label="Tablet orders"><h3>Tablet orders</h3><p>Orders taken at the cars that are not billed yet. Load one into the bill, then take payment.</p>'
-      + (tl || '<div class="empty">No tablet orders waiting.</div>') + '<div class="btns"><button class="btn ghost" data-act="tabclose">Close</button></div></div></div>';
-  }
   if (S.priceForm) return vPriceSheet();
   if (S.voidForm){
     var vf = S.voidForm, vs = byId(db.sales, vf.id);
@@ -1507,7 +1533,6 @@ function finishSale(){
   s.lines.forEach(function(l){ if (l.mod) audit('Sales', 'Price changed at sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty + ': AED ' + money(l.orig) + ' to AED ' + money(l.price) + '. Reason: ' + l.modWhy, {ap:l.modBy, flag:1}); });
   if (s.discount > 0) audit('Sales', 'Discount given', 'Bill #' + s.no + ' · AED ' + money(s.discount) + '. Reason: ' + s.discReason + (s.discNote ? ' – ' + s.discNote : ''), {ap:s.discBy, flag:1});
   queueEvent('sale', {cust:s.cust, custName:s.custName, custPhone:s.custPhone, givenBy:s.givenBy, due:s.due, by:s.by, discBy:s.discBy, id:s.id, no:(s.dev ? s.dev + '-' : '') + s.no, day:s.day, t:s.t, pay:s.pay, subtotal:s.subtotal, discount:s.discount, discReason:s.discReason, discNote:s.discNote, total:s.total, vat:s.vat, vatRate:s.vatRate, tendered:s.tendered, lines:s.lines});
-  if (S.fromOrder){ var fo = (db.tOrders || []).filter(function(x){ return String(x.id) === String(S.fromOrder); })[0]; if (fo) fo.status = 'done'; queueEvent('order_done', {id:S.fromOrder, done:true, sale:s.id}); S.fromOrder = null; save(); }
   S.disc = null; S.cart = []; S.pay = null; S.tendered = ''; S.receipt = s.id;
 }
 
@@ -1758,21 +1783,6 @@ document.addEventListener('click', function(e){
     case 'resetask': S.resetAsk = true; break;
     case 'resetno': S.resetAsk = false; break;
     case 'resetyes': audit('Menu', 'Menu reset to original', '', {flag:1}); menu = defaultMenu(); try { localStorage.removeItem(K_MENU); } catch(err){} setTimeout(function(){ if (typeof menuEdited === 'function') menuEdited(); }, 50); S.edCat = menu[0].id; S.cat = menu[0].id; S.cart = []; S.resetAsk = false; toast('Original menu restored'); break;
-    case 'tabopen': S.tabOpen = true; kickSync(); break;
-    case 'tabclose': S.tabOpen = false; break;
-    case 'loadorder':
-      if (S.cart.length){ toast('Finish or clear the current bill first'); break; }
-      var lo = (db.tOrders || []).filter(function(x){ return String(x.id) === d.id; })[0];
-      if (lo){ S.cart = lo.lines.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty}; }); S.fromOrder = lo.id; S.tabOpen = false; S.tab = 'sale';
-        S.pay = null; S.cr = null;
-        if (lo.pay === 'cash' || lo.pay === 'card'){ S.pay = lo.pay; S.tendered = ''; }
-        else if (lo.pay === 'credit' && lo.credit){
-          S.pay = 'credit'; creditInit();
-          var dg = String(lo.credit.phone || '').replace(/\D/g, ''), cm = (db.cust || []).filter(function(x){ return dg && String(x.phone || '').replace(/\D/g, '') === dg; })[0];
-          if (cm){ S.cr.cust = cm.id; } else { S.cr.cust = '__new'; S.cr.name = lo.credit.name || ''; S.cr.phone = lo.credit.phone || ''; }
-        }
-      }
-      break;
     case 'syncnow': kickSync(); toast(syncOn() ? 'Syncing' : 'Not connected yet'); return;
     case 'synctest': testSync(); return;
     case 'voidopen': S.voidForm = {id:d.id, reason:'', note:'', pin:'', perm:'void'}; break;
