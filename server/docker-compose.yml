@@ -27,6 +27,8 @@ services:
       DATABASE_URL: postgres://hpos:${POSTGRES_PASSWORD}@db:5432/hpos
       ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env (at least 16 characters)}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      SHOP_KEY: ${SHOP_KEY:-}
+      MAX_DEVICES: ${MAX_DEVICES:-20}
       WEB_DIR: /web
       PORT: "3000"
     volumes:

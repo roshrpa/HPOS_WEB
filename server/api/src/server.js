@@ -10,6 +10,10 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 const ORIGINS = (process.env.ALLOWED_ORIGINS || '*').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
 const MAX_BODY = 2 * 1024 * 1024;
+// Optional shop code: a device that knows it can register itself (POST /enroll) and get its own token. Empty = feature off.
+const SHOP_KEY = process.env.SHOP_KEY || '';
+const MAX_DEVICES = Math.max(1, parseInt(process.env.MAX_DEVICES || '20', 10) || 20);
+let enrollFails = [];   // timestamps of wrong codes; too many in 10 minutes blocks enrolling for a while
 // Optional: also serve the web apps (tablet order pad at /, POS at /pos/) from this folder, so a shop computer can do everything.
 const WEB_DIR = process.env.WEB_DIR ? nodePath.resolve(process.env.WEB_DIR) : '';
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
@@ -81,6 +85,21 @@ async function route(req, res) {
   const m = req.method;
   if (m === 'GET' && path === '/health') { await pool.query('select 1'); return send(res, 200, { ok: true }); }
 
+  if (path === '/enroll' && m === 'POST') {
+    if (SHOP_KEY.length < 4) return send(res, 404, { error: 'enrolling is not switched on' });
+    const now = Date.now();
+    enrollFails = enrollFails.filter(function (t) { return now - t < 10 * 60 * 1000; });
+    if (enrollFails.length >= 20) return send(res, 429, { error: 'too many wrong codes, try again in a few minutes' });
+    const b = await readJson(req);
+    const a = Buffer.from(String(b.key || '')), k = Buffer.from(SHOP_KEY);
+    const ok = a.length === k.length && require('crypto').timingSafeEqual(a, k);
+    if (!ok) { enrollFails.push(now); return send(res, 403, { error: 'wrong shop code' }); }
+    const name = String(b.name || '').trim();
+    if (!name) return send(res, 400, { error: 'name is required' });
+    const cnt = await one('select count(*)::int as r from devices where active', []);
+    if (cnt >= MAX_DEVICES) return send(res, 409, { error: 'device limit reached (' + MAX_DEVICES + '). Ask the owner to deactivate old devices.' });
+    return send(res, 201, await one('select register_device($1, $2) as r', [name.slice(0, 80), String(b.kind || 'tablet').slice(0, 20)]));
+  }
   if (path === '/admin/devices' && m === 'POST') {
     if (!isAdmin(req)) return send(res, 403, { error: 'admin token required' });
     const b = await readJson(req);

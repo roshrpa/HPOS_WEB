@@ -575,9 +575,30 @@ async function testSync(){
   catch(e){ sync.err = e.status === 401 ? 'The device token is wrong or switched off' : e.message; toast(sync.err); }
   paintSync();
 }
+/* One-time connect with the shop code: the server hands this device its own token, so nothing long has to be typed.
+   Change SERVER_DEFAULT when the shop moves to its final web address. */
+var SERVER_DEFAULT = 'https://hollywood-test.duckdns.org';
+async function connectShop(){
+  var el = document.getElementById('shopkey'), key = el ? el.value.trim() : '';
+  if (!key){ toast('Type the shop code'); return; }
+  var url = String(sync.url || window.HP_SERVER || SERVER_DEFAULT).replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(url)) url = 'http://' + url;
+  var ctl = new AbortController(), to = setTimeout(function(){ ctl.abort(); }, 10000);
+  try {
+    var r = await fetch(url + '/enroll', {method:'POST', signal:ctl.signal, headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({key:key, name:'Counter ' + uuid().slice(0, 4), kind:'pos'})});
+    var j = null; try { j = await r.json(); } catch(e){}
+    if (!r.ok || !j || !j.token){ toast((j && j.error) || ('Server answered ' + r.status)); return; }
+    sync.url = url; sync.token = j.token; sync.err = ''; saveSync();
+    toast('Connected'); runSync(); render();
+  } catch(e){ toast(e.name === 'AbortError' ? 'The server did not answer' : 'Cannot reach the server'); }
+  finally { clearTimeout(to); }
+}
 function syncCard(){
-  return '<div class="card"><h3>Sync with the server</h3><div class="fgrid">'
-    + fld('Server address','<input class="inp" data-f="sync" data-k="url" placeholder="http://192.168.1.20:3000" value="'+esc(sync.url)+'" autocomplete="off" autocapitalize="off" spellcheck="false">')
+  return '<div class="card"><h3>Sync with the server</h3>'
+    + (syncOn() ? '' : '<div class="fgrid">' + fld('Shop code (type once)','<input class="inp" id="shopkey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">') + '</div><div style="margin:10px 0 16px"><button class="btn primary sm" data-act="shopconnect">Connect with shop code</button></div><p style="color:var(--muted);font-size:13px;margin:0 0 14px">Or type the server address and a device token by hand below.</p>')
+    + '<div class="fgrid">'
+    + fld('Server address','<input class="inp" data-f="sync" data-k="url" placeholder="'+esc(window.HP_SERVER || SERVER_DEFAULT)+'" value="'+esc(sync.url)+'" autocomplete="off" autocapitalize="off" spellcheck="false">')
     + fld('Device token','<input class="inp" data-f="sync" data-k="token" value="'+esc(sync.token)+'" autocomplete="off" autocapitalize="off" spellcheck="false">')
     + fld('Device code (up to 4 letters, shown in bill numbers)','<input class="inp" data-f="sync" data-k="dev" maxlength="4" placeholder="T1" value="'+esc(sync.dev)+'" autocomplete="off" autocapitalize="characters">')
     + '</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn primary sm" data-act="synctest">Save and test</button><button class="btn ghost sm" data-act="syncnow">Sync now</button></div>'
@@ -1638,6 +1659,7 @@ document.addEventListener('click', function(e){
       break;
     case 'syncnow': kickSync(); toast(syncOn() ? 'Syncing' : 'Not connected yet'); return;
     case 'synctest': testSync(); return;
+    case 'shopconnect': connectShop(); return;
     case 'voidopen': S.voidForm = {id:d.id, reason:'', note:'', pin:'', perm:'void'}; break;
     case 'voidclose': S.voidForm = null; break;
     case 'discopen': S.discForm = S.disc ? {type:S.disc.type, val:S.disc.val, reason:S.disc.reason, note:S.disc.note, pin:'', perm:'discount'} : {type:'pct', val:'', reason:'', note:'', pin:'', perm:'discount'}; break;
