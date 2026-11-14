@@ -158,7 +158,15 @@ async function finishLogin(res, pool, h, name, b) {
     token = (await h.registerDevice(dn, String(d.kind || 'pos'))).token;
   }
   const L = await listUsers(pool);
-  return h.send(res, 200, { ok: true, token: token, user: publicUser(u), users: L.users, ver: L.ver });
+  // Tablets get a number in the order they were first connected (1, 2, 3 ...); the app shows it as T1, T2, T3.
+  let devId = have;
+  if (!devId && token) { const q = await pool.query('select id from devices where token_hash = sha256(convert_to($1, \'UTF8\'))', [token]); devId = q.rows[0] && q.rows[0].id; }
+  let devno = null;
+  if (devId) {
+    const q = await pool.query("select d.kind as kind, (select count(*) from devices x where x.kind = 'tablet' and x.created_at <= d.created_at) as n from devices d where d.id = $1", [devId]);
+    const r = q.rows[0]; if (r && r.kind === 'tablet') devno = parseInt(r.n, 10);
+  }
+  return h.send(res, 200, { ok: true, token: token, user: publicUser(u), users: L.users, ver: L.ver, devno: devno });
 }
 
 module.exports = { ensureSchema, handle, hashPinLocal };

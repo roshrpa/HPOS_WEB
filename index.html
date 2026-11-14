@@ -672,7 +672,7 @@ function applyRemote(events){
   return changed;
 }
 function tabletOrders(){ return (db.tOrders || []).filter(function(o){ return o.status === 'new'; }).sort(function(a, b){ return b.t - a.t; }); }
-function tOrderLabel(o){ return (o.dev ? o.dev + '-' : '') + o.no; }
+function tOrderLabel(o){ return (o.dev || '') + o.no; }
 
 var S = {ccnt:{}, ocnt:{}, cname:'', ccRedo:false, xt:'list', xm:today().slice(0, 7), xc:'', xf:null, xedit:null, xdel:null, wt:'over', wf:{key:'', qty:'', unit:'pcs', to:'wh', loc:'wh', dir:'-', reason:'Damaged', note:'', cost:''}, fromOrder:null, tabOpen:false, closeDate:null, unlocked:false, gateErr:false, gateTry:'', disc:null, discForm:null, voidForm:null, inv:'daily', cnt:{}, lastCount:null, recCat:null, matDel:null, edCat:null, del:null, resetAsk:false, imgTarget:null, tab:'sale', cat:menu[0].id, cart:[], sheet:null, pay:null, tendered:'', receipt:null, range:'today', voidAsk:null};
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
