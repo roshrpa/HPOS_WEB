@@ -88,8 +88,13 @@ It must answer `{"ok":true}`. If it does not, see "If something goes wrong" at t
 
 Nothing to register by hand and no tokens to copy any more. Users live on the server and a device connects when a user signs in.
 
-- Open `https://pos.yourshop.com/pos/` (or the Windows app, or the APK). On the first run the server has no users, so the screen says *Create your user*. That user becomes the **Owner** (PIN: 6 digits or more).
-- On every other device the screen is *Sign in*: user name and PIN. The server then gives that device its own token behind the scenes.
+- Create the first Owner on the server, once. Type your own name and a PIN of 6 digits or more in this command (run it in `/opt/hpos/server`):
+  ```sh
+  source .env
+  curl -s -X POST https://pos.yourshop.com/admin/users -H "X-Admin-Token: $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{"name":"YourName","pin":"123456","role":"Owner"}'
+  ```
+  The same command with an existing name resets that user's PIN (use it if the Owner forgets the PIN).
+- Open `https://pos.yourshop.com/pos/` (or the Windows app, or the APK). Every device shows *Sign in*: user name and PIN. The server then gives that device its own token behind the scenes.
 - Add staff in the POS **Users** tab (Owner only). New users can sign in on any device straight away. A user who is deactivated is signed out of every device within a minute.
 - Tablet order pad: ☰ > Edit menu > *Sync with the server* > user name and PIN of any shop user > *Connect to the server*.
 - After 5 wrong PINs for one user the server blocks that user for 15 minutes.

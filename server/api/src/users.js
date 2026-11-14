@@ -81,26 +81,24 @@ async function handle(req, res, path, m, pool, h) {
     return h.send(res, 200, { users: n });
   }
 
-  if (path === '/auth/setup' && m === 'POST') {
-    const b = await h.readJson(req);
-    const name = String(b.name || '').trim();
-    if (!name) throw err(400, 'Enter a name.');
-    if (!PIN_RE.test(String(b.pin || ''))) throw err(400, 'PIN must be 6 digits or more (numbers only).');
-    const c = await pool.connect();
-    try {
-      await c.query('begin'); await c.query('lock table users in exclusive mode');
-      if ((await c.query('select count(*)::int n from users')).rows[0].n > 0) { await c.query('rollback'); throw err(409, 'The server already has users. Sign in instead.'); }
-      const id = 'u' + crypto.randomBytes(6).toString('hex');
-      await c.query("insert into users(id, name, role, pin_hash, pin_local) values ($1, $2, 'Owner', $3, $4)", [id, name, scryptHash(b.pin), hashPinLocal(b.pin)]);
-      await c.query('commit');
-    } catch (e) { try { await c.query('rollback'); } catch (x) { /* already rolled back */ } throw e; } finally { c.release(); }
-    return finishLogin(res, pool, h, name, b);
-  }
-
   if (path === '/auth/login' && m === 'POST') {
     const b = await h.readJson(req);
     const u = await verify(pool, b.name, b.pin);
     return finishLogin(res, pool, h, u.name, b);
+  }
+
+  // The first Owner (and a forgotten PIN) are handled by the person who runs the server, with the admin token.
+  if (path === '/admin/users' && m === 'POST') {
+    if (!h.isAdmin(req)) throw err(403, 'admin token required');
+    const b = await h.readJson(req);
+    const name = String(b.name || '').trim(), role = ROLES.indexOf(b.role) >= 0 ? b.role : 'Owner';
+    if (!name) throw err(400, 'name is required');
+    if (!PIN_RE.test(String(b.pin || ''))) throw err(400, 'PIN must be 6 digits or more (numbers only).');
+    const ex = (await pool.query('select id from users where lower(name) = lower($1)', [name])).rows[0];
+    if (await pinTaken(pool, b.pin, ex ? ex.id : '')) throw err(409, 'That PIN is already used by another user.');
+    if (ex) { await pool.query("update users set role = $2, active = true, pin_hash = $3, pin_local = $4, ver = nextval('users_ver_seq') where id = $1", [ex.id, role, scryptHash(b.pin), hashPinLocal(b.pin)]); delete fails[name.toLowerCase()]; }
+    else await pool.query('insert into users(id, name, role, pin_hash, pin_local) values ($1,$2,$3,$4,$5)', ['u' + crypto.randomBytes(6).toString('hex'), name, role, scryptHash(b.pin), hashPinLocal(b.pin)]);
+    return h.send(res, 200, { ok: true, name: name, role: role, existed: !!ex });
   }
 
   if (path === '/users' && m === 'GET') {

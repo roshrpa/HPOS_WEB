@@ -1801,6 +1801,10 @@ function vServerBox(inner){
   return '<div class="page"><div class="card" style="max-width:400px;margin:40px auto"><div style="text-align:center"><img class="rlogo" src="'+LOGO+'" alt="" style="height:64px"></div>'+inner+'</div></div>';
 }
 function vServerCheck(){ return vServerBox('<h3 style="font-size:20px;margin:8px 0 4px;text-align:center">Connecting to the server</h3><p style="color:var(--muted);text-align:center;margin:0">One moment.</p>'); }
+function vServerNoUsers(){
+  return vServerBox('<h3 style="font-size:20px;margin:8px 0 4px;text-align:center">No users on the server yet</h3><p style="color:var(--muted);margin:0 0 12px;text-align:center">The shop owner creates the first user on the server. Then sign in here.</p>'
+    + '<div class="btns"><button class="btn primary" data-act="srvretry">Try again</button></div>');
+}
 function vServerDown(){
   return vServerBox('<h3 style="font-size:20px;margin:8px 0 4px;text-align:center">Cannot reach the server</h3><p style="color:var(--muted);margin:0 0 12px;text-align:center">Check the internet connection, then try again.</p>'
     + '<div class="btns"><button class="btn primary" data-act="srvretry">Try again</button></div>'
@@ -1817,7 +1821,7 @@ function authScreen(){
   if (!db.users.length){
     if (S.srv.st === 'local') return vSetup();
     if (!S.srv.st) checkServer();
-    return S.srv.st === 'setup' ? vSetup() : S.srv.st === 'login' ? vServerLogin() : S.srv.st === 'down' ? vServerDown() : vServerCheck();
+    return S.srv.st === 'setup' ? vServerNoUsers() : S.srv.st === 'login' ? vServerLogin() : S.srv.st === 'down' ? vServerDown() : vServerCheck();
   }
   if (!curUser()) return vLogin();
   return null;
@@ -1965,12 +1969,6 @@ document.addEventListener('click', function(e){
       if (!nm){ S.lerr = 'Enter a name.'; break; }
       if (!/^\d{6,}$/.test(f.pin)){ S.lerr = 'PIN must be 6 digits or more (numbers only).'; break; }
       if (f.pin !== f.pin2){ S.lerr = 'The two PINs do not match.'; break; }
-      if (S.srv.st === 'setup'){
-        S.srv.busy = true; S.lerr = '';
-        serverSignIn('/auth/setup', {name: nm, pin: f.pin}).then(function(u){ toast('Welcome, ' + u.name); finishSignIn(u, 'Owner created'); }).catch(function(e){
-          if (e.status === 409){ S.srv.st = 'login'; S.lerr = ''; S.srv.busy = false; render(); } else srvFail(e); });
-        return;
-      }
       var ou = {id:uid('u'), name:nm, role:'Owner', pin:hashPin(f.pin), active:true, t:Date.now()};
       db.users.push(ou); S.uid = ou.id; try { sessionStorage.setItem('hp_uid', ou.id); } catch(er){}
       S.su = {name:'', pin:'', pin2:''}; S.lerr = ''; audit('Users and Security', 'Owner created', nm); toast('Welcome, ' + nm); break;

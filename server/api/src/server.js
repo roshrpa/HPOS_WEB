@@ -86,9 +86,9 @@ async function route(req, res) {
   const m = req.method;
   if (m === 'GET' && path === '/health') { await pool.query('select 1'); return send(res, 200, { ok: true }); }
 
-  if (path.startsWith('/auth/') || path === '/users' || path.startsWith('/users/')) {
+  if (path.startsWith('/auth/') || path === '/users' || path.startsWith('/users/') || path === '/admin/users') {
     const done = await users.handle(req, res, path, m, pool, {
-      send: send, readJson: readJson, device: device,
+      send: send, readJson: readJson, device: device, isAdmin: isAdmin,
       registerDevice: function (name, kind) { return one('select register_device($1, $2) as r', [name, kind.slice(0, 20)]); },
       bearerDevice: function (token) { return token ? one('select auth_device($1) as r', [String(token)]) : Promise.resolve(null); }
     });
