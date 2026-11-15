@@ -1324,8 +1324,8 @@ function tabBadge(id){
   return n > 0 ? '<span class="bd">'+n+'</span>' : '';
 }
 function vSide(){
-  var h = '<aside class="side'+(S.tab === 'sale' ? ' min' : '')+(S.sbOpen ? ' open' : '')+'"><div class="sb-brand"><img class="logo" src="'+LOGO+'" alt=""><div class="brandtxt"><b>Hollywood POS</b><small>Counter and billing</small></div></div>'
-    + '<div class="shopcard"><span class="dic">'+dIcon('sale')+'</span><span class="lbl"><b>Hollywood Ice Creams</b><small>'+(window.HP_DESKTOP ? 'Windows counter' : 'Web POS')+'</small></span></div>';
+  var h = '<aside class="side'+(S.tab === 'sale' ? ' min' : '')+(S.sbOpen ? ' open' : '')+'"><div class="sb-brand"><img class="logo" src="'+LOGO+'" alt=""><div class="brandtxt"><b>'+esc(setg().shop || 'Hollywood POS')+'</b><small>Counter and billing</small></div></div>'
+    + '';
   TAB_GROUPS.forEach(function(g){
     var ts = g.tabs.filter(function(t){ return tabShown(t[0]); }); if (!ts.length) return;
     if (g.label) h += '<div class="grp">'+g.label+'</div>'; else h += '<div class="grp gap"></div>';
