@@ -1324,7 +1324,7 @@ function tabBadge(id){
   return n > 0 ? '<span class="bd">'+n+'</span>' : '';
 }
 function vSide(){
-  var h = '<aside class="side'+(S.tab === 'sale' ? ' min' : '')+(S.sbOpen ? ' open' : '')+'"><div class="sb-brand"><img class="logo" src="'+LOGO+'" alt=""><div class="brandtxt"><b>'+esc(setg().shop || 'Hollywood POS')+'</b><small>Counter and billing</small></div></div>'
+  var h = '<aside class="side'+(S.tab === 'sale' ? ' min' : '')+(S.sbOpen ? ' open' : '')+'"><div class="sb-brand" data-act="tab" data-v="dash" role="button" tabindex="0" title="Dashboard" style="cursor:pointer"><img class="logo" src="'+LOGO+'" alt=""><div class="brandtxt"><b>'+esc(setg().shop || 'Hollywood POS')+'</b><small>Counter and billing</small></div></div>'
     + '';
   TAB_GROUPS.forEach(function(g){
     var ts = g.tabs.filter(function(t){ return tabShown(t[0]); }); if (!ts.length) return;
