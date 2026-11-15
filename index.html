@@ -1557,9 +1557,10 @@ function xForm(){
     + '<label class="fld">Paid to or supplier'+inp('who')+'</label>'
     + '<label class="fld">Bill no. (optional)'+inp('bill')+'</label>'
     + '<label class="fld">Note (optional)'+inp('note')+'</label>';
-  return '<div class="tbl"><h3>'+(S.xedit ? 'Edit expense' : 'Add expense')+'</h3><div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;align-items:end">'+fields+'</div>'
-    + '<div style="padding:0 16px 16px;display:flex;gap:10px;align-items:center"><button class="btn primary sm" data-act="xsave">'+(S.xedit ? 'Save changes' : 'Add expense')+'</button>'
-    + (S.xedit ? '<button class="btn ghost sm" data-act="xcancel">Cancel</button>' : '<span style="color:var(--muted);font-size:13px">Counter cash is taken off the cash in the drawer on Day close.</span>')+'</div></div>';
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="'+(S.xedit ? 'Edit expense' : 'Add expense')+'"><h3>'+(S.xedit ? 'Edit expense' : 'Add expense')+'</h3>'
+    + '<p>Counter cash is taken off the cash in the drawer on Day close.</p>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">'+fields+'</div>'
+    + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="xcancel">Cancel</button>'+(S.xedit ? '' : '<button class="btn ghost" data-act="xsave2">Save and add another</button>')+'<button class="btn primary" data-act="xsave">'+(S.xedit ? 'Save changes' : 'Save')+'</button></div></div></div>';
 }
 function xList(){
   var all = xMonthItems(S.xm), items = S.xc ? all.filter(function(e){ return e.cat === S.xc; }) : all, T = xTotals(items);
@@ -1571,7 +1572,7 @@ function xList(){
     return '<tr><td>'+xDate(e.date)+'</td><td>'+esc(xLabel(e))+'</td><td>'+esc(more)+'</td><td><span class="pill cash"'+(e.from === 'bank' ? ' style="background:#efe2f2;color:var(--plum)"' : '')+'>'+xFromLabel(e.from)+'</span></td><td class="n">'+money(e.amt)+'</td><td class="n" style="white-space:nowrap">'+del+'</td></tr>';
   }).join('');
   var filt = '<select class="inp" style="width:auto;min-width:200px" data-f="xfilter" aria-label="Show category"><option value="">All categories</option>'+db.exp.cats.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id === S.xc ? ' selected' : '')+'>'+esc(c.name)+'</option>'; }).join('')+'</select>';
-  return xForm() + '<div class="bar">'+xMonthBar()+'<span class="sp"></span>'+filt+'</div>'
+  return '<div class="bar">'+xMonthBar()+'<span class="sp"></span>'+filt+'<button class="btn primary sm" data-act="xnew">+ Add expense</button></div>'
     + '<div class="tbl"><h3>'+esc(monthLabel(S.xm))+' · AED '+money(T.all)+'</h3><table><thead><tr><th>Date</th><th>Category</th><th>Paid to / note</th><th>Paid from</th><th class="n">AED</th><th></th></tr></thead><tbody>'
     + (rows || '<tr><td colspan="6">No expenses in this month.</td></tr>')+'</tbody>'
     + (rows ? '<tfoot><tr><td colspan="4">Counter cash '+money(T.cash)+' · Bank '+money(T.bank)+'</td><td class="n"><b>'+money(T.all)+'</b></td><td></td></tr></tfoot>' : '')+'</table></div>';
@@ -1654,6 +1655,7 @@ function receiptText(s){
 }
 
 function vSheets(){
+  if (S.xopen && S.tab === 'exp') return xForm();
   if (S.closeAsk){
     var cd = S.closeDate || today(), cn2 = closeNums(cd), crow = function(a, b){ return '<tr><td>'+a+'</td><td class="n">'+b+'</td></tr>'; }, noCount = !(cn2.R.counted !== '' && !isNaN(parseFloat(cn2.R.counted)));
     return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Close the day"><h3>'+(cn2.R.closed ? 'Update the closing of ' : 'Close the day ')+esc(cd)+'?</h3>'
@@ -1892,18 +1894,19 @@ document.addEventListener('click', function(e){
     case 'dayuse': S.dayUse = d.v === '0' ? today() : shiftDate(S.dayUse || today(), +d.v); break;
     case 'invtab': S.inv = d.id; S.matDel = null; break;
     case 'whtab': S.wt = d.id; break;
-    case 'xtab': S.xt = d.id; S.xdel = null; break;
+    case 'xtab': S.xt = d.id; S.xdel = null; S.xopen = false; break;
     case 'xmonth': S.xm = d.v === '0' ? today().slice(0, 7) : shiftMonth(S.xm, +d.v); S.xdel = null; break;
-    case 'xsave':
+    case 'xnew': S.xedit = null; S.xf = xNewForm(); S.xopen = true; break;
+    case 'xsave': case 'xsave2':
       var xf = S.xf, xa = parseFloat(xf.amt);
       if (!xf.date){ toast('Choose the date'); return; }
       if (!(xa > 0)){ toast('Enter the amount'); return; }
       var xo = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:round2(xa), from:xf.from, vat:round2(parseFloat(xf.vat) || 0), who:(xf.who || '').trim(), bill:(xf.bill || '').trim(), note:(xf.note || '').trim()};
       if (S.xedit){ var xe = byId(db.exp.items, S.xedit); if (xe){ var xold = Object.assign({}, xe); Object.assign(xe, xo); xe.editBy = curName(); queueEvent('expense_update', xe); audit('Expenses', 'Expense edited', xAudDesc(xold) + '  →  ' + xAudDesc(xe), {flag:1}); } S.xedit = null; toast('Expense updated'); }
       else { xo.id = uid('e'); xo.t = Date.now(); xo.by = curName(); db.exp.items.push(xo); audit('Expenses', 'Expense added', xAudDesc(xo)); queueEvent('expense', xo); toast('Expense added'); }
-      S.xm = xf.date.slice(0, 7); S.xf = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:'', from:xf.from, who:'', bill:'', note:'', vat:''}; save(); break;
-    case 'xedit': var xe2 = byId(db.exp.items, d.id); if (xe2){ S.xedit = xe2.id; S.xf = {date:xe2.date, cat:xe2.cat, sub:xe2.sub, amt:String(xe2.amt), from:xe2.from, vat:xe2.vat ? String(xe2.vat) : '', who:xe2.who || '', bill:xe2.bill || '', note:xe2.note || ''}; S.xt = 'list'; var xpg = document.querySelector('.page'); if (xpg) xpg.scrollTop = 0; } break;
-    case 'xcancel': S.xedit = null; S.xf = xNewForm(); break;
+      S.xm = xf.date.slice(0, 7); S.xf = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:'', from:xf.from, who:'', bill:'', note:'', vat:''}; S.xedit = null; S.xopen = (a === 'xsave2'); save(); break;
+    case 'xedit': var xe2 = byId(db.exp.items, d.id); if (xe2){ S.xedit = xe2.id; S.xf = {date:xe2.date, cat:xe2.cat, sub:xe2.sub, amt:String(xe2.amt), from:xe2.from, vat:xe2.vat ? String(xe2.vat) : '', who:xe2.who || '', bill:xe2.bill || '', note:xe2.note || ''}; S.xt = 'list'; S.xopen = true; } break;
+    case 'xcancel': S.xedit = null; S.xopen = false; S.xf = xNewForm(); break;
     case 'xdel': S.xdel = d.id; break;
     case 'xdelno': S.xdel = null; break;
     case 'xdelyes': var xdi = byId(db.exp.items, d.id); if (xdi) audit('Expenses', 'Expense deleted', xAudDesc(xdi), {flag:1}); db.exp.items = db.exp.items.filter(function(e){ return e.id !== d.id; }); queueEvent('expense_delete', {id:d.id}); if (S.xedit === d.id){ S.xedit = null; S.xf = xNewForm(); } S.xdel = null; save(); toast('Expense deleted'); break;
@@ -3203,7 +3206,7 @@ function isLocked(date){ return !!(date && db.locks[date.slice(0, 7)]); }
 /* ----- month lock guard (runs before every other click handler) ----- */
 function lockDateFor(a, d){
   switch (a){
-    case 'xsave': var xe = S.xedit && byId(db.exp.items, S.xedit); return [S.xf && S.xf.date, xe && xe.date];
+    case 'xsave': case 'xsave2': var xe = S.xedit && byId(db.exp.items, S.xedit); return [S.xf && S.xf.date, xe && xe.date];
     case 'xdelyes': var xd = byId(db.exp.items, d.id); return [xd && xd.date];
     case 'purchsave': return [S.pf.date];
     case 'pcany': var pv = byId(db.pur.list, d.id); return [pv && pv.date];
