@@ -1658,19 +1658,19 @@ function xCats(){
   var cats = db.exp.cats;
   if (!S.xcs || !xCat(S.xcs)) S.xcs = cats[0] ? cats[0].id : null;
   var cur = xCat(S.xcs);
-  var list = cats.map(function(c){ var on = c.id === S.xcs; return '<button data-act="xcsel" data-c="'+esc(c.id)+'" style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;text-align:left;margin:0 0 6px;padding:10px 14px;min-height:44px;border-radius:12px;font:inherit;font-weight:600;cursor:pointer;border:1.5px solid '+(on ? 'var(--pink,#e0398a)' : '#e3e3e3')+';background:'+(on ? 'var(--pink,#e0398a)' : '#fff')+';color:'+(on ? '#fff' : 'inherit')+'"><span>'+esc(c.name)+'</span></button>'; }).join('');
+  var list = cats.map(function(c){ var on = c.id === S.xcs; return '<button data-act="xcsel" data-c="'+esc(c.id)+'" style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;text-align:left;margin:0 0 4px;padding:6px 12px;min-height:34px;border-radius:9px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;border:1.5px solid '+(on ? 'var(--pink,#e0398a)' : '#e3e3e3')+';background:'+(on ? 'var(--pink,#e0398a)' : '#fff')+';color:'+(on ? '#fff' : 'inherit')+'"><span>'+esc(c.name)+'</span></button>'; }).join('');
   var det = '';
   if (cur){
     var subs = cur.subs.map(function(s2){
-      return '<div style="display:flex;gap:8px;margin:0 0 6px"><input class="inp" data-f="xsn" data-c="'+esc(cur.id)+'" data-s="'+esc(s2.id)+'" value="'+esc(s2.name)+'" aria-label="Sub-category name" style="text-align:left"><button class="btn ghost sm" data-act="xdelsub" data-c="'+esc(cur.id)+'" data-s="'+esc(s2.id)+'">Remove</button></div>';
+      return '<div style="display:flex;gap:6px;margin:0 0 4px"><input class="inp" data-f="xsn" data-c="'+esc(cur.id)+'" data-s="'+esc(s2.id)+'" value="'+esc(s2.name)+'" aria-label="Sub-category name" style="text-align:left;min-height:34px;padding:5px 10px;font-size:14px"><button class="btn ghost sm" style="min-height:32px;padding:4px 10px;font-size:13px" data-act="xdelsub" data-c="'+esc(cur.id)+'" data-s="'+esc(s2.id)+'">Remove</button></div>';
     }).join('');
-    det = '<div class="card" style="flex:1;min-width:280px;margin:0"><div class="fgrid"><label class="fld">Category name<input class="inp" data-f="xcn" data-c="'+esc(cur.id)+'" value="'+esc(cur.name)+'" style="text-align:left"></label>'
-      + '<label class="fld">Counts in the profit report as<select class="inp" data-f="xctype" data-c="'+esc(cur.id)+'"><option value="cogs"'+(xCatType(cur) === 'cogs' ? ' selected' : '')+'>Cost of goods sold</option><option value="opex"'+(xCatType(cur) === 'opex' ? ' selected' : '')+'>Operating expense</option></select></label></div>'
-      + '<h3 style="margin:16px 0 8px;font-size:16px">Sub-categories ('+cur.subs.length+')</h3>'+subs
+    det = '<div class="card" style="flex:1;min-width:280px;max-width:560px;margin:0;padding:12px"><div class="fgrid"><label class="fld">Category name<input class="inp" data-f="xcn" data-c="'+esc(cur.id)+'" value="'+esc(cur.name)+'" style="text-align:left;min-height:34px;padding:5px 10px;font-size:14px"></label>'
+      + '<label class="fld">Counts in the profit report as<select class="inp" style="min-height:34px;padding:4px 8px;font-size:14px" data-f="xctype" data-c="'+esc(cur.id)+'"><option value="cogs"'+(xCatType(cur) === 'cogs' ? ' selected' : '')+'>Cost of goods sold</option><option value="opex"'+(xCatType(cur) === 'opex' ? ' selected' : '')+'>Operating expense</option></select></label></div>'
+      + '<h3 style="margin:12px 0 6px;font-size:14px">Sub-categories ('+cur.subs.length+')</h3>'+subs
       + '<div class="btns" style="justify-content:space-between;margin-top:10px"><button class="btn ghost sm" data-act="xaddsub" data-c="'+esc(cur.id)+'">+ Sub-category</button><button class="btn ghost sm" data-act="xdelcat" data-c="'+esc(cur.id)+'">Remove this category</button></div></div>';
   }
   return '<p style="color:var(--muted);margin:0 0 12px">Pick a category on the left to rename it or change its sub-categories. One that already has expenses cannot be removed, rename it instead.</p>'
-    + '<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap"><div class="card" style="width:260px;margin:0"><div class="bar" style="margin-bottom:8px"><b>Categories</b><span class="sp"></span><button class="btn primary sm" data-act="xaddcat">+ Add</button></div><div>'+list+'</div></div>'+det+'</div>';
+    + '<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap"><div class="card" style="width:210px;margin:0;padding:12px"><div class="bar" style="margin-bottom:8px"><b>Categories</b><span class="sp"></span><button class="btn primary sm" data-act="xaddcat">+ Add</button></div><div>'+list+'</div></div>'+det+'</div>';
 }
 function xPrintHtml(m){
   var items = xMonthItems(m).slice().reverse(), T = xTotals(items), G = setg();
