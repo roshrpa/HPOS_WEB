@@ -3235,7 +3235,7 @@ function xRec(){
   }).join('');
   var pend = recPending(m).length;
   return xMonthBar() + '<div class="card"><h3>Recurring expenses</h3><p style="margin:0 0 8px;color:var(--muted)">Monthly costs like rent, salary and internet. Press Post to add this month\'s expense. You can change the amount first (electricity changes every month). A month cannot be posted twice.</p>'
-    + '<label class="fld" style="max-width:240px;margin-bottom:8px">'+pinLabel('exp')+'<input class="inp" type="password" inputmode="numeric" data-f="recpin" value="'+esc(S.recpin)+'" autocomplete="off"></label>'
+    + (can('exp') ? '' : '<label class="fld" style="max-width:240px;margin-bottom:8px">'+pinLabel('exp')+'<input class="inp" type="password" inputmode="numeric" data-f="recpin" value="'+esc(S.recpin)+'" autocomplete="off"></label>')
     + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Expense</th><th style="text-align:right">This month (AED)</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="3" class="empty">No recurring expenses yet.</td></tr>')+'</tbody></table></div>'
     + (pend ? '<div class="btns"><button class="btn primary" data-act="recpostall">Post all '+pend+' pending for '+esc(monthLabel(m))+'</button></div>' : '')+'</div>'
     + '<div class="card"><h3>Add a recurring expense</h3><div class="fgrid"><label class="fld">Name<input class="inp" data-f="rf" data-k="name" value="'+esc(f.name)+'" autocomplete="off"></label>'
@@ -3425,7 +3425,7 @@ document.addEventListener('click', function(e){
       var nr = {id:uid('q'), name:f.name.trim(), cat:f.cat, sub:f.sub, amt:round2(parseFloat(f.amt)), from:f.from, who:f.who.trim(), day:String(Math.min(31, Math.max(1, parseInt(f.day, 10) || 1))), active:true};
       db.rec.push(nr); audit('Expenses', 'Recurring expense added', nr.name + ' · AED ' + money(nr.amt) + ' · day ' + nr.day); S.rf = {name:'', cat:f.cat, sub:f.sub, amt:'', from:f.from, who:'', day:'1'}; toast('Added'); break;
     case 'recpost': case 'recpostall':
-      var ap = pinUser(S.recpin, 'exp'); if (!ap){ toast('Enter your PIN above'); return; }
+      var ap = can('exp') ? curUser() : pinUser(S.recpin, 'exp'); if (!ap){ toast(can('exp') ? 'Sign in again' : 'Enter the approver PIN above'); return; }
       var list = a === 'recpost' ? [byId(db.rec, d.id)] : recPending(S.xm), n = 0;
       list.forEach(function(r){ if (r && r.active !== false && !recPosted(r.id, S.xm) && postRec(r, S.xm, ap)) n++; });
       toast(n ? n + ' expense(s) posted' : 'Enter an amount first'); break;
