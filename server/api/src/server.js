@@ -116,6 +116,24 @@ async function route(req, res) {
     if (!name) return send(res, 400, { error: 'name is required' });
     return send(res, 201, await one('select register_device($1, $2) as r', [name.slice(0, 80), String(b.kind || 'tablet').slice(0, 20)]));
   }
+  if (path === '/test/reset' && m === 'POST') {
+    // Testing period only: wipes sales, tablet orders and stock movements for every device. Owner name + PIN are checked here.
+    const dev = await device(req);
+    const b = await readJson(req);
+    let u;
+    try { u = await users.verify(pool, b.name, b.pin); } catch (e) { return send(res, e.status || 401, { error: e.message }); }
+    if (u.role !== 'Owner') return send(res, 403, { error: 'Only the Owner can reset test data.' });
+    const id = require('crypto').randomUUID();
+    const c = await pool.connect();
+    try {
+      await c.query('begin');
+      await c.query("delete from events where type in ('sale','sale_cancel','order','order_update','order_pay','order_cancel','order_done','num','wh_move')");
+      await c.query('delete from sales');
+      await c.query("insert into events(id, device_id, type, payload, client_time) values ($1, $2, 'test_reset', $3::jsonb, now())", [id, dev, JSON.stringify({ id: id, by: u.name, t: Date.now() })]);
+      await c.query('commit');
+    } catch (e) { await c.query('rollback').catch(function () {}); throw e; } finally { c.release(); }
+    return send(res, 200, { ok: true, id: id, by: u.name });
+  }
   if (path === '/admin/report/day' && m === 'GET') {
     if (!isAdmin(req)) return send(res, 403, { error: 'admin token required' });
     const day = url.searchParams.get('date') || new Date().toISOString().slice(0, 10);

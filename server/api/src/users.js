@@ -203,4 +203,4 @@ async function finishLogin(res, pool, h, name, b) {
   return h.send(res, 200, { ok: true, token: token, user: publicUser(u), users: L.users, ver: L.ver, devno: devno });
 }
 
-module.exports = { ensureSchema, handle, hashPinLocal };
+module.exports = { ensureSchema, handle, hashPinLocal, verify };
