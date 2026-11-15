@@ -41,6 +41,24 @@ header.top .ptitle{font-size:19px;margin:0;font-weight:700} header.top .sp{flex:
 .sbscrim{display:none}
 @media (min-width:701px){ .side.min{width:68px;padding-left:8px;padding-right:8px} .side.min .grp.gap{display:none} .side.min .grp:not(.gap){font-size:0;padding:6px 0 2px;border-top:1px solid #efe9ec;margin:6px 6px 2px} .side.min .lbl,.side.min .brandtxt{display:none} .side.min button.it{justify-content:center;padding:10px 0} .side.min .sb-brand{justify-content:center;padding:2px 0 10px} }
 @media (max-width:700px){ .side{position:fixed;left:0;top:0;bottom:0;z-index:60;width:250px;transform:translateX(-102%);transition:transform .18s;box-shadow:0 0 30px rgba(0,0,0,.2)} .side.open{transform:none} .sbscrim{display:block;position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.35)} .menubtn{display:inline-flex} header.top .ptitle{font-size:16px} }
+
+.dash{max-width:1280px;margin:0 auto;padding-bottom:30px}
+.dhead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px} .dhead h2{margin:0;font-size:22px} .dhead p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:12px}
+.kpi{background:#fff;border:1px solid #eee4e9;border-radius:18px;padding:14px 16px;text-align:left;display:block;width:100%;box-shadow:0 1px 2px rgba(28,26,31,.04)} button.kpi:hover{border-color:#e8bcd1}
+.kh{display:flex;align-items:center;gap:10px} .kl{color:var(--muted);font-size:13px;flex:1} .kv{display:block;font-size:26px;margin:10px 0 2px;font-variant-numeric:tabular-nums} .ks{color:var(--muted);font-size:12px;border-top:1px solid #f1eaee;padding-top:8px;margin-top:8px}
+.dic{width:34px;height:34px;border-radius:50%;background:#f6f2f4;display:inline-grid;place-items:center;flex:none;color:var(--ink)}
+.dl{font-size:12px;font-weight:700;border-radius:99px;padding:2px 8px;background:#f1eef0;color:var(--muted)} .dl.up{background:var(--done-bg);color:var(--done)} .dl.dn{background:#fde6ed;color:var(--pink-dk)}
+.dgrid{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px} .dgrid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.dcard{background:#fff;border:1px solid #eee4e9;border-radius:18px;padding:16px;min-width:0} .dt{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px} .dt h3{margin:0;font-size:16px} .dt small{color:var(--muted);font-size:12px}
+.dchart{width:100%;height:auto;display:block} .sw{display:inline-block;width:9px;height:9px;border-radius:3px;margin:0 3px 0 8px}
+.pm{display:flex;align-items:center;gap:16px;flex-wrap:wrap} .lgs{flex:1;min-width:150px;display:flex;flex-direction:column;gap:8px} .lg{display:flex;align-items:center;gap:8px;font-size:13px} .lg i{width:10px;height:10px;border-radius:50%} .lg span{flex:1} .lg em{color:var(--muted);font-style:normal;width:36px;text-align:right}
+.hb{margin-bottom:10px} .hl{display:flex;justify-content:space-between;font-size:13px;gap:8px} .hl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .ht{height:8px;border-radius:99px;background:#f1eef0;margin-top:4px;overflow:hidden} .ht i{display:block;height:100%;border-radius:99px}
+.atl{display:flex;flex-direction:column;gap:8px} .at{display:flex;align-items:center;gap:12px;text-align:left;width:100%;padding:8px 10px;border-radius:14px;border:1px solid #f1eaee;background:#fff} .at b{display:block;font-size:14px} .at small{color:var(--muted);font-size:12px} button.at:hover{background:#faf6f8}
+.at.warn .dic{background:var(--warn-bg);color:var(--warn)} .at.bad .dic{background:#fde6ed;color:var(--pink-dk)} .at.ok .dic{background:var(--done-bg);color:var(--done)}
+.kpis.money .kv{font-size:20px}
+@media (max-width:1000px){ .dgrid,.dgrid3{grid-template-columns:1fr} }
+@media (max-width:700px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px} .kpi{padding:10px 12px} .kv{font-size:19px;margin-top:6px} .kl{font-size:12px} .kh .dic{display:none} .dhead h2{font-size:19px} .seg{width:100%} }
 /*sub*/nav.tabs.sub{flex-basis:100%;order:9;padding-top:6px;margin-top:2px;border-top:1px solid #efe9ec} nav.tabs.sub button{min-height:38px;padding:6px 14px;font-size:14px;border-radius:10px;background:#f6f2f4} nav.tabs.sub button[aria-current="true"]{background:var(--ink,#333);color:#fff}
 .userchip{display:flex;flex-direction:column;line-height:1.1;font-size:13px;margin-left:auto} .userchip small{color:var(--muted);font-size:11px}
 .lockbtn{border-radius:99px;padding:6px 14px;font-size:12px;font-weight:700;background:#f1eef0;color:var(--ink,#333);min-height:32px}
@@ -1675,6 +1693,8 @@ document.addEventListener('click', function(e){
   if (el.classList.contains('scrim') && e.target !== el) return;
   var a = el.dataset.act, d = el.dataset, c;
   switch (a){
+    case 'dashp': S.dp = d.v; break;
+    case 'gobills': S.tab = 'sales'; break;
     case 'sbtoggle': S.sbOpen = !S.sbOpen; break;
     case 'tab': S.sbOpen = false; S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
     case 'cat': S.cat = d.id; S.catChanged = true; break;
@@ -2357,25 +2377,119 @@ function lowStockCount(){
   return n;
 }
 var DASH_EXT = [];
+/* ---------- Dashboard: cards, charts and what needs attention ---------- */
+function dIcon(id){ return '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(TAB_ICON[id] || '')+'</svg>'; }
+function dRange(kind){
+  var t = today(), r = {kind:kind, to:t};
+  if (kind === 'week'){ r.from = addDays(t, -6); r.pto = addDays(t, -7); r.pfrom = addDays(t, -13); r.label = 'Last 7 days'; r.vs = 'vs previous 7 days'; }
+  else if (kind === 'month'){
+    var n = +t.slice(8, 10), pm = new Date(t.slice(0, 7) + '-01T12:00:00'); pm.setMonth(pm.getMonth() - 1);
+    var pf = pm.toLocaleDateString('en-CA').slice(0, 7) + '-01'; r.from = t.slice(0, 7) + '-01'; r.pfrom = pf; r.pto = addDays(pf, n - 1); r.label = monthLabel(t.slice(0, 7)); r.vs = 'vs same days last month';
+  } else { r.from = t; r.pfrom = r.pto = addDays(t, -1); r.label = 'Today'; r.vs = 'vs yesterday'; }
+  return r;
+}
+function dSales(a, b){ return db.sales.filter(function(s){ var d = s.day || new Date(s.t).toLocaleDateString('en-CA'); return !s.void && d >= a && d <= b; }); }
+function dExp(a, b){ return db.exp.items.filter(function(e){ return e.date >= a && e.date <= b; }).reduce(function(x, e){ return x + e.amt; }, 0); }
+function dSum(arr){ return arr.reduce(function(a, s){ return a + s.total; }, 0); }
+function dDelta(cur, prev, vs, good){
+  if (!prev && !cur) return '<span class="dl flat">—</span>';
+  if (!prev) return '<span class="dl up">new</span>';
+  var pc = Math.round((cur - prev) / prev * 100), up = pc >= 0, cls = pc === 0 ? 'flat' : ((up === (good !== false)) ? 'up' : 'dn');
+  return '<span class="dl '+cls+'">'+(pc === 0 ? 'flat' : (up ? '▲ ' : '▼ ') + Math.abs(pc) + '%')+'</span>';
+}
+function dKpi(icon, label, value, delta, sub, act){
+  return '<'+(act ? 'button data-act="'+act+'"' : 'div')+' class="kpi"><div class="kh"><span class="dic">'+dIcon(icon)+'</span><span class="kl">'+label+'</span>'+(delta || '')+'</div><b class="kv">'+value+'</b><div class="ks">'+(sub || '&nbsp;')+'</div></'+(act ? 'button' : 'div')+'>';
+}
+function dBars(vals, labels, hi, fmt, W){
+  W = W || 560; var H = 190, pad = 26, n = vals.length, mx = Math.max.apply(null, vals.concat([1])), bw = (W - pad) / n, o = '';
+  for (var g = 0; g <= 3; g++){ var y = 14 + (H - 44) * g / 3; o += '<line x1="'+pad+'" x2="'+W+'" y1="'+y+'" y2="'+y+'" stroke="#eee"/>'; }
+  vals.forEach(function(v, k){
+    var h = Math.max(v > 0 ? 3 : 0, (H - 44) * v / mx), x = pad + k * bw + bw * 0.18, w = bw * 0.64, y = H - 30 - h;
+    o += '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="5" fill="'+(k === hi ? '#df3d8a' : '#f3b6d2')+'"><title>'+labels[k]+': '+fmt(v)+'</title></rect>';
+    if (n <= 12 || k % Math.ceil(n / 10) === 0) o += '<text x="'+(x + w / 2).toFixed(1)+'" y="'+(H - 12)+'" text-anchor="middle" font-size="11" fill="#6c6a70">'+labels[k]+'</text>';
+  });
+  o += '<text x="0" y="12" font-size="10" fill="#9a979c">'+(mx > 1 ? Math.round(mx) : '')+'</text>';
+  return '<svg viewBox="0 0 '+W+' '+H+'" class="dchart" role="img">'+o+'</svg>';
+}
+function dDonut(parts, total){
+  var R = 52, C = 2 * Math.PI * R, off = 0, o = '<circle cx="70" cy="70" r="'+R+'" fill="none" stroke="#f1eef0" stroke-width="20"/>';
+  if (total > 0) parts.forEach(function(p){ var len = C * p.v / total; if (len > 0.5){ o += '<circle cx="70" cy="70" r="'+R+'" fill="none" stroke="'+p.c+'" stroke-width="20" stroke-dasharray="'+len.toFixed(2)+' '+(C - len).toFixed(2)+'" stroke-dashoffset="'+(-off).toFixed(2)+'" transform="rotate(-90 70 70)"/>'; } off += len; });
+  return '<svg viewBox="0 0 140 140" width="140" height="140" role="img">'+o+'<text x="70" y="66" text-anchor="middle" font-size="11" fill="#6c6a70">Total</text><text x="70" y="86" text-anchor="middle" font-size="16" font-weight="700" fill="#1c1a1f">'+Math.round(total)+'</text></svg>';
+}
+function dHBars(rows, color, fmt){
+  var mx = Math.max.apply(null, rows.map(function(r){ return r.v; }).concat([1]));
+  return rows.length ? rows.map(function(r){ return '<div class="hb"><div class="hl"><span>'+esc(r.k)+'</span><b>'+fmt(r.v)+'</b></div><div class="ht"><i style="width:'+Math.max(2, r.v / mx * 100).toFixed(1)+'%;background:'+color+'"></i></div></div>'; }).join('') : '<div class="empty">No sales in this period.</div>';
+}
 function vDash(){
-  var tile = function(a, b, c, act, warn){ return '<'+(act ? 'button data-act="'+act+'"' : 'div')+' class="tile" style="text-align:left;'+(warn ? 'background:#fff0f5' : '')+'"><small>'+a+'</small><b>'+b+'</b>'+(c ? '<small>'+c+'</small>' : '')+'</'+(act ? 'button' : 'div')+'>'; };
-  var t = today(), m = t.slice(0, 7), D = dayData(t);
-  var ms = db.sales.filter(function(s){ return !s.void && (s.day || '').slice(0, 7) === m; }), mTot = ms.reduce(function(a, s){ return a + s.total; }, 0);
-  var mExp = db.exp.items.filter(function(e){ return e.date.slice(0, 7) === m; }).reduce(function(a, e){ return a + e.amt; }, 0);
+  var kind = S.dp || 'today', R = dRange(kind), t = today();
+  var cur = dSales(R.from, R.to), prev = dSales(R.pfrom, R.pto), tot = dSum(cur), ptot = dSum(prev);
+  var avg = cur.length ? tot / cur.length : 0, pavg = prev.length ? ptot / prev.length : 0;
+  var ex = dExp(R.from, R.to), pex = dExp(R.pfrom, R.pto);
+  var pay = {cash:0, card:0, credit:0}; cur.forEach(function(s){ pay[s.pay] = (pay[s.pay] || 0) + s.total; });
+  var ytd = dSales(t, t), todayVoids = db.sales.filter(function(s){ return s.void && (s.day || new Date(s.t).toLocaleDateString('en-CA')) === t; }).length;
+  // trend bars
+  var tv = [], tl = [], hi = -1, days = kind === 'month' ? +t.slice(8, 10) : 7;
+  for (var k = days - 1; k >= 0; k--){ var d = addDays(t, -k); tv.push(dSum(dSales(d, d))); tl.push(kind === 'month' ? String(+d.slice(8, 10)) : new Date(d + 'T12:00:00').toLocaleDateString('en-GB', {weekday:'short'})); }
+  hi = tv.length - 1;
+  // hourly
+  var hrs = []; for (var h0 = 0; h0 < 24; h0++) hrs.push(0);
+  cur.forEach(function(s){ hrs[new Date(s.t).getHours()] += s.total; });
+  var first = hrs.findIndex(function(v){ return v > 0; }), last = 23; while (last > 0 && !hrs[last]) last--;
+  if (first < 0){ first = 10; last = 22; } if (last - first < 7){ last = Math.min(23, first + 7); }
+  var hv = hrs.slice(first, last + 1), hl = hv.map(function(v, k){ var x = first + k; return (x % 12 || 12) + (x < 12 ? 'a' : 'p'); }), hpk = hv.indexOf(Math.max.apply(null, hv));
+  // categories and items
+  var cat = {}, items = {};
+  cur.forEach(function(s){ s.lines.forEach(function(l){ var a = l.qty * l.price; cat[l.cat] = (cat[l.cat] || 0) + a; var k2 = l.name + (l.size ? ' · ' + l.size : ''); items[k2] = items[k2] || {q:0, a:0}; items[k2].q += l.qty; items[k2].a += a; }); });
+  var catRows = Object.keys(cat).map(function(k){ return {k:k, v:cat[k]}; }).sort(function(a, b){ return b.v - a.v; }).slice(0, 6);
+  var itemRows = Object.keys(items).map(function(k){ return {k:k, v:items[k].q, a:items[k].a}; }).sort(function(a, b){ return b.v - a.v; }).slice(0, 6);
+  // six months
+  var mv = [], ml = [], me = [], mm = t.slice(0, 7);
+  for (var q = 5; q >= 0; q--){ var dm = new Date(mm + '-01T12:00:00'); dm.setMonth(dm.getMonth() - q); var key = dm.toLocaleDateString('en-CA').slice(0, 7);
+    mv.push(dSum(db.sales.filter(function(s){ return !s.void && (s.day || '').slice(0, 7) === key; }))); me.push(db.exp.items.filter(function(e){ return e.date.slice(0, 7) === key; }).reduce(function(a, e){ return a + e.amt; }, 0)); ml.push(dm.toLocaleDateString('en-GB', {month:'short'})); }
+  var mmx = Math.max.apply(null, mv.concat(me).concat([1])), mchart = '';
+  mv.forEach(function(v, k){ var bw = 560 / 6, x = 26 + k * ((560 - 26) / 6), w = (560 - 26) / 6; var h1 = 130 * v / mmx, h2 = 130 * me[k] / mmx;
+    mchart += '<rect x="'+(x + w * 0.14).toFixed(1)+'" y="'+(160 - h1).toFixed(1)+'" width="'+(w * 0.34).toFixed(1)+'" height="'+h1.toFixed(1)+'" rx="4" fill="#00838f"><title>'+ml[k]+' sales '+money(v)+'</title></rect><rect x="'+(x + w * 0.52).toFixed(1)+'" y="'+(160 - h2).toFixed(1)+'" width="'+(w * 0.34).toFixed(1)+'" height="'+h2.toFixed(1)+'" rx="4" fill="#ffc300"><title>'+ml[k]+' expenses '+money(me[k])+'</title></rect><text x="'+(x + w / 2).toFixed(1)+'" y="178" text-anchor="middle" font-size="11" fill="#6c6a70">'+ml[k]+'</text>'; });
+  mchart = '<svg viewBox="0 0 560 186" class="dchart" role="img"><line x1="26" x2="560" y1="160" y2="160" stroke="#eee"/>'+mchart+'</svg>';
+  // attention
+  var att = [], ls = lowStockCount(), st = can('credit') ? creditStats() : null, pb = can('purch') ? payablesTotal() : 0;
+  var flagsToday = db.audit.filter(function(r){ return r.flag && new Date(r.t).toLocaleDateString('en-CA') === t; }).length;
+  function a1(ic, ti, su, act, tone){ att.push('<'+(act ? 'button data-act="'+act+'"' : 'div')+' class="at '+(tone || '')+'"><span class="dic">'+dIcon(ic)+'</span><span><b>'+ti+'</b><small>'+su+'</small></span></'+(act ? 'button' : 'div')+'>'); }
+  if (openCheckPending()) a1('inv', 'Opening stock check', 'Count cups and plates for today', 'opencheck', 'warn');
+  if (ls > 0) a1('stock', ls + ' item' + (ls > 1 ? 's' : '') + ' low on stock', 'Open the warehouse', 'gostock', 'warn');
+  if (st && st.nod) a1('credit', 'Credit overdue · AED ' + money(st.od), st.nod + ' customer' + (st.nod > 1 ? 's' : ''), 'gocredit', 'bad');
+  if (pb > 0) a1('purch', 'We owe suppliers AED ' + money(pb), 'Payables', 'gopurch', '');
+  if (todayVoids) a1('sales', todayVoids + ' cancelled bill' + (todayVoids > 1 ? 's' : '') + ' today', 'Check the reasons', 'gobills', 'bad');
+  if (flagsToday && can('audit')) a1('audit', flagsToday + ' flagged action' + (flagsToday > 1 ? 's' : '') + ' today', 'Discounts, price changes, cancels', 'goaudit', 'warn');
+  var attHtml = att.length ? att.join('') : '<div class="at ok"><span class="dic">'+dIcon('audit')+'</span><span><b>All clear</b><small>Nothing needs your attention right now.</small></span></div>';
   var flags = db.audit.filter(function(r){ return r.flag; }).slice(-6).reverse();
-  var tiles = [
-    tile('Today\'s sales', 'AED ' + money(D.net), D.ok.length + ' bills · cash ' + money(D.cash) + ' · card ' + money(D.card)),
-    tile('This month sales', 'AED ' + money(mTot), ms.length + ' bills'),
-    tile('This month expenses', 'AED ' + money(mExp), '', 'goexp'),
-    tile('Counter drawer', 'AED ' + money(cashBal('drawer')), '', 'gocash'),
-    tile('Bank', 'AED ' + money(cashBal('bank')), '', 'gocash'),
-    tile('Card to receive', 'AED ' + money(cardToReceive()), 'from the card machine', 'gocash'),
-    tile('Low stock items', String(lowStockCount()), '', 'gostock', lowStockCount() > 0)
+  var seg = '<div class="seg">' + [['today', 'Today'], ['week', '7 days'], ['month', 'This month']].map(function(x){ return '<button data-act="dashp" data-v="'+x[0]+'" aria-pressed="'+(kind === x[0])+'">'+x[1]+'</button>'; }).join('') + '</div>';
+  var money1 = function(x){ return 'AED ' + money(x); };
+  var kp = [
+    dKpi('sales', 'Net sales', money1(tot), dDelta(tot, ptot), R.vs),
+    dKpi('sales', 'Bills', String(cur.length), dDelta(cur.length, prev.length), (kind === 'today' ? 'cash ' + money(pay.cash) + ' · card ' + money(pay.card) : R.label)),
+    dKpi('range', 'Average bill', money1(avg), dDelta(avg, pavg), 'per bill'),
+    dKpi('exp', 'Expenses', money1(ex), dDelta(ex, pex, '', false), 'sales − expenses: AED ' + money(tot - ex), can('exp') ? 'goexp' : '')
   ];
-  if (openCheckPending()) tiles.push(tile('Stock check', 'Pending', 'opening cups and plates', 'opencheck', true));
-  DASH_EXT.forEach(function(fn){ var x = fn(tile); if (x) tiles.push(x); });
-  return '<div class="page"><h3 style="margin:0 0 10px">Dashboard · '+xDate(t)+'</h3><div class="tiles">'+tiles.join('')+'</div>'
-    + '<div class="card"><h3>Recent flagged actions</h3>'+(flags.length ? '<table class="tbl"><tbody>'+flags.map(function(r){ return '<tr><td style="white-space:nowrap">'+auditTime(r.t)+'</td><td>'+esc(r.u)+(r.ap ? '<small style="display:block;color:var(--muted)">approved by '+esc(r.ap)+'</small>' : '')+'</td><td><b>⚑ '+esc(r.act)+'</b><small style="display:block;color:var(--muted)">'+esc(r.d)+'</small></td></tr>'; }).join('')+'</tbody></table>' + (can('audit') ? '<div class="btns"><button class="btn sm ghost" data-act="goaudit">Open audit log</button></div>' : '') : '<div class="empty">Nothing flagged.</div>')+'</div></div>';
+  var mo = [
+    dKpi('cash', 'Counter drawer', money1(cashBal('drawer')), '', 'cash in the drawer', can('cash') ? 'gocash' : ''),
+    dKpi('range', 'Bank', money1(cashBal('bank')), '', '&nbsp;', can('cash') ? 'gocash' : ''),
+    dKpi('credit', 'Card to receive', money1(cardToReceive()), '', 'from the card machine', can('cash') ? 'gocash' : '')
+  ].concat(st ? [dKpi('credit', 'Credit outstanding', money1(st.out), '', st.n + ' customer' + (st.n === 1 ? '' : 's'), 'gocredit')] : []).concat(can('purch') ? [dKpi('purch', 'Supplier payables', money1(pb), '', 'we owe suppliers', 'gopurch')] : []);
+  var pays = [{k:'Cash', v:pay.cash, c:'#00838f'}, {k:'Card', v:pay.card, c:'#df3d8a'}, {k:'Credit', v:pay.credit, c:'#ffc300'}];
+  var payTot = pay.cash + pay.card + pay.credit;
+  var legend = pays.map(function(p){ return '<div class="lg"><i style="background:'+p.c+'"></i><span>'+p.k+'</span><b>'+money(p.v)+'</b><em>'+(payTot ? Math.round(p.v / payTot * 100) : 0)+'%</em></div>'; }).join('');
+  return '<div class="page dash"><div class="dhead"><div><h2>'+(kind === 'today' ? new Date().toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'}) : R.label)+'</h2><p>'+cur.length+' bill'+(cur.length === 1 ? '' : 's')+' · AED '+money(tot)+' sold'+(ytd.length && kind !== 'today' ? ' · today AED '+money(dSum(ytd)) : '')+'</p></div>'+seg+'</div>'
+    + '<div class="kpis">'+kp.join('')+'</div>'
+    + '<div class="dgrid"><div class="dcard span2"><div class="dt"><h3>Sales'+(kind === 'month' ? ' by day' : ' · last 7 days')+'</h3><small>AED per day</small></div>'+dBars(tv, tl, hi, function(v){ return 'AED ' + money(v); })+'</div>'
+    + '<div class="dcard"><div class="dt"><h3>Needs attention</h3><small>'+att.length+' item'+(att.length === 1 ? '' : 's')+'</small></div><div class="atl">'+attHtml+'</div></div></div>'
+    + '<div class="dgrid3"><div class="dcard"><div class="dt"><h3>Payment mix</h3><small>'+R.label+'</small></div><div class="pm">'+dDonut(pays, payTot)+'<div class="lgs">'+legend+'</div></div></div>'
+    + '<div class="dcard"><div class="dt"><h3>Busy hours</h3><small>'+(hv[hpk] > 0 ? 'peak '+hl[hpk] : R.label)+'</small></div>'+dBars(hv, hl, hv[hpk] > 0 ? hpk : -1, function(v){ return 'AED ' + money(v); }, 330)+'</div>'
+    + '<div class="dcard"><div class="dt"><h3>Sales by category</h3><small>'+R.label+'</small></div>'+dHBars(catRows, '#df3d8a', function(v){ return 'AED ' + money(v); })+'</div></div>'
+    + '<div class="dgrid"><div class="dcard span2"><div class="dt"><h3>Sales and expenses</h3><small><i class="sw" style="background:#00838f"></i>Sales <i class="sw" style="background:#ffc300"></i>Expenses · last 6 months</small></div>'+mchart+'</div>'
+    + '<div class="dcard"><div class="dt"><h3>Top items</h3><small>by quantity</small></div>'+dHBars(itemRows, '#00838f', function(v, r){ return v + ' sold'; })+'</div></div>'
+    + '<div class="kpis money">'+mo.join('')+'</div>'
+    + (flags.length ? '<div class="dcard" style="margin-top:12px"><div class="dt"><h3>Recent flagged actions</h3>'+(can('audit') ? '<button class="btn sm ghost" data-act="goaudit">Open audit log</button>' : '')+'</div><table class="tbl"><tbody>'+flags.map(function(r){ return '<tr><td style="white-space:nowrap">'+auditTime(r.t)+'</td><td>'+esc(r.u)+(r.ap ? '<small style="display:block;color:var(--muted)">approved by '+esc(r.ap)+'</small>' : '')+'</td><td><b>⚑ '+esc(r.act)+'</b><small style="display:block;color:var(--muted)">'+esc(r.d)+'</small></td></tr>'; }).join('')+'</tbody></table></div>' : '')
+    + '</div>';
 }
 
 /* ----- events ----- */
