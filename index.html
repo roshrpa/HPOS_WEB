@@ -1660,6 +1660,7 @@ function receiptText(s){
 }
 
 function vSheets(){
+  if (S.popen && S.tab === 'purch') return vPurNew();
   if (S.xopen && S.tab === 'exp') return xForm();
   if (S.ropen && S.tab === 'exp') return recForm();
   if (S.closeAsk){
@@ -2735,7 +2736,7 @@ TAB_PERM.purch = 'purch';
 if (!db.sup) db.sup = [];
 if (!db.pur) db.pur = {list:[], pays:[]};
 if (!db.avg) db.avg = {};
-S.pt = 'new'; S.pm = today().slice(0, 7); S.psup = null;
+S.pt = 'hist'; S.popen = false; S.pedit = null; S.pm = today().slice(0, 7); S.psup = null;
 function newPurForm(){ return {date:today(), sup:'', inv:'', pay:'cash', vat:'', note:'', pin:'', lines:[{key:'', qty:'', unit:'pcs', amt:'', to:'wh'}]}; }
 S.pf = newPurForm(); S.supf = {name:'', phone:''}; S.spf = {amt:'', from:'cash', date:today(), note:'', pin:''}; S.pcan = null; S.pcanpin = ''; S.supEdit = null;
 function xCatType(c){ return c.type || (c.name === 'Purchases' ? 'cogs' : 'opex'); }
@@ -2772,7 +2773,7 @@ function extLedger(acct){
 function purchCashNet(date){ var n = 0; extLedger('drawer').forEach(function(r){ if (r.date === date) n += r.amt; }); return n; }
 
 /* ----- save purchase ----- */
-function savePurchase(ap){
+function savePurchase(ap, quiet){
   var f = S.pf, T = purTotals(f), lines = [], E = expectedMap();
   f.lines.forEach(function(l){
     var it = whFind(l.key), q = parseFloat(l.qty), pcs = num(toPcs(l.key, q, l.unit)), amt = round2(parseFloat(l.amt));
@@ -2786,17 +2787,17 @@ function savePurchase(ap){
   });
   var p = {id:uid('p'), t:Date.now(), date:f.date, sup:f.sup, inv:f.inv.trim(), pay:f.pay, lines:lines, sub:T.sub, vat:T.vat, total:T.total, note:f.note.trim(), by:ap.name};
   db.pur.list.push(p); queueEvent('pur_new', p);
-  audit('Purchases', 'Purchase added', f.date + ' · ' + supName(f.sup) + (p.inv ? ' · inv ' + p.inv : '') + ' · AED ' + money(p.total) + ' · ' + (p.pay === 'credit' ? 'on credit' : 'paid ' + p.pay) + ' · ' + lines.length + ' item(s)', {ap:ap.name});
+  if (!quiet) audit('Purchases', 'Purchase added', f.date + ' · ' + supName(f.sup) + (p.inv ? ' · inv ' + p.inv : '') + ' · AED ' + money(p.total) + ' · ' + (p.pay === 'credit' ? 'on credit' : 'paid ' + p.pay) + ' · ' + lines.length + ' item(s)', {ap:ap.name});
   return p;
 }
-function voidPurchase(p, ap){
+function voidPurchase(p, ap, quiet){
   p.lines.forEach(function(l){
     var it = whFind(l.key); if (!it) return;
     if (l.to === 'shop') shopAdd(it, -l.pcs, 'Purchase cancelled'); else db.wh.qty[l.key] = Math.max(0, num(whQty(l.key) - l.pcs));
     whLog({key:l.key, name:it.name, q:l.pcs, unit:'pcs', type:'adjust', loc:l.to === 'shop' ? 'shop' : 'wh', dir:-1, reason:'Purchase cancelled', note:(p.inv || '')});
   });
   p.void = true; p.voidBy = ap.name; p.voidT = Date.now();
-  audit('Purchases', 'Purchase cancelled', p.date + ' · ' + supName(p.sup) + ' · AED ' + money(p.total) + (p.inv ? ' · inv ' + p.inv : ''), {ap:ap.name, flag:1}); queueEvent('pur_void', {id:p.id});
+  if (!quiet) audit('Purchases', 'Purchase cancelled', p.date + ' · ' + supName(p.sup) + ' · AED ' + money(p.total) + (p.inv ? ' · inv ' + p.inv : ''), {ap:ap.name, flag:1}); queueEvent('pur_void', {id:p.id});
 }
 
 /* ----- views ----- */
@@ -2806,9 +2807,9 @@ function itemOptions(sel){
   return '<option value="">Choose item</option>' + order.map(function(g){ return '<optgroup label="'+esc(g)+'">' + groups[g].map(function(it){ return '<option value="'+esc(it.key)+'"'+(it.key === sel ? ' selected' : '')+'>'+esc(it.name)+'</option>'; }).join('') + '</optgroup>'; }).join('');
 }
 function vPurch(){
-  var tabs = [['new', 'New purchase'], ['hist', 'History'], ['sup', 'Suppliers and payables'], ['cost', 'Item costs']];
+  var tabs = [['hist', 'Purchases'], ['sup', 'Suppliers and payables'], ['cost', 'Item costs']];
   var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="ptab" data-id="'+t[0]+'" aria-pressed="'+(S.pt === t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
-  return '<div class="page"><div class="bar">'+seg+'</div>' + (S.pt === 'hist' ? vPurHist() : S.pt === 'sup' ? vSup() : S.pt === 'cost' ? vCost() : vPurNew()) + '</div>';
+  return '<div class="page"><div class="bar">'+seg+'</div>' + (S.pt === 'hist' ? vPurHist() : S.pt === 'sup' ? vSup() : S.pt === 'cost' ? vCost() : vPurHist()) + '</div>';
 }
 function plRows(){
   var f = S.pf;
@@ -2826,7 +2827,9 @@ function plRows(){
 }
 function vPurNew(){
   var f = S.pf, T = purTotals(f), G = setg();
-  return '<div class="card"><h3>New purchase</h3><div class="fgrid">'
+ return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Purchase" style="width:min(1100px,100%)"><h3>'+(S.pedit ? 'Edit purchase' : 'New purchase')+'</h3>'
+    + (S.pedit ? '<p>Saving replaces the old purchase: its stock is taken back and the new lines are added. The old one stays in the Audit.</p>' : '')
+    + '<div class="fgrid">'
     + '<label class="fld">Date<input class="inp" type="date" data-f="pf" data-k="date" value="'+esc(f.date)+'"></label>'
     + '<label class="fld">Supplier<select class="inp" data-f="pfs" data-k="sup"><option value="">Walk-in / no supplier</option>'+db.sup.filter(function(s){ return s.active !== false; }).map(function(s){ return '<option value="'+s.id+'"'+(s.id === f.sup ? ' selected' : '')+'>'+esc(s.name)+'</option>'; }).join('')+'</select></label>'
     + '<label class="fld">Invoice / bill no.<input class="inp" data-f="pf" data-k="inv" value="'+esc(f.inv)+'" autocomplete="off"></label>'
@@ -2839,17 +2842,17 @@ function vPurNew(){
     + pinOpen('purch','')+'<input class="inp" type="password" inputmode="numeric" data-f="pf" data-k="pin" value="'+esc(f.pin)+'" autocomplete="off"></label></div>'
     + '<p style="margin:12px 0 0;font-size:15px">Items AED <b id="ptsub">'+money(T.sub)+'</b>'+(G.vat ? ' · VAT AED <b id="ptvat">'+money(T.vat)+'</b>' : '')+' · <b>Total AED <span id="ptot">'+money(T.total)+'</span></b></p>'
     + '<p style="color:var(--muted);margin:6px 0 0;font-size:13px">Saving adds the stock to the warehouse or shop, updates the average cost and records the payment. '+(f.pay === 'credit' ? 'This amount will be added to what you owe the supplier.' : 'The money goes out of the '+(f.pay === 'bank' ? 'bank' : 'counter drawer')+'.')+'</p>'
-    + '<div class="btns"><button class="btn primary" data-act="purchsave">Save purchase</button></div></div>';
+    + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="pformclose">Cancel</button><button class="btn primary" data-act="purchsave">'+(S.pedit ? 'Save changes' : 'Save purchase')+'</button></div></div></div>';
 }
 function purDesc(p){ return p.lines.map(function(l){ return l.name + ' ×' + num(l.qty) + (l.unit === 'ctn' ? ' ctn' : ''); }).join(', '); }
 function vPurHist(){
-  var list = db.pur.list.filter(function(p){ return p.date.slice(0, 7) === S.pm; }).slice().sort(function(a, b){ return b.date < a.date ? -1 : b.date > a.date ? 1 : b.t - a.t; });
+  var list = db.pur.list.filter(function(p){ return p.date.slice(0, 7) === S.pm && !(p.void && p.editedTo); }).slice().sort(function(a, b){ return b.date < a.date ? -1 : b.date > a.date ? 1 : b.t - a.t; });
   var tot = list.filter(function(p){ return !p.void; }).reduce(function(a, p){ return a + p.total; }, 0);
   var rows = list.map(function(p){
-    var act = p.void ? '<span class="pill void">Cancelled</span>' : (S.pcan === p.id ? '<input class="inp" type="password" inputmode="numeric" placeholder="PIN" data-f="pcanpin" value="'+esc(S.pcanpin)+'" style="width:90px;display:'+(pinNeeded('purch') ? 'inline-block' : 'none')+'"> <button class="btn sm danger" data-act="pcany" data-id="'+p.id+'">Cancel it</button> <button class="btn sm ghost" data-act="pcann">×</button>' : '<button class="btn sm ghost" data-act="pcan" data-id="'+p.id+'">Cancel</button>');
-    return '<tr'+(p.void ? ' style="opacity:.55"' : '')+'><td style="white-space:nowrap">'+xDate(p.date)+'</td><td>'+esc(supName(p.sup))+(p.inv ? '<small style="display:block;color:var(--muted)">inv '+esc(p.inv)+'</small>' : '')+'</td><td style="font-size:13px">'+esc(purDesc(p))+'</td><td><span class="pill cash">'+(p.pay === 'credit' ? 'Credit' : p.pay === 'bank' ? 'Bank' : 'Cash')+'</span></td><td class="n" style="text-align:right">'+money(p.total)+(p.vat ? '<small style="display:block;color:var(--muted)">VAT '+money(p.vat)+'</small>' : '')+'</td><td>'+esc(p.by || '')+'</td><td>'+act+'</td></tr>';
+    var act = p.void ? '<span class="pill void">Cancelled</span>' : (S.pcan === p.id ? '<input class="inp" type="password" inputmode="numeric" placeholder="PIN" data-f="pcanpin" value="'+esc(S.pcanpin)+'" style="width:90px;display:'+(pinNeeded('purch') ? 'inline-block' : 'none')+'"> <button class="btn sm danger" data-act="pcany" data-id="'+p.id+'">Cancel it</button> <button class="btn sm ghost" data-act="pcann">×</button>' : '<button class="btn sm ghost" data-act="pedit" data-id="'+p.id+'">Edit</button> <button class="btn sm ghost" data-act="pcan" data-id="'+p.id+'">Cancel</button>');
+    return '<tr'+(p.void ? ' style="opacity:.55"' : '')+'><td style="white-space:nowrap">'+xDate(p.date)+(p.edited ? ' <span class="pill" style="background:#fdf1dc;color:#7a5410">Edited</span>' : '')+'</td><td>'+esc(supName(p.sup))+(p.inv ? '<small style="display:block;color:var(--muted)">inv '+esc(p.inv)+'</small>' : '')+'</td><td style="font-size:13px">'+esc(purDesc(p))+'</td><td><span class="pill cash">'+(p.pay === 'credit' ? 'Credit' : p.pay === 'bank' ? 'Bank' : 'Cash')+'</span></td><td class="n" style="text-align:right">'+money(p.total)+(p.vat ? '<small style="display:block;color:var(--muted)">VAT '+money(p.vat)+'</small>' : '')+'</td><td>'+esc(p.by || '')+'</td><td>'+act+'</td></tr>';
   }).join('');
-  return '<div class="card"><div class="bar"><button class="btn sm ghost" data-act="pmonth" data-v="-1">‹</button><b>'+monthLabel(S.pm)+'</b><button class="btn sm ghost" data-act="pmonth" data-v="1">›</button><span class="sp"></span><b>Total AED '+money(tot)+'</b></div>'
+  return '<div class="card"><div class="bar"><button class="btn sm ghost" data-act="pmonth" data-v="-1">‹</button><b>'+monthLabel(S.pm)+'</b><button class="btn sm ghost" data-act="pmonth" data-v="1">›</button><span class="sp"></span><b>Total AED '+money(tot)+'</b><button class="btn primary sm" data-act="pnew" style="margin-left:12px">+ New purchase</button></div>'
     + '<div class="tblwrap" style="margin-top:8px"><table class="tbl"><thead><tr><th>Date</th><th>Supplier</th><th>Items</th><th>Paid</th><th style="text-align:right">AED</th><th>By</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="7" class="empty">No purchases this month.</td></tr>')+'</tbody></table></div></div>';
 }
 function supStatement(id){
@@ -2937,7 +2940,7 @@ document.addEventListener('click', function(e){
   var el = e.target.closest('[data-act]'); if (!el) return;
   var a = el.dataset.act, d = el.dataset;
   switch (a){
-    case 'ptab': S.pt = d.id; break;
+    case 'ptab': S.pt = d.id; S.popen = false; S.pedit = null; break;
     case 'gopurch': S.tab = can('purch') ? 'purch' : S.tab; break;
     case 'pmonth': S.pm = shiftMonth(S.pm, +d.v); break;
     case 'pladd': S.pf.lines.push({key:'', qty:'', unit:'pcs', amt:'', to:'wh'}); break;
@@ -2949,7 +2952,17 @@ document.addEventListener('click', function(e){
       if (!f.lines.length || f.lines.some(function(l){ return !lineOk(l); })){ toast('Each line needs an item, quantity and cost'); return; }
       if (f.lines.some(function(l){ return l.unit === 'ctn' && !whCtn(l.key); })){ toast('Set pieces per carton in Stock first'); return; }
       if (!ap){ toast('Wrong PIN'); return; }
-      var pp = savePurchase(ap); var keep = {date:f.date, sup:f.sup, pay:f.pay}; S.pf = newPurForm(); S.pf.date = keep.date; S.pf.sup = keep.sup; S.pf.pay = keep.pay; toast('Purchase saved · AED ' + money(pp.total)); break;
+      var pold = S.pedit && byId(db.pur.list, S.pedit);
+      if (S.pedit && (!pold || pold.void)){ toast('This purchase was already cancelled or changed'); S.popen = false; S.pedit = null; break; }
+      if (pold) voidPurchase(pold, ap, true);
+      var pp = savePurchase(ap, !!pold);
+      if (pold){ pp.edited = true; pp.editOf = pold.id; pold.editedTo = pp.id; audit('Purchases', 'Purchase edited', pold.date + ' · ' + supName(pold.sup) + ' · AED ' + money(pold.total) + '  →  ' + pp.date + ' · ' + supName(pp.sup) + ' · AED ' + money(pp.total) + (pp.inv ? ' · inv ' + pp.inv : ''), {ap:ap.name, flag:1}); }
+      S.pm = pp.date.slice(0, 7); S.pf = newPurForm(); S.popen = false; S.pedit = null; toast(pold ? 'Purchase updated · AED ' + money(pp.total) : 'Purchase saved · AED ' + money(pp.total)); break;
+    case 'pnew': S.pedit = null; var pk = S.pf; S.pf = newPurForm(); S.pf.date = pk.date || today(); S.pf.sup = pk.sup || ''; S.pf.pay = pk.pay || 'cash'; S.popen = true; break;
+    case 'pedit':
+      var pe = byId(db.pur.list, d.id); if (!pe || pe.void) break;
+      S.pedit = pe.id; S.pf = {date:pe.date, sup:pe.sup || '', inv:pe.inv || '', pay:pe.pay, vat:pe.vat ? String(pe.vat) : '', note:pe.note || '', pin:'', lines:pe.lines.map(function(l){ return {key:l.key, qty:String(l.qty), unit:l.unit, amt:String(l.amt), to:l.to}; })}; S.popen = true; break;
+    case 'pformclose': S.popen = false; S.pedit = null; S.pf = newPurForm(); break;
     case 'pcan': S.pcan = d.id; S.pcanpin = ''; break;
     case 'pcann': S.pcan = null; break;
     case 'pcany':
@@ -3216,7 +3229,8 @@ function lockDateFor(a, d){
   switch (a){
     case 'xsave': case 'xsave2': var xe = S.xedit && byId(db.exp.items, S.xedit); return [S.xf && S.xf.date, xe && xe.date];
     case 'xdelyes': var xd = byId(db.exp.items, d.id); return [xd && xd.date];
-    case 'purchsave': return [S.pf.date];
+    case 'purchsave': var po = S.pedit && byId(db.pur.list, S.pedit); return [S.pf.date, po && po.date];
+    case 'pedit': var pe2 = byId(db.pur.list, d.id); return [pe2 && pe2.date];
     case 'pcany': var pv = byId(db.pur.list, d.id); return [pv && pv.date];
     case 'cashadd': return [S.cf.date];
     case 'cdely': var ce = byId(db.cash.entries, d.id); return [ce && ce.date];
