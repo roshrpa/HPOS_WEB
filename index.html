@@ -29,6 +29,19 @@ header.top{display:flex;align-items:center;gap:14px;padding:8px 18px;background:
 .syncpill.wait,.syncpill.busy{color:var(--warn);background:var(--warn-bg)} .syncpill.wait::before,.syncpill.busy::before{background:#d99a1f}
 .syncpill.err{color:var(--pink-dk);background:#fde6ed} .syncpill.err::before{background:var(--pink)}
 nav.tabs{display:flex;gap:6px;flex-wrap:wrap} nav.tabs button{white-space:nowrap}
+
+.shell{flex:1;min-height:0;display:flex} .mainc{flex:1;min-width:0;display:flex;flex-direction:column} .mainc>main{flex:1;min-height:0}
+.side{width:218px;flex:none;background:#fff;border-right:1px solid #efe9ec;display:flex;flex-direction:column;overflow-y:auto;padding:12px 10px 16px;gap:2px;scrollbar-width:thin}
+.sb-brand{display:flex;align-items:center;gap:10px;padding:2px 6px 10px} .sb-brand .logo{height:38px} .sb-brand b{display:block;font-size:15px;line-height:1.15} .sb-brand small{font-size:11px;color:var(--muted);font-weight:500}
+.side .grp{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding:14px 12px 4px} .side .grp.gap{padding:4px 0 0}
+.side button.it{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;border-radius:12px;font-weight:600;color:var(--ink);min-height:44px}
+.side button.it svg{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8}
+.side button.it:hover{background:#f6f2f4} .side button.it[aria-current="true"]{background:var(--pink);color:#fff}
+header.top .ptitle{font-size:19px;margin:0;font-weight:700} header.top .sp{flex:1} .menubtn{display:none;padding:8px;border-radius:10px;background:#f1eef0}
+.sbscrim{display:none}
+@media (min-width:701px){ .side.min{width:68px;padding-left:8px;padding-right:8px} .side.min .grp.gap{display:none} .side.min .grp:not(.gap){font-size:0;padding:6px 0 2px;border-top:1px solid #efe9ec;margin:6px 6px 2px} .side.min .lbl,.side.min .brandtxt{display:none} .side.min button.it{justify-content:center;padding:10px 0} .side.min .sb-brand{justify-content:center;padding:2px 0 10px} }
+@media (max-width:700px){ .side{position:fixed;left:0;top:0;bottom:0;z-index:60;width:250px;transform:translateX(-102%);transition:transform .18s;box-shadow:0 0 30px rgba(0,0,0,.2)} .side.open{transform:none} .sbscrim{display:block;position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.35)} .menubtn{display:inline-flex} header.top .ptitle{font-size:16px} }
+/*sub*/nav.tabs.sub{flex-basis:100%;order:9;padding-top:6px;margin-top:2px;border-top:1px solid #efe9ec} nav.tabs.sub button{min-height:38px;padding:6px 14px;font-size:14px;border-radius:10px;background:#f6f2f4} nav.tabs.sub button[aria-current="true"]{background:var(--ink,#333);color:#fff}
 .userchip{display:flex;flex-direction:column;line-height:1.1;font-size:13px;margin-left:auto} .userchip small{color:var(--muted);font-size:11px}
 .lockbtn{border-radius:99px;padding:6px 14px;font-size:12px;font-weight:700;background:#f1eef0;color:var(--ink,#333);min-height:32px}
 .pchg{margin-left:6px;padding:0 8px;border-radius:8px;background:#f1eef0;font-size:13px;min-height:24px;color:var(--pink-dk)}
@@ -1124,10 +1137,43 @@ function closeRefresh(){
   [['nCashDiff', N.cashDiff], ['nCardDiff', N.cardDiff]].forEach(function(p){ var e = g(p[0]); if (e){ e.textContent = diffText(p[1]); e.setAttribute('style', diffStyle(p[1])); } });
 }
 
+var TAB_GROUPS = [
+  {id:'sale', label:'', tabs:[['sale','Sale'], ['dash','Dashboard']]},
+  {id:'rep', label:'Reports', tabs:[['sales','Bills'], ['range','Cash report'], ['reports','Accounts']]},
+  {id:'stk', label:'Stock', tabs:[['inv','Usage &amp; count'], ['stock','Warehouse']]},
+  {id:'mon', label:'Money', tabs:[['purch','Purchases'], ['exp','Expenses'], ['cash','Cash'], ['credit','Credit']]},
+  {id:'adm', label:'Manage', tabs:[['menu','Menu'], ['users','Users'], ['audit','Audit'], ['settings','Settings']]}
+];
+var TAB_ICON = {
+  sale:'<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 10.5h10.6L20.5 8H6.5"/>',
+  dash:'<rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7.5" height="9.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/>',
+  sales:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  range:'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/>',
+  reports:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  inv:'<path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+  stock:'<path d="M3 10l9-6 9 6v10H3z"/><path d="M8 20v-6h8v6"/>',
+  purch:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 016 0"/>',
+  exp:'<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>',
+  cash:'<circle cx="9" cy="12" r="6"/><path d="M15.5 7.2a6 6 0 010 9.6"/>',
+  credit:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>',
+  menu:'<path d="M5 6h14M5 12h14M5 18h9"/>',
+  users:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+  audit:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'
+};
+function tabShown(id){ if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users'].indexOf(id) < 0) return false; if (TAB_PERM[id] && !can(TAB_PERM[id])) return false; return true; }
+function tabLabel(id){ var r = ''; TAB_GROUPS.forEach(function(g){ g.tabs.forEach(function(t){ if (t[0] === id) r = t[1]; }); }); return r; }
+function vSide(){
+  var h = '<aside class="side'+(S.tab === 'sale' ? ' min' : '')+(S.sbOpen ? ' open' : '')+'"><div class="sb-brand"><img class="logo" src="'+LOGO+'" alt=""><div class="brandtxt"><b>Hollywood POS</b><small>Counter and billing</small></div></div>';
+  TAB_GROUPS.forEach(function(g){
+    var ts = g.tabs.filter(function(t){ return tabShown(t[0]); }); if (!ts.length) return;
+    if (g.label) h += '<div class="grp">'+g.label+'</div>'; else h += '<div class="grp gap"></div>';
+    h += ts.map(function(t){ return '<button class="it" data-act="tab" data-v="'+t[0]+'" aria-current="'+(S.tab===t[0])+'" title="'+t[1]+'"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">'+TAB_ICON[t[0]]+'</svg><span class="lbl">'+t[1]+'</span></button>'; }).join('');
+  });
+  return h + '</aside>' + (S.sbOpen ? '<div class="sbscrim" data-act="sbtoggle"></div>' : '');
+}
 function vHeader(){
-  function tab(id, label){ if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users'].indexOf(id) < 0) return ''; if (TAB_PERM[id] && !can(TAB_PERM[id])) return ''; return '<button data-act="tab" data-v="'+id+'" aria-current="'+(S.tab===id)+'">'+label+'</button>'; }
-  return '<header class="top"><img class="logo" src="'+LOGO+'" alt=""><div class="brand">Hollywood POS<small>Counter and billing</small></div><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+creditPill()+userChip()+'<nav class="tabs">'
-    + tab('sale','Sale') + tab('dash','Dashboard') + tab('sales','Sales') + tab('range','Cash &amp; report') + tab('inv','Inventory') + tab('stock','Stock') + tab('purch','Purchases') + tab('exp','Expenses') + tab('cash','Cash') + tab('credit','Credit') + tab('reports','Reports') + tab('menu','Menu') + tab('audit','Audit') + tab('users','Users') + tab('settings','Settings') + '</nav></header>';
+  return '<header class="top"><button class="menubtn" data-act="sbtoggle" aria-label="Menu"><svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><h1 class="ptitle">'+tabLabel(S.tab)+'</h1><span class="sp"></span><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+creditPill()+userChip()+'</header>';
 }
 
 function vSale(){
@@ -1520,7 +1566,7 @@ function render(){
   var keep = {}; SCR.forEach(function(s){ var e = document.querySelector(s); if (e) keep[s] = [e.scrollTop, e.scrollLeft]; });
   var key = S.tab;
   var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'reports' ? vReports() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'range' ? vRange() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
-  document.getElementById('app').innerHTML = vHeader() + '<main>' + body + '</main>' + vSheets();
+  document.getElementById('app').innerHTML = '<div class="shell">' + vSide() + '<div class="mainc">' + vHeader() + '<main>' + body + '</main></div></div>' + vSheets();
   paintSync();
   SCR.forEach(function(s){ var e = document.querySelector(s), k = keep[s]; if (e && k && key === lastKey && !(s === '.items' && S.catChanged)){ e.scrollTop = k[0]; e.scrollLeft = k[1]; } });
   S.catChanged = false; lastKey = key;
@@ -1629,7 +1675,8 @@ document.addEventListener('click', function(e){
   if (el.classList.contains('scrim') && e.target !== el) return;
   var a = el.dataset.act, d = el.dataset, c;
   switch (a){
-    case 'tab': S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
+    case 'sbtoggle': S.sbOpen = !S.sbOpen; break;
+    case 'tab': S.sbOpen = false; S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
     case 'cat': S.cat = d.id; S.catChanged = true; break;
     case 'item': c = curCat(); var item = byId(c.items, d.id); if (!item || item.off) break;
       if (c.sizes.length > 1) S.sheet = {cat:c.id, item:item.id}; else addLine(c, item, c.sizes[0]); break;
