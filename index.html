@@ -426,7 +426,7 @@ function invDefault(){
   r('Mr. Corn','Medium',[['cornM',1]]);
   r('Mr. Corn','Large',[['cornL',1]]);
   var base = {};
-  M.forEach(function(x){ base[x[0]] = {t:now, q:x[6]}; });
+  M.forEach(function(x){ base[x[0]] = {t:0, q:x[6]}; });
   return {v:9, materials:M.map(function(x){ return {id:x[0], name:x[1], unit:x[2], cost:x[3], cup:x[4], min:x[5]}; }), recipes:R, base:base, purchases:[], waste:[], counts:[]};
 }
 if (!db.inv || db.inv.v !== 9) db.inv = invDefault();
@@ -436,6 +436,8 @@ if (db.settings.carryOpen === undefined) db.settings.carryOpen = true;
 /* Test start: every menu item begins with 100 in stock (runs once per browser) */
 if (db.stockSeed !== 1){ db.stock = {}; menu.forEach(function(c){ c.items.forEach(function(it0){ db.stock[skey(c.name, it0.name)] = 100; }); }); db.stockSeed = 1; save(); }
 function num(n){ return Math.round(n * 100) / 100; }
+/* one-time fix: untouched starting stock counts every sale (it used to start at first-open time, so earlier sales were skipped) */
+if (db.inv && db.inv.base && db.invBaseFix !== 1){ db.invBaseFix = 1; var cts = (db.inv.counts || []).map(function(c){ return c.t; }); Object.keys(db.inv.base).forEach(function(k){ var b = db.inv.base[k]; if (b && b.t && cts.indexOf(b.t) < 0) b.t = 0; }); save(); }
 function rkey(cat, size){ return ((cat === 'Mini Melts Ice Cream' || cat === 'Minimals Ice Cream') ? 'Minimelts Ice Cream' : cat) + '|' + (size || ''); }
 function mat(id){ return byId(db.inv.materials, id); }
 function usageMap(){
