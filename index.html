@@ -932,11 +932,11 @@ function applyRemote(events){
       var s = byId(db.sales, p.id);
       if (s && !s.void){ s.void = true; s.voidReason = p.reason || ''; s.voidNote = p.note || ''; s.voidT = e.t; stockMove(s.lines, +1); changed = true; }
     } else if (e.type === 'order'){
-      if (isUuid(p.id) && !tord(p.id)){ var no1 = {id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, day:p.day || '', by:p.by || '', lines:p.lines || [], note:p.note || '', pay:p.pay || '', credit:p.credit || null, status:'new'}; db.tOrders.push(no1); tabSale(no1); changed = true; }
-    } else if (e.type === 'order_update'){
-      var o = tord(p.id); if (o && o.status === 'new'){ o.lines = p.lines || o.lines; o.note = p.note || ''; if (p.pay !== undefined) o.pay = p.pay || ''; if (p.credit !== undefined) o.credit = p.credit || null; tabSale(o); changed = true; }
-    } else if (e.type === 'order_pay'){
-      var o4 = tord(p.id); if (o4 && o4.status === 'new'){ o4.pay = p.pay || ''; tabSale(o4); changed = true; }
+      if (isUuid(p.id) && !tord(p.id)){ var no1 = {id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, day:p.day || '', by:p.by || '', lines:p.lines || [], note:p.note || '', pay:p.pay || '', credit:p.credit || null, status:'new'}; db.tOrders.push(no1); if (db.tOrphans) delete db.tOrphans[p.id]; tabSale(no1); changed = true; }
+    } else if (e.type === 'order_update' || e.type === 'order_pay' || e.type === 'order_delivered'){
+      if (isUuid(p.id) && !tord(p.id)){ db.tOrphans = db.tOrphans || {}; if (!db.tOrphans[p.id]){ db.tOrphans[p.id] = {t:e.t || Date.now(), pay:p.pay || ''}; changed = true; } }
+      if (e.type === 'order_delivered') return;
+      var o = tord(p.id); if (o && o.status === 'new'){ if (e.type === 'order_update'){ o.lines = p.lines || o.lines; o.note = p.note || ''; if (p.pay !== undefined) o.pay = p.pay || ''; if (p.credit !== undefined) o.credit = p.credit || null; } else o.pay = p.pay || ''; tabSale(o); changed = true; }
     } else if (e.type === 'rec' || e.type === 'recdel' || e.type === 'num'){
       if (applyState(e.type, p)) changed = true;
     } else if (e.type === 'audit'){
@@ -1911,6 +1911,7 @@ document.addEventListener('click', function(e){
   switch (a){
     case 'dashp': S.dp = d.v; break;
     case 'gobills': S.tab = 'sales'; break;
+    case 'tordclear': db.tOrphans = {}; save(); toast('Cleared'); break;
     case 'liccheck': licCheck(); break;
     case 'licdis': try { sessionStorage.setItem('hp_licdis_' + today(), '1'); } catch(er){} render(); break;
     case 'sbtoggle': S.sbOpen = !S.sbOpen; break;
@@ -2751,6 +2752,9 @@ function vDash(){
   var flagsToday = db.audit.filter(function(r){ return isFlag(r) && new Date(r.t).toLocaleDateString('en-CA') === t; }).length;
   function a1(ic, ti, su, act, tone){ att.push('<'+(act ? 'button data-act="'+act+'"' : 'div')+' class="at '+(tone || '')+'"><span class="dic">'+dIcon(ic)+'</span><span><b>'+ti+'</b><small>'+su+'</small></span></'+(act ? 'button' : 'div')+'>'); }
   if (openCheckPending()) a1('inv', 'Opening stock check', 'Count cups and plates for today', 'opencheck', 'warn');
+  var unb = (db.tOrders || []).filter(function(o){ return o.status === 'new' && !o.legacy && !db.sales.some(function(x){ return x.tord === o.id && !x.void; }); }).length, orph = Object.keys(db.tOrphans || {}).length;
+  if (unb) a1('sales', unb + ' tablet order' + (unb > 1 ? 's' : '') + ' without a bill', 'No payment chosen on the tablet yet', '', 'bad');
+  if (orph) a1('sales', orph + ' tablet order' + (orph > 1 ? 's' : '') + ' never reached this counter', 'Changed on a tablet but never received here. Tap to clear after checking', 'tordclear', 'bad');
   if (ls > 0) a1('stock', ls + ' item' + (ls > 1 ? 's' : '') + ' low on stock', 'Open the warehouse', 'gostock', 'warn');
   if (st && st.nod) a1('credit', 'Credit overdue · AED ' + money(st.od), st.nod + ' customer' + (st.nod > 1 ? 's' : ''), 'gocredit', 'bad');
   if (pb > 0) a1('purch', 'We owe suppliers AED ' + money(pb), 'Payables', 'gopurch', '');
