@@ -1535,6 +1535,8 @@ function xVoucherRows(e){
   if (e.note) rows.push(['Note', e.note]);
   rows.push(['Paid from', xFromLabel(e.from)]);
   if (e.vat > 0) rows.push(['VAT included', 'AED ' + money(e.vat)]);
+  rows.push(['Entered by', e.by || '-'], ['Entered at', xEnteredAt(e)]);
+  if (e.editBy) rows.push(['Edited by', e.editBy]);
   return rows;
 }
 function xRef(e){ return 'EXP-' + String(e.id).replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase(); }
@@ -1545,11 +1547,11 @@ function xVoucher(){
   return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Expense voucher" style="max-width:440px;max-height:94vh;overflow:auto">'
     + '<div id="xvbox" style="background:#fff;border:1px solid #eee;border-radius:14px;padding:18px"><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><img src="'+LOGO+'" alt="" style="height:44px"><div><b style="font-size:17px">'+esc(setg().shop)+'</b><div style="color:#777;font-size:13px">Expense voucher · '+xRef(e)+'</div></div></div>'
     + '<div style="text-align:center;padding:14px 0 8px"><div style="color:#777;font-size:13px">Amount</div><div style="font-size:34px;font-weight:800">AED '+money(e.amt)+'</div></div>'+rows
-    + '<div style="color:#777;font-size:12px;margin-top:12px">Entered by '+esc(e.by || '-')+' · '+esc(xEnteredAt(e))+(e.editBy ? ' · edited by '+esc(e.editBy) : '')+'</div></div>'
+    + '</div>'
     + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="xviewclose">Close</button><button class="btn ghost" data-act="xvprint">Print / PDF</button><button class="btn primary" data-act="xvimg">Save as image</button></div></div></div>';
 }
 function xVoucherImage(e, done){
-  var W = 720, rows = xVoucherRows(e), H = 360 + rows.length * 62, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  var W = 720, rows = xVoucherRows(e), H = 300 + rows.length * 62, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   var g = cv.getContext('2d'), F = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
   function draw(img){
     g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
@@ -1568,7 +1570,6 @@ function xVoucherImage(e, done){
       g.fillText(t, W - 40, y); g.textAlign = 'left';
       g.strokeStyle = '#eee'; g.beginPath(); g.moveTo(40, y + 20); g.lineTo(W - 40, y + 20); g.stroke(); y += 62;
     });
-    g.fillStyle = '#777'; g.font = '18px ' + F; g.fillText('Entered by ' + (e.by || '-') + '  ·  ' + xEnteredAt(e) + (e.editBy ? '  ·  edited by ' + e.editBy : ''), 40, H - 30);
     cv.toBlob(function(b){ done(b); }, 'image/png');
   }
   var im = new Image(); im.onload = function(){ draw(im); }; im.onerror = function(){ draw(null); }; im.src = LOGO;
