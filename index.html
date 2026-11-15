@@ -1052,20 +1052,22 @@ function vGate(){
 function vSettings(){
   var G = setg();
   function sw(on, act, title, hint){
-    return '<div class="card" style="display:flex;gap:14px;align-items:center"><div style="flex:1"><b>'+title+'</b><div style="color:var(--muted);font-size:13px;margin-top:2px">'+hint+'</div></div>'
+    return '<div style="display:flex;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line,#eee)"><div style="flex:1"><b>'+title+'</b><div style="color:var(--muted);font-size:13px;margin-top:2px">'+hint+'</div></div>'
       + '<button role="switch" aria-checked="'+on+'" data-act="'+act+'" class="btn '+(on?'good':'ghost')+' sm" style="min-width:92px">'+(on?'On':'Off')+'</button></div>';
   }
   function inp(label, k, val, type){ return '<label class="fld">'+label+'<input class="inp" '+(type?'type="'+type+'" step="any" inputmode="decimal" ':'')+'data-f="set" data-k="'+k+'" value="'+esc(val)+'"></label>'; }
-  return '<div class="page" style="max-width:760px">'
+  var billing = '<div class="card" style="margin:0"><h3 style="margin:0 0 4px">Billing and sales</h3>'
     + sw(G.vat, 'tgvat', 'Charge VAT', G.vat ? 'Bills and receipts show VAT and the receipt says TAX INVOICE.' : 'No VAT on bills. Receipts say RECEIPT. Use this while the shop is below the VAT registration limit.')
-    + (G.vat ? '<div class="card"><div class="fgrid">'+inp('VAT rate (%)','rate',G.rate,'number')+inp('Tax registration number (TRN)','trn',G.trn)+'</div><p style="color:var(--muted);font-size:13px;margin:10px 0 0">Prices in the menu are treated as including VAT.</p></div>' : '')
+    + (G.vat ? '<div style="padding:12px 0;border-bottom:1px solid var(--line,#eee)"><div class="fgrid">'+inp('VAT rate (%)','rate',G.rate,'number')+inp('Tax registration number (TRN)','trn',G.trn)+'</div><p style="color:var(--muted);font-size:13px;margin:10px 0 0">Prices in the menu are treated as including VAT.</p></div>' : '')
     + sw(G.allowZero, 'tgzero', 'Allow sale when item stock is 0', G.allowZero ? 'Staff can keep selling even if the stock count was not updated. Stock goes below zero so you can see it.' : 'An item with 0 stock shows Sold out and cannot be sold.')
     + sw(!!G.showSale, 'tgsale', 'Show the Sale tab in this POS', G.showSale ? 'The Sale screen is available in the menu. The Windows counter app always has it.' : 'Off: orders are taken on the tablet and appear here as bills. Turn on to bill from this screen.')
     + sw(!!G.carryOpen, 'tgcarry', 'Carry the closing cash to the next day', G.carryOpen ? 'On Day close you enter how much cash stays in the counter. It becomes the opening cash of the next day automatically.' : 'Type the opening cash by hand every morning.')
-    + '<div class="card"><p style="margin:0;color:var(--muted)">Logins, PINs and permissions are managed in the Users tab (Owner only).</p></div>'
-    + backupCard() + syncCard()
-    + '<div class="card"><h3>Shop and receipt</h3><div class="fgrid">'+inp('Shop name','shop',G.shop)+inp('Phone on receipt','tel',G.tel)+inp('Instagram on receipt','insta',G.insta)+inp('Low stock warning at (items)','lowAt',G.lowAt,'number')+'</div></div>'
-    + '<p style="color:var(--muted);font-size:13px">Changes apply to new bills. Bills already made keep the VAT they were made with.</p></div>';
+    + '</div>';
+  var shop = '<div class="card" style="margin:0"><h3>Shop and receipt</h3><div class="fgrid">'+inp('Shop name','shop',G.shop)+inp('Phone on receipt','tel',G.tel)+inp('Instagram on receipt','insta',G.insta)+inp('Low stock warning at (items)','lowAt',G.lowAt,'number')+'</div>'
+    + '<p style="color:var(--muted);font-size:13px;margin:12px 0 0">Changes apply to new bills. Bills already made keep the VAT they were made with.</p>'
+    + '<p style="color:var(--muted);font-size:13px;margin:8px 0 0">Logins, PINs and permissions are managed in the Users tab (Owner only).</p></div>';
+  var g2 = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px;align-items:start;margin-bottom:14px';
+  return '<div class="page"><div style="'+g2+'">'+billing+'<div style="display:grid;gap:14px">'+shop+backupCard()+'</div></div><div style="'+g2+'">'+syncCard()+'</div></div>';
 }
 
 /* ---------- Day close ---------- */
@@ -1600,16 +1602,22 @@ function xSummary(){
     + '<div class="btns" style="max-width:520px"><button class="btn primary" data-act="xprint">Print report</button><button class="btn ghost" data-act="xcsv">Download CSV (Excel)</button></div>';
 }
 function xCats(){
-  var html = db.exp.cats.map(function(c){
-    var subs = c.subs.map(function(s){
-      return '<div style="display:flex;gap:8px;margin:6px 0 0 24px"><input class="inp" data-f="xsn" data-c="'+esc(c.id)+'" data-s="'+esc(s.id)+'" value="'+esc(s.name)+'" aria-label="Sub-category name"><button class="btn ghost sm" data-act="xdelsub" data-c="'+esc(c.id)+'" data-s="'+esc(s.id)+'">Remove</button></div>';
+  var cats = db.exp.cats;
+  if (!S.xcs || !xCat(S.xcs)) S.xcs = cats[0] ? cats[0].id : null;
+  var cur = xCat(S.xcs);
+  var list = cats.map(function(c){ var on = c.id === S.xcs; return '<button class="btn '+(on ? 'primary' : 'ghost')+'" data-act="xcsel" data-c="'+esc(c.id)+'" style="width:100%;justify-content:space-between;text-align:left;margin-bottom:6px"><span>'+esc(c.name)+'</span><small style="opacity:.75">'+c.subs.length+'</small></button>'; }).join('');
+  var det = '';
+  if (cur){
+    var subs = cur.subs.map(function(s2){
+      return '<div style="display:flex;gap:8px;margin:0 0 6px"><input class="inp" data-f="xsn" data-c="'+esc(cur.id)+'" data-s="'+esc(s2.id)+'" value="'+esc(s2.name)+'" aria-label="Sub-category name" style="text-align:left"><button class="btn ghost sm" data-act="xdelsub" data-c="'+esc(cur.id)+'" data-s="'+esc(s2.id)+'">Remove</button></div>';
     }).join('');
-    return '<div class="card"><div style="display:flex;gap:8px"><input class="inp" style="font-weight:700" data-f="xcn" data-c="'+esc(c.id)+'" value="'+esc(c.name)+'" aria-label="Category name"><button class="btn ghost sm" data-act="xdelcat" data-c="'+esc(c.id)+'">Remove</button></div>'
-      + '<div style="margin:8px 0 0 24px"><label style="font-size:13px;color:var(--muted)">Counts in the profit report as <select class="inp" style="width:auto;display:inline-block" data-f="xctype" data-c="'+esc(c.id)+'"><option value="cogs"'+(xCatType(c) === 'cogs' ? ' selected' : '')+'>Cost of goods sold</option><option value="opex"'+(xCatType(c) === 'opex' ? ' selected' : '')+'>Operating expense</option></select></label></div>'
-      + subs + '<div style="margin:10px 0 0 24px"><button class="btn ghost sm" data-act="xaddsub" data-c="'+esc(c.id)+'">+ Sub-category</button></div></div>';
-  }).join('');
-  return '<p style="color:var(--muted);margin:0 0 12px">Rename, add or remove categories and sub-categories. One that already has expenses cannot be removed, rename it instead.</p>'+html
-    + '<div class="btns"><button class="btn primary sm" data-act="xaddcat">+ Category</button></div>';
+    det = '<div class="card" style="flex:1;min-width:280px;margin:0"><div class="fgrid"><label class="fld">Category name<input class="inp" data-f="xcn" data-c="'+esc(cur.id)+'" value="'+esc(cur.name)+'" style="text-align:left"></label>'
+      + '<label class="fld">Counts in the profit report as<select class="inp" data-f="xctype" data-c="'+esc(cur.id)+'"><option value="cogs"'+(xCatType(cur) === 'cogs' ? ' selected' : '')+'>Cost of goods sold</option><option value="opex"'+(xCatType(cur) === 'opex' ? ' selected' : '')+'>Operating expense</option></select></label></div>'
+      + '<h3 style="margin:16px 0 8px;font-size:16px">Sub-categories ('+cur.subs.length+')</h3>'+subs
+      + '<div class="btns" style="justify-content:space-between;margin-top:10px"><button class="btn ghost sm" data-act="xaddsub" data-c="'+esc(cur.id)+'">+ Sub-category</button><button class="btn ghost sm" data-act="xdelcat" data-c="'+esc(cur.id)+'">Remove this category</button></div></div>';
+  }
+  return '<p style="color:var(--muted);margin:0 0 12px">Pick a category on the left to rename it or change its sub-categories. One that already has expenses cannot be removed, rename it instead.</p>'
+    + '<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap"><div class="card" style="width:260px;margin:0"><div class="bar" style="margin-bottom:8px"><b>Categories</b><span class="sp"></span><button class="btn primary sm" data-act="xaddcat">+ Add</button></div><div style="max-height:62vh;overflow:auto">'+list+'</div></div>'+det+'</div>';
 }
 function xPrintHtml(m){
   var items = xMonthItems(m).slice().reverse(), T = xTotals(items), G = setg();
@@ -1660,6 +1668,12 @@ function receiptText(s){
 }
 
 function vSheets(){
+  if (S.supopen && S.tab === 'purch') return supForm();
+  if (S.spopen && S.tab === 'purch' && S.psup) return supPayForm();
+  if (S.rpopen && S.tab === 'credit' && S.cc) return crPayForm();
+  if (S.cfopen && S.tab === 'cash') return cashForm();
+  if (S.copopen && S.tab === 'cash') return copForm();
+  if (S.uaopen && S.tab === 'users') return userForm();
   if (S.custopen && S.tab === 'credit') return vCustNew();
   if (S.popen && S.tab === 'purch') return vPurNew();
   if (S.xopen && S.tab === 'exp') return xForm();
@@ -1846,7 +1860,7 @@ document.addEventListener('click', function(e){
     case 'liccheck': licCheck(); break;
     case 'licdis': try { sessionStorage.setItem('hp_licdis_' + today(), '1'); } catch(er){} render(); break;
     case 'sbtoggle': S.sbOpen = !S.sbOpen; break;
-    case 'tab': S.sbOpen = false; S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
+    case 'tab': S.sbOpen = false; S.uaopen = S.supopen = S.spopen = S.rpopen = S.cfopen = S.copopen = S.custopen = S.popen = S.ropen = S.xopen = false; S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
     case 'cat': S.cat = d.id; S.catChanged = true; break;
     case 'item': c = curCat(); var item = byId(c.items, d.id); if (!item || item.off) break;
       if (c.sizes.length > 1) S.sheet = {cat:c.id, item:item.id}; else addLine(c, item, c.sizes[0]); break;
@@ -1919,7 +1933,8 @@ document.addEventListener('click', function(e){
     case 'xdel': S.xdel = d.id; break;
     case 'xdelno': S.xdel = null; break;
     case 'xdelyes': var xdi = byId(db.exp.items, d.id); if (xdi) audit('Expenses', 'Expense deleted', xAudDesc(xdi), {flag:1}); db.exp.items = db.exp.items.filter(function(e){ return e.id !== d.id; }); queueEvent('expense_delete', {id:d.id}); if (S.xedit === d.id){ S.xedit = null; S.xf = xNewForm(); } S.xdel = null; save(); toast('Expense deleted'); break;
-    case 'xaddcat': var xnc = {id:uid('c'), name:'New category', subs:[{id:uid('s'), name:'General'}]}; db.exp.cats.push(xnc); save(); break;
+    case 'xcsel': S.xcs = d.c; break;
+    case 'xaddcat': var xnc = {id:uid('c'), name:'New category', subs:[{id:uid('s'), name:'General'}]}; db.exp.cats.push(xnc); S.xcs = xnc.id; save(); break;
     case 'xaddsub': xCat(d.c).subs.push({id:uid('s'), name:'New sub-category'}); save(); break;
     case 'xdelcat': var xn1 = xUsed(function(e){ return e.cat === d.c; }); if (xn1){ toast('Used by ' + xn1 + ' expenses. Rename it instead.'); return; } if (db.exp.cats.length < 2){ toast('Keep at least one category'); return; } db.exp.cats = db.exp.cats.filter(function(c){ return c.id !== d.c; }); S.xf = xNewForm(); save(); break;
     case 'xdelsub': var xn2 = xUsed(function(e){ return e.cat === d.c && e.sub === d.s; }); if (xn2){ toast('Used by ' + xn2 + ' expenses. Rename it instead.'); return; } var xcc = xCat(d.c); if (xcc.subs.length < 2){ toast('Keep at least one sub-category'); return; } xcc.subs = xcc.subs.filter(function(x){ return x.id !== d.s; }); S.xf = xNewForm(); save(); break;
@@ -2236,28 +2251,44 @@ function priceFormOk(){ var pf = S.priceForm; if (!pf) return false; var v = par
 
 /* ----- Users tab ----- */
 function userPinCheck(){ var u = pinUser(S.upc, 'users'); if (!u){ toast('Enter your PIN above to confirm'); return null; } return u; }
+function userForm(){
+  var a = S.uadd;
+  return '<div class="scrim"><div class="sheet" role="dialog" style="max-height:92vh;overflow:auto"><h3>Add user</h3><p>Each person gets their own PIN (6 digits or more).</p>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px"><label class="fld">Name<input class="inp" data-f="uan" value="'+esc(a.name)+'" autocomplete="off" style="text-align:left"></label>'
+    + '<label class="fld">Role<select class="inp" data-f="uar">'+ROLES.map(function(r){ return '<option'+(r === a.role ? ' selected' : '')+'>'+r+'</option>'; }).join('')+'</select></label>'
+    + '<label class="fld">PIN (6 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="uap" value="'+esc(a.pin)+'" autocomplete="off" style="text-align:left"></label>'
+    + '<label class="fld">Your PIN (to confirm)<input class="inp" type="password" inputmode="numeric" data-f="upc" value="'+esc(S.upc)+'" autocomplete="off" style="text-align:left"></label></div>'
+    + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="ucancel">Cancel</button><button class="btn primary" data-act="uadd">Add user</button></div></div></div>';
+}
 function vUsers(){
+  if (!S.usel || !byId(db.users, S.usel)) S.usel = S.uid;
   var rows = db.users.map(function(u){
-    var me = u.id === S.uid;
-    return '<tr><td><input class="inp" data-f="uname" data-id="'+u.id+'" value="'+esc(u.name)+'" style="min-width:130px"></td>'
-      + '<td><select class="inp" data-f="urole" data-id="'+u.id+'">'+ROLES.map(function(r){ return '<option'+(r === u.role ? ' selected' : '')+'>'+r+'</option>'; }).join('')+'</select></td>'
-      + '<td>'+(u.active === false ? '<span class="pill void">Inactive</span>' : '<span class="pill cash">Active</span>')+(me ? ' <small style="color:var(--muted)">you</small>' : '')+'</td>'
-      + '<td style="white-space:nowrap">'+(S.urs === u.id
-        ? '<input class="inp" type="password" inputmode="numeric" placeholder="New PIN" data-f="urspin" value="'+esc(S.urspin)+'" style="width:110px;display:inline-block"> <button class="btn sm primary" data-act="urssave" data-id="'+u.id+'">Save</button> <button class="btn sm ghost" data-act="ursno">×</button>'
-        : '<button class="btn sm ghost" data-act="urs" data-id="'+u.id+'">Reset PIN</button> <button class="btn sm ghost" data-act="utoggle" data-id="'+u.id+'">'+(u.active === false ? 'Activate' : 'Deactivate')+'</button>')+'</td></tr>';
+    var me = u.id === S.uid, on = u.id === S.usel;
+    return '<tr data-act="usel" data-id="'+u.id+'" style="cursor:pointer;'+(on ? 'background:rgba(0,131,143,.09)' : '')+'"><td style="text-align:left"><b>'+esc(u.name)+'</b>'+(me ? ' <small style="color:var(--muted)">you</small>' : '')+'</td>'
+      + '<td style="text-align:left">'+esc(u.role)+'</td>'
+      + '<td style="text-align:left">'+(u.active === false ? '<span class="pill void">Inactive</span>' : '<span class="pill cash">Active</span>')+'</td></tr>';
   }).join('');
+  var u = byId(db.users, S.usel), det = '';
+  if (u){
+    var perms = PERMS.map(function(p){ var ok = roleCan(u.role, p[0]); return '<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line,#eee);'+(ok ? '' : 'opacity:.5')+'"><span style="width:18px;color:'+(ok ? '#1b7f3b' : '#b00')+'">'+(ok ? '✓' : '✕')+'</span><span>'+p[1]+'</span></div>'; }).join('');
+    det = '<div class="card"><div class="bar"><h3 style="margin:0">'+esc(u.name)+'</h3><span class="sp"></span>'
+      + (S.urs === u.id
+        ? '<input class="inp" type="password" inputmode="numeric" placeholder="New PIN" data-f="urspin" value="'+esc(S.urspin)+'" style="width:130px;text-align:left"> <button class="btn sm primary" data-act="urssave" data-id="'+u.id+'">Save PIN</button> <button class="btn sm ghost" data-act="ursno">Cancel</button>'
+        : '<button class="btn sm ghost" data-act="urs" data-id="'+u.id+'">Reset PIN</button> <button class="btn sm ghost" data-act="utoggle" data-id="'+u.id+'">'+(u.active === false ? 'Activate' : 'Deactivate')+'</button>')
+      + '</div><div class="fgrid" style="margin-top:10px"><label class="fld">Name<input class="inp" data-f="uname" data-id="'+u.id+'" value="'+esc(u.name)+'" style="text-align:left"></label>'
+      + '<label class="fld">Role<select class="inp" data-f="urole" data-id="'+u.id+'">'+ROLES.map(function(r){ return '<option'+(r === u.role ? ' selected' : '')+'>'+r+'</option>'; }).join('')+'</select></label></div>'
+      + '<h3 style="margin:16px 0 4px;font-size:16px">What a '+esc(u.role)+' can do</h3>'+(u.role === 'Owner' ? '<p style="color:var(--muted);margin:0 0 6px">Owner can do everything.</p>' : '')+perms+'</div>';
+  }
   var mx = PERMS.map(function(p){
     return '<tr><td>'+p[1]+'</td><td style="text-align:center">✓</td>'
       + ['Manager', 'Cashier'].map(function(r){ return '<td style="text-align:center"><input type="checkbox" data-f="permck" data-role="'+r+'" data-p="'+p[0]+'"'+(roleCan(r, p[0]) ? ' checked' : '')+' style="width:22px;height:22px"></td>'; }).join('') + '</tr>';
   }).join('');
-  return '<div class="page"><div class="card"><h3>Users</h3><p style="color:var(--muted);margin:0 0 10px">Every person who bills, cancels, discounts or changes anything has a name and a PIN. All actions are recorded with the name. PINs must be different for each person.</p>'
-    + '<label class="fld" style="max-width:260px">Confirm changes with your PIN<input class="inp" type="password" inputmode="numeric" data-f="upc" value="'+esc(S.upc)+'" autocomplete="off"></label>'
-    + '<div class="tblwrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
-    + '<div class="card"><h3>Add a user</h3><div class="fgrid"><label class="fld">Name<input class="inp" data-f="uan" value="'+esc(S.uadd.name)+'" autocomplete="off"></label>'
-    + '<label class="fld">Role<select class="inp" data-f="uar">'+ROLES.map(function(r){ return '<option'+(r === S.uadd.role ? ' selected' : '')+'>'+r+'</option>'; }).join('')+'</select></label>'
-    + '<label class="fld">PIN (6 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="uap" value="'+esc(S.uadd.pin)+'" autocomplete="off"></label></div>'
-    + '<div class="btns"><button class="btn primary" data-act="uadd">Add user</button></div></div>'
-    + '<div class="card"><h3>What each role can do</h3><p style="color:var(--muted);margin:0 0 10px">Owner can do everything. Tabs a role cannot use are hidden. For "approve" rows, a person without the permission asks someone who has it to enter their PIN.</p>'
+  return '<div class="page"><div class="card"><div class="bar"><h3 style="margin:0">Users</h3><span class="sp"></span><button class="btn primary sm" data-act="unew">+ Add user</button></div>'
+    + '<p style="color:var(--muted);margin:8px 0 10px">Every person who bills, cancels, discounts or changes anything has a name and a PIN. All actions are recorded with the name. Click a user to see and change their details.</p>'
+    + '<label class="fld" style="max-width:260px">Confirm changes with your PIN<input class="inp" type="password" inputmode="numeric" data-f="upc" value="'+esc(S.upc)+'" autocomplete="off" style="text-align:left"></label>'
+    + '<div class="tblwrap" style="margin-top:12px"><table class="tbl"><thead><tr><th style="text-align:left">Name</th><th style="text-align:left">Role</th><th style="text-align:left">Status</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
+    + det
+    + '<div class="card"><h3>Change what each role can do</h3><p style="color:var(--muted);margin:0 0 10px">Owner can do everything. Tabs a role cannot use are hidden. For "approve" rows, a person without the permission asks someone who has it to enter their PIN.</p>'
     + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Permission</th><th>Owner</th><th>Manager</th><th>Cashier</th></tr></thead><tbody>'+mx+'</tbody></table></div></div></div>';
 }
 
@@ -2395,8 +2426,11 @@ document.addEventListener('click', function(e){
       if (!un){ toast('Enter a name'); break; }
       if (!/^\d{6,}$/.test(ua.pin)){ toast('PIN must be 6 digits or more'); break; }
       if (db.users.some(function(x){ return x.pin === hashPin(ua.pin); })){ toast('That PIN is already used. Choose another.'); break; }
-      userOp('create', {name: un, role: ua.role, pin: ua.pin}).then(function(ok){ if (ok){ audit('Users and Security', 'User added', un + ' (' + ua.role + ')', {flag:1}); S.uadd = {name:'', role:'Cashier', pin:''}; toast('User added'); } render(); });
+      userOp('create', {name: un, role: ua.role, pin: ua.pin}).then(function(ok){ if (ok){ audit('Users and Security', 'User added', un + ' (' + ua.role + ')', {flag:1}); S.uadd = {name:'', role:'Cashier', pin:''}; S.uaopen = false; toast('User added'); } render(); });
       return;
+    case 'usel': S.usel = d.id; S.urs = null; break;
+    case 'unew': S.uadd = {name:'', role:'Cashier', pin:''}; S.uaopen = true; break;
+    case 'ucancel': S.uaopen = false; break;
     case 'urs': S.urs = d.id; S.urspin = ''; break;
     case 'ursno': S.urs = null; break;
     case 'urssave':
@@ -2499,11 +2533,9 @@ function ledgerView(acct, m){
   var start = round2((+op.amt || 0) + all.filter(function(r){ return r.date.slice(0, 7) < m; }).reduce(function(a, r){ return a + r.amt; }, 0));
   return {rows:out, start:start, end:out.length ? out[out.length - 1].bal : start, inn:round2(out.reduce(function(a, r){ return a + (r.amt > 0 ? r.amt : 0); }, 0)), outt:round2(out.reduce(function(a, r){ return a + (r.amt < 0 ? -r.amt : 0); }, 0))};
 }
-function vCash(){
-  var f = S.cf, tile = function(a, b, c){ return '<div class="tile"><small>'+a+'</small><b>'+b+'</b>'+(c ? '<small>'+c+'</small>' : '')+'</div>'; };
-  var dB = cashBal('drawer'), bB = cashBal('bank'), ctr = cardToReceive(), m = today().slice(0, 7);
-  var needAcct = f.kind === 'cap' || f.kind === 'draw';
-  var form = '<div class="card"><h3>Add a cash entry</h3><div class="fgrid">'
+function cashForm(){
+  var f = S.cf, needAcct = f.kind === 'cap' || f.kind === 'draw';
+  return '<div class="scrim"><div class="sheet" role="dialog" style="max-height:92vh;overflow:auto"><h3>Add a cash entry</h3><div class="fgrid">'
     + '<label class="fld">Type<select class="inp" data-f="cfs" data-k="kind">'+CASH_KINDS.map(function(k){ return '<option value="'+k[0]+'"'+(k[0] === f.kind ? ' selected' : '')+'>'+k[1]+'</option>'; }).join('')+'</select></label>'
     + '<label class="fld">Date<input class="inp" type="date" data-f="cf" data-k="date" value="'+esc(f.date)+'"></label>'
     + (needAcct ? '<label class="fld">'+(f.kind === 'cap' ? 'Put into' : 'Taken from')+'<select class="inp" data-f="cfs" data-k="acct"><option value="drawer"'+(f.acct === 'drawer' ? ' selected' : '')+'>Counter drawer</option><option value="bank"'+(f.acct === 'bank' ? ' selected' : '')+'>Bank</option></select></label>' : '')
@@ -2512,7 +2544,22 @@ function vCash(){
     + '<label class="fld">Reason / note'+((f.kind === 'dep' || f.kind === 'wd' || f.kind === 'settle') ? ' (optional)' : ' (required)')+'<input class="inp" data-f="cf" data-k="note" value="'+esc(f.note)+'" autocomplete="off"></label>'
     + pinOpen('cash','')+'<input class="inp" type="password" inputmode="numeric" data-f="cf" data-k="pin" value="'+esc(f.pin)+'" autocomplete="off"></label></div>'
     + (f.kind === 'settle' ? '<p style="color:var(--muted);margin:8px 0 0;font-size:13px">Enter what the bank paid before the fee. The bank balance goes up by the amount minus the fee, and "Card to receive" goes down by the amount.</p>' : '')
-    + '<div class="btns"><button class="btn primary" data-act="cashadd">Save entry</button></div></div>';
+    + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="cashcancel">Cancel</button><button class="btn primary" data-act="cashadd">Save entry</button></div></div></div>';
+}
+function copForm(){
+  var o = S.cop;
+  return '<div class="scrim"><div class="sheet" role="dialog" style="max-height:92vh;overflow:auto"><h3>Opening balances</h3><p>The balance on the day you start using this ledger. Movements before that date are ignored.</p>'
+    + '<div class="fgrid">'
+    + '<label class="fld">Drawer opening (AED)<input class="inp" type="number" step="any" inputmode="decimal" data-f="cop" data-k="da" value="'+esc(o.da)+'"></label><label class="fld">Drawer opening date<input class="inp" type="date" data-f="cop" data-k="dd" value="'+esc(o.dd)+'"></label>'
+    + '<label class="fld">Bank opening (AED)<input class="inp" type="number" step="any" inputmode="decimal" data-f="cop" data-k="ba" value="'+esc(o.ba)+'"></label><label class="fld">Bank opening date<input class="inp" type="date" data-f="cop" data-k="bd" value="'+esc(o.bd)+'"></label>'
+    + pinOpen('cash','')+'<input class="inp" type="password" inputmode="numeric" data-f="cop" data-k="pin" value="'+esc(o.pin)+'" autocomplete="off"></label></div>'
+    + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="copcancel">Cancel</button><button class="btn plum" data-act="copsave">Save opening balances</button></div></div></div>';
+}
+function vCash(){
+  var f = S.cf, tile = function(a, b, c){ return '<div class="tile"><small>'+a+'</small><b>'+b+'</b>'+(c ? '<small>'+c+'</small>' : '')+'</div>'; };
+  var dB = cashBal('drawer'), bB = cashBal('bank'), ctr = cardToReceive(), m = today().slice(0, 7);
+  var needAcct = f.kind === 'cap' || f.kind === 'draw';
+  var form = '<div class="bar"><span class="sp"></span><button class="btn primary sm" data-act="cashnew">+ Add cash entry</button></div>';
   var acct = S.ca, lv = ledgerView(acct, S.cm);
   var led = '<div class="card"><div class="bar"><h3 style="margin:0">Ledger</h3><span class="sp"></span><div class="seg"><button data-act="cacct" data-id="drawer" aria-pressed="'+(acct === 'drawer')+'">Drawer</button><button data-act="cacct" data-id="bank" aria-pressed="'+(acct === 'bank')+'">Bank</button></div></div>'
     + '<div class="bar" style="margin:8px 0"><button class="btn sm ghost" data-act="cmonth" data-v="-1">‹</button><b>'+monthLabel(S.cm)+'</b><button class="btn sm ghost" data-act="cmonth" data-v="1">›</button><span class="sp"></span><button class="btn sm ghost" data-act="cprint">Print / PDF</button> <button class="btn sm ghost" data-act="ccsv">CSV</button></div>'
@@ -2526,11 +2573,8 @@ function vCash(){
       return '<tr><td style="white-space:nowrap">'+xDate(r.date)+'</td><td>'+esc(r.label)+'<small style="display:block;color:var(--muted)">'+esc(r.src)+'</small></td><td>'+esc(r.by || '')+'</td><td style="text-align:right">'+(r.amt > 0 ? money(r.amt) : '')+'</td><td style="text-align:right">'+(r.amt < 0 ? money(-r.amt) : '')+'</td><td style="text-align:right">'+money(r.bal)+'</td><td>'+del+'</td></tr>';
     }).join('') || '<tr><td colspan="7" class="empty">No movements this month.</td></tr>')+'</tbody></table></div></div>';
   var o = S.cop, od = db.cash.open;
-  var open = '<div class="card"><h3>Opening balances</h3><p style="color:var(--muted);margin:0 0 10px">The balance on the day you start using this ledger. Movements before that date are ignored. Now: drawer AED '+money(+od.drawer.amt || 0)+(od.drawer.date ? ' from '+xDate(od.drawer.date) : '')+', bank AED '+money(+od.bank.amt || 0)+(od.bank.date ? ' from '+xDate(od.bank.date) : '')+'.</p><div class="fgrid">'
-    + '<label class="fld">Drawer opening (AED)<input class="inp" type="number" step="any" inputmode="decimal" data-f="cop" data-k="da" value="'+esc(o.da)+'"></label><label class="fld">Drawer opening date<input class="inp" type="date" data-f="cop" data-k="dd" value="'+esc(o.dd)+'"></label>'
-    + '<label class="fld">Bank opening (AED)<input class="inp" type="number" step="any" inputmode="decimal" data-f="cop" data-k="ba" value="'+esc(o.ba)+'"></label><label class="fld">Bank opening date<input class="inp" type="date" data-f="cop" data-k="bd" value="'+esc(o.bd)+'"></label>'
-    + pinOpen('cash','')+'<input class="inp" type="password" inputmode="numeric" data-f="cop" data-k="pin" value="'+esc(o.pin)+'" autocomplete="off"></label></div>'
-    + '<div class="btns"><button class="btn plum" data-act="copsave">Save opening balances</button></div></div>';
+  var open = '<div class="card"><h3>Opening balances</h3><p style="color:var(--muted);margin:0 0 10px">The balance on the day you start using this ledger. Movements before that date are ignored. Now: drawer AED '+money(+od.drawer.amt || 0)+(od.drawer.date ? ' from '+xDate(od.drawer.date) : '')+', bank AED '+money(+od.bank.amt || 0)+(od.bank.date ? ' from '+xDate(od.bank.date) : '')+'.</p>'
+    + '<div class="btns" style="justify-content:flex-start"><button class="btn plum" data-act="copnew">Set opening balances</button></div></div>';
   return '<div class="page"><div class="tiles">'+tile('Counter drawer', 'AED '+money(dB))+tile('Bank', 'AED '+money(bB))+tile('Card to receive', 'AED '+money(ctr), 'sold by card, not yet in bank')+tile('Owner drawings ' + monthLabel(m).split(' ')[0], 'AED '+money(ownerDraw(m)))+'</div>'
     + form + led + open + '</div>';
 }
@@ -2719,14 +2763,18 @@ document.addEventListener('click', function(e){
       var en = {id:uid('c'), t:Date.now(), date:f.date, kind:f.kind, acct:(f.kind === 'cap' || f.kind === 'draw') ? f.acct : (f.kind === 'wd' ? 'bank' : 'drawer'), amt:round2(amt), fee:f.kind === 'settle' ? round2(fee) : 0, note:f.note.trim(), by:ap2.name};
       db.cash.entries.push(en); queueEvent('cash_entry', en);
       audit('Cash', cashKindLabel(f.kind), 'AED ' + money(en.amt) + (en.fee ? ' (fee ' + money(en.fee) + ')' : '') + ' · ' + f.date + (en.note ? ' · ' + en.note : ''), {ap:ap2.name, flag:(f.kind === 'out' || f.kind === 'draw')});
-      S.cf = {kind:f.kind, date:f.date, acct:f.acct, amt:'', fee:'', note:'', pin:''}; toast('Entry saved'); break;
+      S.cf = {kind:f.kind, date:f.date, acct:f.acct, amt:'', fee:'', note:'', pin:''}; S.cfopen = false; toast('Entry saved'); break;
+    case 'cashnew': S.cfopen = true; break;
+    case 'cashcancel': S.cfopen = false; break;
+    case 'copnew': S.copopen = true; break;
+    case 'copcancel': S.copopen = false; break;
     case 'copsave':
       var o = S.cop, ap3 = pinUser(o.pin, 'cash'); if (!ap3){ toast('Wrong PIN'); return; }
       var ch = [];
       if (o.da !== '' && o.dd){ db.cash.open.drawer = {amt:round2(parseFloat(o.da) || 0), date:o.dd}; ch.push('Drawer ' + money(parseFloat(o.da) || 0) + ' from ' + o.dd); }
       if (o.ba !== '' && o.bd){ db.cash.open.bank = {amt:round2(parseFloat(o.ba) || 0), date:o.bd}; ch.push('Bank ' + money(parseFloat(o.ba) || 0) + ' from ' + o.bd); }
       if (!ch.length){ toast('Enter an amount and its date'); return; }
-      audit('Cash', 'Opening balance set', ch.join(' · '), {ap:ap3.name, flag:1}); S.cop = {da:'', dd:'', ba:'', bd:'', pin:''}; toast('Opening balances saved'); break;
+      audit('Cash', 'Opening balance set', ch.join(' · '), {ap:ap3.name, flag:1}); S.cop = {da:'', dd:'', ba:'', bd:'', pin:''}; S.copopen = false; toast('Opening balances saved'); break;
     default: return;
   }
   save(); render();
@@ -2864,28 +2912,37 @@ function supStatement(id){
   rows.sort(function(a, b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : a.t - b.t; });
   var bal = 0; rows.forEach(function(r){ bal += r.amt; r.bal = round2(bal); }); return rows;
 }
+function supForm(){
+  var sf = S.supf;
+  return '<div class="scrim"><div class="sheet" role="dialog" style="max-height:92vh;overflow:auto"><h3>Add supplier</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px"><label class="fld">Supplier name<input class="inp" data-f="supf" data-k="name" value="'+esc(sf.name)+'" autocomplete="off"></label><label class="fld">Phone (optional)<input class="inp" data-f="supf" data-k="phone" value="'+esc(sf.phone)+'" autocomplete="off"></label></div>'
+    + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="supcancel">Cancel</button><button class="btn primary" data-act="supadd">Save supplier</button></div></div></div>';
+}
+function supPayForm(){
+  var p = S.spf, b = supBalance(S.psup), sl = supById(S.psup);
+  return '<div class="scrim"><div class="sheet" role="dialog" style="max-height:92vh;overflow:auto"><h3>Pay '+esc(sl ? sl.name : 'supplier')+'</h3><p>Balance we owe: AED '+money(b)+'</p>'
+    + '<div class="fgrid"><label class="fld">Date<input class="inp" type="date" data-f="spf" data-k="date" value="'+esc(p.date)+'"></label>'
+      + '<label class="fld">Amount (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="spf" data-k="amt" value="'+esc(p.amt)+'" placeholder="'+(b > 0 ? money(b) : '')+'"></label>'
+      + '<label class="fld">Paid from<select class="inp" data-f="spfs" data-k="from"><option value="cash"'+(p.from === 'cash' ? ' selected' : '')+'>Counter cash</option><option value="bank"'+(p.from === 'bank' ? ' selected' : '')+'>Bank</option></select></label>'
+      + '<label class="fld">Note (optional)<input class="inp" data-f="spf" data-k="note" value="'+esc(p.note)+'" autocomplete="off"></label>'
+      + pinOpen('purch','')+'<input class="inp" type="password" inputmode="numeric" data-f="spf" data-k="pin" value="'+esc(p.pin)+'" autocomplete="off"></label></div>'
+    + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="supcancelpay">Cancel</button><button class="btn primary" data-act="suppay">Record payment</button></div></div></div>';
+}
 function vSup(){
   var sf = S.supf, sel = S.psup && supById(S.psup);
   var rows = db.sup.map(function(s){
     var b = supBalance(s.id);
     return '<tr><td><b>'+esc(s.name)+'</b>'+(s.active === false ? ' <span class="pill void">Inactive</span>' : '')+'<small style="display:block;color:var(--muted)">'+esc(s.phone || '')+'</small></td><td style="text-align:right"><b style="'+(b > 0 ? 'color:var(--pink-dk)' : '')+'">'+money(b)+'</b></td><td style="text-align:right"><button class="btn sm ghost" data-act="supopen" data-id="'+s.id+'">Open</button></td></tr>';
   }).join('');
-  var out = '<div class="card"><h3>Suppliers</h3><p style="margin:0 0 8px;color:var(--muted)">Total payable to suppliers: <b style="color:var(--ink,#222)">AED '+money(payablesTotal())+'</b></p>'
+  var out = '<div class="card"><div class="bar"><h3 style="margin:0">Suppliers</h3><span class="sp"></span><button class="btn primary sm" data-act="supnew">+ Add supplier</button></div><p style="margin:8px 0 8px;color:var(--muted)">Total payable to suppliers: <b style="color:var(--ink,#222)">AED '+money(payablesTotal())+'</b></p>'
     + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Supplier</th><th style="text-align:right">We owe (AED)</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="3" class="empty">No suppliers yet.</td></tr>')+'</tbody></table></div>'
-    + '<div class="fgrid" style="margin-top:12px"><label class="fld">New supplier name<input class="inp" data-f="supf" data-k="name" value="'+esc(sf.name)+'" autocomplete="off"></label><label class="fld">Phone (optional)<input class="inp" data-f="supf" data-k="phone" value="'+esc(sf.phone)+'" autocomplete="off"></label></div>'
-    + '<div class="btns"><button class="btn primary sm" data-act="supadd">Add supplier</button></div></div>';
+    + '</div>';
   if (sel){
     var st = supStatement(sel.id), p = S.spf, b = supBalance(sel.id);
     out += '<div class="card"><div class="bar"><h3 style="margin:0">'+esc(sel.name)+'</h3><span class="sp"></span><button class="btn sm ghost" data-act="supprint">Print / PDF</button> <button class="btn sm ghost" data-act="suptoggle" data-id="'+sel.id+'">'+(sel.active === false ? 'Activate' : 'Deactivate')+'</button> <button class="btn sm ghost" data-act="supclose">Close</button></div>'
       + '<p style="margin:6px 0">Balance we owe: <b>AED '+money(b)+'</b></p>'
       + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Details</th><th style="text-align:right">Bill</th><th style="text-align:right">Paid</th><th style="text-align:right">Balance</th></tr></thead><tbody>'
       + (st.map(function(r){ return '<tr><td>'+xDate(r.date)+'</td><td>'+esc(r.d)+'</td><td style="text-align:right">'+(r.amt > 0 ? money(r.amt) : '')+'</td><td style="text-align:right">'+(r.amt < 0 ? money(-r.amt) : '')+'</td><td style="text-align:right">'+money(r.bal)+'</td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">No credit purchases or payments.</td></tr>')+'</tbody></table></div>'
-      + '<h3 style="margin:14px 0 6px;font-size:16px">Pay this supplier</h3><div class="fgrid"><label class="fld">Date<input class="inp" type="date" data-f="spf" data-k="date" value="'+esc(p.date)+'"></label>'
-      + '<label class="fld">Amount (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="spf" data-k="amt" value="'+esc(p.amt)+'" placeholder="'+(b > 0 ? money(b) : '')+'"></label>'
-      + '<label class="fld">Paid from<select class="inp" data-f="spfs" data-k="from"><option value="cash"'+(p.from === 'cash' ? ' selected' : '')+'>Counter cash</option><option value="bank"'+(p.from === 'bank' ? ' selected' : '')+'>Bank</option></select></label>'
-      + '<label class="fld">Note (optional)<input class="inp" data-f="spf" data-k="note" value="'+esc(p.note)+'" autocomplete="off"></label>'
-      + pinOpen('purch','')+'<input class="inp" type="password" inputmode="numeric" data-f="spf" data-k="pin" value="'+esc(p.pin)+'" autocomplete="off"></label></div>'
-      + '<div class="btns"><button class="btn primary" data-act="suppay">Record payment</button></div></div>';
+      + '<div class="btns" style="justify-content:flex-start;margin-top:12px"><button class="btn primary" data-act="supnewpay">Pay this supplier</button></div></div>';
   }
   return out;
 }
@@ -2973,9 +3030,13 @@ document.addEventListener('click', function(e){
     case 'supadd':
       var sn = S.supf.name.trim(); if (!sn){ toast('Enter the supplier name'); return; }
       if (db.sup.some(function(s){ return s.name.toLowerCase() === sn.toLowerCase(); })){ toast('That supplier already exists'); return; }
-      var ns = {id:uid('s'), name:sn, phone:S.supf.phone.trim(), active:true}; db.sup.push(ns); audit('Purchases', 'Supplier added', sn); queueEvent('sup_save', ns); S.supf = {name:'', phone:''}; S.psup = ns.id; toast('Supplier added'); break;
+      var ns = {id:uid('s'), name:sn, phone:S.supf.phone.trim(), active:true}; db.sup.push(ns); audit('Purchases', 'Supplier added', sn); queueEvent('sup_save', ns); S.supf = {name:'', phone:''}; S.psup = ns.id; S.supopen = false; toast('Supplier added'); break;
+    case 'supnew': S.supf = {name:'', phone:''}; S.supopen = true; break;
+    case 'supcancel': S.supopen = false; break;
+    case 'supnewpay': S.spopen = true; break;
+    case 'supcancelpay': S.spopen = false; break;
     case 'supopen': S.psup = d.id; S.spf = {amt:'', from:'cash', date:today(), note:'', pin:''}; break;
-    case 'supclose': S.psup = null; break;
+    case 'supclose': S.psup = null; S.spopen = false; break;
     case 'suptoggle': var su = supById(d.id); su.active = su.active === false; audit('Purchases', su.active ? 'Supplier activated' : 'Supplier deactivated', su.name); break;
     case 'supprint': printHtml(supPrintHtml(S.psup)); return;
     case 'suppay':
@@ -2986,7 +3047,7 @@ document.addEventListener('click', function(e){
       var pay = {id:uid('y'), t:Date.now(), date:p.date, sup:S.psup, amt:round2(amt), from:p.from, note:p.note.trim(), by:ap3.name};
       db.pur.pays.push(pay); queueEvent('sup_pay', pay);
       audit('Purchases', 'Supplier payment', supName(S.psup) + ' · AED ' + money(pay.amt) + ' from ' + (p.from === 'bank' ? 'bank' : 'counter cash') + (pay.note ? ' · ' + pay.note : ''), {ap:ap3.name});
-      S.spf = {amt:'', from:p.from, date:p.date, note:'', pin:''}; toast('Payment recorded'); break;
+      S.spf = {amt:'', from:p.from, date:p.date, note:'', pin:''}; S.spopen = false; toast('Payment recorded'); break;
     default: return;
   }
   save(); render();
@@ -3082,6 +3143,17 @@ function vCustNew(){
     + '<label class="fld">Credit limit (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cn" data-k="limit" value="'+esc(f.limit)+'" placeholder="'+creditLimitDef()+' (default)"></label></div>'
     + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="custcancel">Cancel</button><button class="btn primary" data-act="custsave">Save customer</button></div></div></div>';
 }
+function crPayForm(){
+  var p = S.crp, cu = custById(S.cc), b = cu ? custBal(cu.id) : 0;
+  return '<div class="scrim"><div class="sheet" role="dialog" style="max-height:92vh;overflow:auto"><h3>Receive a payment'+(cu ? ' · '+esc(cu.name) : '')+'</h3><p>Owes AED '+money(b)+'</p>'
+    + '<div class="fgrid"><label class="fld">Date<input class="inp" type="date" data-f="crp" data-k="date" value="'+esc(p.date)+'"></label>'
+    + '<label class="fld">Amount (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="crp" data-k="amt" value="'+esc(p.amt)+'" placeholder="'+(b > 0 ? money(b) : '')+'"></label>'
+    + '<label class="fld">Received by<select class="inp" data-f="crps" data-k="method"><option value="cash"'+(p.method === 'cash' ? ' selected' : '')+'>Cash (counter drawer)</option><option value="card"'+(p.method === 'card' ? ' selected' : '')+'>Card machine</option><option value="bank"'+(p.method === 'bank' ? ' selected' : '')+'>Bank transfer</option></select></label>'
+    + '<label class="fld">Note (optional)<input class="inp" data-f="crp" data-k="note" value="'+esc(p.note)+'" autocomplete="off"></label>'
+    + pinOpen('credit','')+'<input class="inp" type="password" inputmode="numeric" data-f="crp" data-k="pin" value="'+esc(p.pin)+'" autocomplete="off"></label></div>'
+    + '<p style="color:var(--muted);margin:8px 0 0;font-size:13px">The payment clears the oldest bills first. Cash goes into the counter drawer, bank into the bank, card into "Card to receive".</p>'
+    + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="crcancelpay">Cancel</button><button class="btn primary" data-act="crpay">Record payment</button></div></div></div>';
+}
 function vCustList(){
   var st = creditStats(), tile = function(a, b, c){ return '<div class="tile"><small>'+a+'</small><b>'+b+'</b>'+(c ? '<small>'+c+'</small>' : '')+'</div>'; };
   var rows = db.cust.map(function(c){ var b = custBal(c.id), o = custOverdue(c.id); return {c:c, b:b, o:o}; }).sort(function(x, y){ return y.o.amt - x.o.amt || y.b - x.b; }).map(function(r){
@@ -3109,13 +3181,7 @@ function vCustDetail(){
     + (bills.length ? '<p style="margin:0 0 8px;color:var(--muted);font-size:13px">Unpaid bills: '+bills.map(function(x){ return '#'+x.s.no+' AED '+money(x.out)+' (due '+xDate(x.due)+')'; }).join(' · ')+'</p>' : '')
     + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Details</th><th style="text-align:right">Bill</th><th style="text-align:right">Paid</th><th style="text-align:right">Balance</th></tr></thead><tbody>'
     + (st.map(function(r){ return '<tr><td>'+xDate(r.date)+'</td><td>'+esc(r.d)+'</td><td style="text-align:right">'+(r.amt > 0 ? money(r.amt) : '')+'</td><td style="text-align:right">'+(r.amt < 0 ? money(-r.amt) : '')+'</td><td style="text-align:right">'+money(r.bal)+'</td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">No bills yet.</td></tr>')+'</tbody></table></div></div>'
-    + '<div class="card"><h3>Receive a payment</h3><div class="fgrid"><label class="fld">Date<input class="inp" type="date" data-f="crp" data-k="date" value="'+esc(p.date)+'"></label>'
-    + '<label class="fld">Amount (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="crp" data-k="amt" value="'+esc(p.amt)+'" placeholder="'+(b > 0 ? money(b) : '')+'"></label>'
-    + '<label class="fld">Received by<select class="inp" data-f="crps" data-k="method"><option value="cash"'+(p.method === 'cash' ? ' selected' : '')+'>Cash (counter drawer)</option><option value="card"'+(p.method === 'card' ? ' selected' : '')+'>Card machine</option><option value="bank"'+(p.method === 'bank' ? ' selected' : '')+'>Bank transfer</option></select></label>'
-    + '<label class="fld">Note (optional)<input class="inp" data-f="crp" data-k="note" value="'+esc(p.note)+'" autocomplete="off"></label>'
-    + pinOpen('credit','')+'<input class="inp" type="password" inputmode="numeric" data-f="crp" data-k="pin" value="'+esc(p.pin)+'" autocomplete="off"></label></div>'
-    + '<p style="color:var(--muted);margin:8px 0 0;font-size:13px">The payment clears the oldest bills first. Cash goes into the counter drawer, bank into the bank, card into "Card to receive".</p>'
-    + '<div class="btns"><button class="btn primary" data-act="crpay">Record payment</button></div></div>'
+    + '<div class="card"><div class="bar"><h3 style="margin:0">Receive a payment</h3><span class="sp"></span><button class="btn primary sm" data-act="crnewpay">+ Receive payment</button></div></div>'
     + '<div class="card"><h3>Customer details and limit</h3><div class="fgrid"><label class="fld">Name<input class="inp" data-f="ced" data-k="name" value="'+esc(e.name)+'"></label><label class="fld">Phone<input class="inp" data-f="ced" data-k="phone" value="'+esc(e.phone)+'"></label><label class="fld">Credit limit (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="ced" data-k="limit" value="'+esc(e.limit)+'"></label>'
     + pinOpen('credit','')+'<input class="inp" type="password" inputmode="numeric" data-f="ced" data-k="pin" value="'+esc(e.pin || '')+'" autocomplete="off"></label></div>'
     + '<div class="btns"><button class="btn plum" data-act="custsave">Save details</button> <button class="btn ghost" data-act="custtoggle">'+(c.active === false ? 'Activate customer' : 'Deactivate customer')+'</button></div></div>';
@@ -3177,7 +3243,9 @@ document.addEventListener('click', function(e){
     case 'gocredit': S.tab = can('credit') ? 'credit' : S.tab; S.cc = null; S.ct = 'over'; break;
     case 'ctab': S.ct = d.id; S.cc = null; S.custopen = false; break;
     case 'custopen': S.cc = d.id; S.ced = null; S.crp = {amt:'', method:'cash', date:today(), note:'', pin:''}; break;
-    case 'custclose': S.cc = null; break;
+    case 'custclose': S.cc = null; S.rpopen = false; break;
+    case 'crnewpay': S.rpopen = true; break;
+    case 'crcancelpay': S.rpopen = false; break;
     case 'custnew': S.cnf = {name:'', phone:'', limit:''}; S.custopen = true; break;
     case 'custcancel': S.custopen = false; S.cnf = null; break;
     case 'custsave':
@@ -3214,7 +3282,7 @@ document.addEventListener('click', function(e){
       var pay = {id:uid('r'), t:Date.now(), date:p.date, cust:cc.id, amt:round2(amt), method:p.method, note:p.note.trim(), by:ap.name};
       db.cpay.push(pay); queueEvent('credit_pay', pay);
       audit('Credit', 'Credit payment received', cc.name + ' · AED ' + money(pay.amt) + ' · ' + p.method + (pay.note ? ' · ' + pay.note : '') + ' · balance now AED ' + money(custBal(cc.id)), {ap:ap.name});
-      S.crp = {amt:'', method:p.method, date:p.date, note:'', pin:''}; toast('Payment recorded'); break;
+      S.crp = {amt:'', method:p.method, date:p.date, note:'', pin:''}; S.rpopen = false; toast('Payment recorded'); break;
     case 'custsave':
       var ed = S.ced, c2 = custById(S.cc), ap2 = ed && pinUser(ed.pin, 'credit');
       if (!ed){ toast('Nothing changed'); return; }
