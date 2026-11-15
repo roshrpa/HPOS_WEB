@@ -2771,10 +2771,12 @@ function vDash(){
   var flags = db.audit.filter(isFlag).slice(-6).reverse();
   var seg = '<div class="seg">' + [['today', 'Today'], ['week', '7 days'], ['month', 'This month'], ['last', 'Last month']].map(function(x){ return '<button data-act="dashp" data-v="'+x[0]+'" aria-pressed="'+(kind === x[0])+'">'+x[1]+'</button>'; }).join('') + '</div>';
   var money1 = function(x){ return 'AED ' + money(x); };
+  var bsm = {}; cur.forEach(function(x){ if (x.void) return; x.lines.forEach(function(l){ var k = l.name; bsm[k] = bsm[k] || {name:k, qty:0, amt:0}; bsm[k].qty += l.qty; bsm[k].amt += l.qty * l.price; }); });
+  var bs = Object.keys(bsm).map(function(k){ return bsm[k]; }).sort(function(p, q){ return q.qty - p.qty; })[0] || {name:'-', qty:0, amt:0};
   var kp = [
     dKpi('sales', 'Net sales', money1(tot), dDelta(tot, ptot), R.vs),
     dKpi('sales', 'Bills', String(cur.length), dDelta(cur.length, prev.length), (kind === 'today' ? 'cash ' + money(pay.cash) + ' · card ' + money(pay.card) : R.label)),
-    dKpi('range', 'Average bill', money1(avg), dDelta(avg, pavg), 'per bill'),
+    dKpi('range', 'Best seller', esc(bs.name), '', bs.qty ? bs.qty + ' sold · AED ' + money(bs.amt) : 'no sales yet'),
     dKpi('exp', 'Expenses', money1(ex), dDelta(ex, pex, '', false), 'sales − expenses: AED ' + money(tot - ex), can('exp') ? 'goexp' : '')
   ];
   var mo = [
@@ -3737,7 +3739,7 @@ function rgPrintHtml(N){
   return '<div style="color:' + INK + ';font-family:Arial,Helvetica,sans-serif;padding:4mm;-webkit-print-color-adjust:exact;print-color-adjust:exact">'
     + '<div style="display:flex;align-items:center;gap:14px;padding-bottom:10px;border-bottom:4px solid ' + P + '"><img src="' + LOGO + '" alt="" style="height:58px"><div style="flex:1"><div style="font-size:22px;font-weight:800">' + esc(G.shop) + '</div><div style="font-size:12px;color:' + MUT + '">Sales and cash report</div></div>'
     + '<div style="text-align:right;font-size:11px;color:' + MUT + '"><div style="font-size:13px;font-weight:700;color:' + INK + '">' + esc(A) + ' &rarr; ' + esc(B) + '</div>Printed ' + esc(fdate(Date.now())) + (u ? '<br>by ' + esc(u.name) : '') + '</div></div>'
-    + '<div style="display:flex;gap:10px;margin-top:14px">' + kpi('Net sales', 'AED ' + money(N.net), N.ok.length + ' bills · ' + N.units + ' items', P) + kpi('Average bill', 'AED ' + money(avg), 'per bill', T) + kpi('Expenses', 'AED ' + money(N.expOut), 'paid from the drawer', '#f2b01e') + kpi('Cancelled', N.voids.length ? N.voids.length + ' bills' : 'None', N.voids.length ? 'AED ' + money(N.voidTot) : '&nbsp;', N.voids.length ? '#c0182f' : '#0b7a4b') + '</div>'
+    + '<div style="display:flex;gap:10px;margin-top:14px">' + kpi('Net sales', 'AED ' + money(N.net), N.ok.length + ' bills · ' + N.units + ' items', P) + kpi('Items sold', String(N.units), 'in ' + N.ok.length + ' bills', T) + kpi('Expenses', 'AED ' + money(N.expOut), 'paid from the drawer', '#f2b01e') + kpi('Cancelled', N.voids.length ? N.voids.length + ' bills' : 'None', N.voids.length ? 'AED ' + money(N.voidTot) : '&nbsp;', N.voids.length ? '#c0182f' : '#0b7a4b') + '</div>'
     + '<div style="display:flex;gap:18px;align-items:flex-start"><div style="flex:1">' + sec('Sales') + kv([['Gross sales', 'AED ' + money(N.gross)], N.disc ? ['Discounts', '&minus; AED ' + money(N.disc)] : null, ['Net sales', 'AED ' + money(N.net), true], N.vat > 0 ? ['VAT included', 'AED ' + money(N.vat)] : null])
     + sec('Payments', T) + kv([['Cash', 'AED ' + money(N.cash)], ['Card', 'AED ' + money(N.card)], N.credit > 0 ? ['Credit', 'AED ' + money(N.credit)] : null, ['Total', 'AED ' + money(N.net), true]]) + '</div>'
     + '<div style="flex:1">' + sec('Drawer check', '#c0182f') + drawer + '</div></div>'
