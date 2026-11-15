@@ -1660,6 +1660,7 @@ function receiptText(s){
 }
 
 function vSheets(){
+  if (S.custopen && S.tab === 'credit') return vCustNew();
   if (S.popen && S.tab === 'purch') return vPurNew();
   if (S.xopen && S.tab === 'exp') return xForm();
   if (S.ropen && S.tab === 'exp') return recForm();
@@ -1776,6 +1777,7 @@ document.addEventListener('input', function(e){
   if (f === 'oc'){ if (t.value === '') delete S.ocnt[t.dataset.m]; else S.ocnt[t.dataset.m] = t.value; return; }
   if (f === 'ccname'){ S.cname = t.value; return; }
   if (f === 'xf'){ S.xf[t.dataset.k] = t.value; return; }
+  if (f === 'cn' && S.cnf){ S.cnf[t.dataset.k] = t.value; return; }
   if (f === 'xcn'){ xCat(t.dataset.c).name = t.value; save(); return; }
   if (f === 'xsn'){ xSub(xCat(t.dataset.c), t.dataset.s).name = t.value; save(); return; }
   if (f === 'wf'){ S.wf[t.dataset.k] = t.value; var wpv = document.getElementById('whprev'); if (wpv) wpv.textContent = whPrev(); return; }
@@ -3072,13 +3074,21 @@ function vCredit(){
   var seg = '<div class="seg">' + tabs.map(function(t){ return '<button data-act="ctab" data-id="'+t[0]+'" aria-pressed="'+(S.ct === t[0] && !S.cc)+'">'+t[1]+'</button>'; }).join('') + '</div>';
   return '<div class="page"><div class="bar">'+seg+'</div>' + (S.cc ? vCustDetail() : S.ct === 'age' ? vAgeing() : vCustList()) + '</div>';
 }
+function vCustNew(){
+  var f = S.cnf || (S.cnf = {name:'', phone:'', limit:''});
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Add customer"><h3>Add credit customer</h3><p>The customer can then be chosen when a bill is given on credit.</p>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px"><label class="fld">Name<input class="inp" data-f="cn" data-k="name" value="'+esc(f.name)+'" autocomplete="off"></label>'
+    + '<label class="fld">Phone<input class="inp" type="tel" inputmode="tel" data-f="cn" data-k="phone" value="'+esc(f.phone)+'" autocomplete="off"></label>'
+    + '<label class="fld">Credit limit (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cn" data-k="limit" value="'+esc(f.limit)+'" placeholder="'+creditLimitDef()+' (default)"></label></div>'
+    + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="custcancel">Cancel</button><button class="btn primary" data-act="custsave">Save customer</button></div></div></div>';
+}
 function vCustList(){
   var st = creditStats(), tile = function(a, b, c){ return '<div class="tile"><small>'+a+'</small><b>'+b+'</b>'+(c ? '<small>'+c+'</small>' : '')+'</div>'; };
   var rows = db.cust.map(function(c){ var b = custBal(c.id), o = custOverdue(c.id); return {c:c, b:b, o:o}; }).sort(function(x, y){ return y.o.amt - x.o.amt || y.b - x.b; }).map(function(r){
     return '<tr><td><b>'+esc(r.c.name)+'</b>'+(r.c.active === false ? ' <span class="pill void">Inactive</span>' : '')+'<small style="display:block;color:var(--muted)">'+esc(r.c.phone)+'</small></td><td style="text-align:right">'+money(r.c.limit)+'</td><td style="text-align:right"><b>'+money(r.b)+'</b></td><td style="text-align:right;'+(r.o.amt ? 'color:var(--pink-dk)' : '')+'">'+(r.o.amt ? money(r.o.amt)+'<small style="display:block">'+r.o.days+' days late</small>' : '-')+'</td><td style="text-align:right"><button class="btn sm ghost" data-act="custopen" data-id="'+r.c.id+'">Open</button></td></tr>';
   }).join('');
   return '<div class="tiles">'+tile('Credit outstanding', 'AED '+money(st.out), st.n+' customers')+tile('Overdue', 'AED '+money(st.od), st.nod+' customers · more than '+creditDays()+' days')+'</div>'
-    + '<div class="card"><h3>Credit customers</h3><div class="tblwrap"><table class="tbl"><thead><tr><th>Customer</th><th style="text-align:right">Limit</th><th style="text-align:right">Owes</th><th style="text-align:right">Overdue</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="5" class="empty">No credit customers yet. They are added when you sell on credit.</td></tr>')+'</tbody></table></div></div>'
+    + '<div class="card"><div class="bar"><h3 style="margin:0">Credit customers</h3><span class="sp"></span><button class="btn primary sm" data-act="custnew">+ Add customer</button></div><div class="tblwrap"><table class="tbl"><thead><tr><th>Customer</th><th style="text-align:right">Limit</th><th style="text-align:right">Owes</th><th style="text-align:right">Overdue</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="5" class="empty">No credit customers yet. They are added when you sell on credit.</td></tr>')+'</tbody></table></div></div>'
     + '<div class="card"><h3>Defaults</h3><p style="margin:0 0 8px;color:var(--muted)">Used for new customers. A bill is overdue when it is unpaid after the credit days.</p><div class="fgrid">'
     + '<label class="fld">Default credit limit (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cset" data-k="creditLimit" value="'+creditLimitDef()+'"></label>'
     + '<label class="fld">Credit days (due after)<input class="inp" type="number" min="1" step="1" inputmode="numeric" data-f="cset" data-k="creditDays" value="'+creditDays()+'"></label></div></div>';
@@ -3165,9 +3175,19 @@ document.addEventListener('click', function(e){
   switch (a){
     case 'pay': if (d.m === 'credit' && S.pay === 'credit') creditInit(); else return; break;
     case 'gocredit': S.tab = can('credit') ? 'credit' : S.tab; S.cc = null; S.ct = 'over'; break;
-    case 'ctab': S.ct = d.id; S.cc = null; break;
+    case 'ctab': S.ct = d.id; S.cc = null; S.custopen = false; break;
     case 'custopen': S.cc = d.id; S.ced = null; S.crp = {amt:'', method:'cash', date:today(), note:'', pin:''}; break;
     case 'custclose': S.cc = null; break;
+    case 'custnew': S.cnf = {name:'', phone:'', limit:''}; S.custopen = true; break;
+    case 'custcancel': S.custopen = false; S.cnf = null; break;
+    case 'custsave':
+      var cn = S.cnf || {name:'', phone:'', limit:''}, cph = String(cn.phone).trim();
+      if (!cn.name.trim()){ toast('Enter the name'); return; } if (cph.replace(/\D/g, '').length < 5){ toast('Enter the phone number'); return; }
+      var cdup = db.cust.filter(function(x){ return String(x.phone).replace(/\s|-/g, '') === cph.replace(/\s|-/g, ''); })[0];
+      if (cdup){ toast('That phone number belongs to ' + cdup.name); return; }
+      var clim = cn.limit === '' ? creditLimitDef() : Math.max(0, round2(parseFloat(cn.limit) || 0));
+      var ncu = {id:uid('k'), name:cn.name.trim(), phone:cph, limit:clim, active:true, t:Date.now()}; db.cust.push(ncu); queueEvent('cust_save', ncu);
+      audit('Credit', 'Customer added', ncu.name + ' · ' + ncu.phone + ' · limit AED ' + money(ncu.limit)); S.custopen = false; S.cnf = null; toast('Customer added'); break;
     case 'custprint': printHtml(custPrintHtml(S.cc)); return;
     case 'ageprint': printHtml(agePrintHtml()); return;
     case 'creditok':
