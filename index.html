@@ -244,6 +244,7 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 .at{border:1px solid #efece8;border-radius:12px} .at b{font-weight:600}
 @media (max-width:700px){ header.top{padding:8px 12px} header.top .ptitle{font-size:16px} header.top .ht1 p{display:none} .alertp{display:none} .page.dash{padding:12px} }
 .dcard .btn.sm{min-height:32px;padding:5px 14px;font-size:13px;font-weight:500;border-radius:9px;border:1px solid #e6e2dc;background:#fff;color:#3a3835;box-shadow:none}
+.pill.edt{background:#fdf1dc;color:#7a5410;font-size:11px;font-weight:600;padding:2px 8px;margin-left:4px}
 </style>
 </head>
 <body>
@@ -1269,8 +1270,10 @@ function vSale(){
     + (has ? '<div class="row2"><button class="btn ghost sm" data-act="discopen">'+(dsc>0?'Change discount':'Discount')+'</button><button class="btn ghost sm" data-act="clear">Clear bill</button></div>' : '') + '</div></aside></div>';
 }
 
+function superseded(s){ return s.void && s.voidReason === 'Order changed on tablet'; }
+function wasEdited(s){ return !!s.tord && !s.void && db.sales.some(function(x){ return x.tord === s.tord && x.id !== s.id && superseded(x); }); }
 function periodSales(){
-  return db.sales.filter(function(s){ return S.range === 'all' || s.day === today(); });
+  return db.sales.filter(function(s){ return !superseded(s) && (S.range === 'all' || s.day === today()); });
 }
 function vSales(){
   var list = periodSales(), ok = list.filter(function(s){ return !s.void; });
@@ -1285,7 +1288,7 @@ function vSales(){
     var t = new Date(s.t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
     var q = s.lines.reduce(function(a,l){ return a+l.qty; }, 0);
     var ask = S.voidAsk === s.id;
-    return '<tr class="'+(s.void?'void':'')+'"><td>#'+s.no+'</td><td>'+t+'</td><td>'+q+' items</td><td>'+(s.void?'<span class="pill void">Cancelled</span><div style="font-size:12px;color:var(--muted);text-decoration:none;margin-top:2px">'+esc(s.voidReason||'')+'</div>':'<span class="pill '+s.pay+'">'+s.pay+'</span>'+(s.pay === 'credit' ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.custName || '')+'</div>' : ''))+'</td><td class="n">'+money(s.total)+'</td>'
+    return '<tr class="'+(s.void?'void':'')+'"><td>#'+s.no+(wasEdited(s) ? ' <span class="pill edt">Edited</span>' : '')+'</td><td>'+t+'</td><td>'+q+' items</td><td>'+(s.void?'<span class="pill void">Cancelled</span><div style="font-size:12px;color:var(--muted);text-decoration:none;margin-top:2px">'+esc(s.voidReason||'')+'</div>':'<span class="pill '+s.pay+'">'+s.pay+'</span>'+(s.pay === 'credit' ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.custName || '')+'</div>' : ''))+'</td><td class="n">'+money(s.total)+'</td>'
       + '<td class="n"><button class="btn ghost sm" data-act="view" data-id="'+s.id+'">Receipt</button> '
       + (s.void ? '' : '<button class="btn danger sm" data-act="voidopen" data-id="'+s.id+'">Cancel bill</button>') + '</td></tr>';
   }).join('');
