@@ -1658,7 +1658,7 @@ function xCats(){
   var cats = db.exp.cats;
   if (!S.xcs || !xCat(S.xcs)) S.xcs = cats[0] ? cats[0].id : null;
   var cur = xCat(S.xcs);
-  var list = cats.map(function(c){ var on = c.id === S.xcs; return '<button class="btn '+(on ? 'primary' : 'ghost')+'" data-act="xcsel" data-c="'+esc(c.id)+'" style="width:100%;justify-content:space-between;text-align:left;margin-bottom:6px"><span>'+esc(c.name)+'</span><small style="opacity:.75">'+c.subs.length+'</small></button>'; }).join('');
+  var list = cats.map(function(c){ var on = c.id === S.xcs; return '<button data-act="xcsel" data-c="'+esc(c.id)+'" style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;text-align:left;margin:0 0 6px;padding:10px 14px;min-height:44px;border-radius:12px;font:inherit;font-weight:600;cursor:pointer;border:1.5px solid '+(on ? 'var(--pink,#e0398a)' : '#e3e3e3')+';background:'+(on ? 'var(--pink,#e0398a)' : '#fff')+';color:'+(on ? '#fff' : 'inherit')+'"><span>'+esc(c.name)+'</span><span style="min-width:24px;text-align:center;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:700;background:'+(on ? 'rgba(255,255,255,.25)' : '#f1f1f1')+';color:'+(on ? '#fff' : '#666')+'">'+c.subs.length+'</span></button>'; }).join('');
   var det = '';
   if (cur){
     var subs = cur.subs.map(function(s2){
@@ -1670,7 +1670,7 @@ function xCats(){
       + '<div class="btns" style="justify-content:space-between;margin-top:10px"><button class="btn ghost sm" data-act="xaddsub" data-c="'+esc(cur.id)+'">+ Sub-category</button><button class="btn ghost sm" data-act="xdelcat" data-c="'+esc(cur.id)+'">Remove this category</button></div></div>';
   }
   return '<p style="color:var(--muted);margin:0 0 12px">Pick a category on the left to rename it or change its sub-categories. One that already has expenses cannot be removed, rename it instead.</p>'
-    + '<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap"><div class="card" style="width:260px;margin:0"><div class="bar" style="margin-bottom:8px"><b>Categories</b><span class="sp"></span><button class="btn primary sm" data-act="xaddcat">+ Add</button></div><div style="max-height:62vh;overflow:auto">'+list+'</div></div>'+det+'</div>';
+    + '<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap"><div class="card" style="width:260px;margin:0"><div class="bar" style="margin-bottom:8px"><b>Categories</b><span class="sp"></span><button class="btn primary sm" data-act="xaddcat">+ Add</button></div><div>'+list+'</div></div>'+det+'</div>';
 }
 function xPrintHtml(m){
   var items = xMonthItems(m).slice().reverse(), T = xTotals(items), G = setg();
