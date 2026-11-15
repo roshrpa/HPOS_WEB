@@ -1527,6 +1527,51 @@ if (!db.exp) db.exp = expDefault();
 function xCat(id){ return byId(db.exp.cats, id); }
 function xSub(c, id){ return c ? byId(c.subs, id) : null; }
 function xLabel(e){ var c = xCat(e.cat), s = xSub(c, e.sub); return (c ? c.name : 'Deleted category') + (s ? ' › ' + s.name : ''); }
+function xVoucherRows(e){
+  var c = xCat(e.cat), sb = xSub(c, e.sub), rows = [['Date', xDate(e.date)], ['Category', (c ? c.name : 'Deleted category') + (sb ? ' › ' + sb.name : '')]];
+  if (e.who) rows.push(['Paid to', e.who]);
+  if (e.bill) rows.push(['Bill no.', e.bill]);
+  if (e.note) rows.push(['Note', e.note]);
+  rows.push(['Paid from', xFromLabel(e.from)]);
+  if (e.vat > 0) rows.push(['VAT included', 'AED ' + money(e.vat)]);
+  return rows;
+}
+function xRef(e){ return 'EXP-' + String(e.id).replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase(); }
+function xEnteredAt(e){ return new Date(e.t || Date.now()).toLocaleString('en-GB', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}); }
+function xVoucher(){
+  var e = byId(db.exp.items, S.xview); if (!e) return '';
+  var rows = xVoucherRows(e).map(function(r){ return '<div style="display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid #eee"><span style="color:#777">'+esc(r[0])+'</span><b style="text-align:right">'+esc(r[1])+'</b></div>'; }).join('');
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Expense voucher" style="max-width:440px;max-height:94vh;overflow:auto">'
+    + '<div id="xvbox" style="background:#fff;border:1px solid #eee;border-radius:14px;padding:18px"><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><img src="'+LOGO+'" alt="" style="height:44px"><div><b style="font-size:17px">'+esc(setg().shop)+'</b><div style="color:#777;font-size:13px">Expense voucher · '+xRef(e)+'</div></div></div>'
+    + '<div style="text-align:center;padding:14px 0 8px"><div style="color:#777;font-size:13px">Amount</div><div style="font-size:34px;font-weight:800">AED '+money(e.amt)+'</div></div>'+rows
+    + '<div style="color:#777;font-size:12px;margin-top:12px">Entered by '+esc(e.by || '-')+' · '+esc(xEnteredAt(e))+(e.editBy ? ' · edited by '+esc(e.editBy) : '')+'</div></div>'
+    + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="xviewclose">Close</button><button class="btn ghost" data-act="xvprint">Print / PDF</button><button class="btn primary" data-act="xvimg">Save as image</button></div></div></div>';
+}
+function xVoucherImage(e, done){
+  var W = 720, rows = xVoucherRows(e), H = 360 + rows.length * 62, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  var g = cv.getContext('2d'), F = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  function draw(img){
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    var x0 = 40, y = 50;
+    if (img){ var ih = 70, iw = img.width / img.height * ih; g.drawImage(img, x0, 28, iw, ih); x0 += iw + 18; }
+    g.fillStyle = '#111'; g.font = '700 28px ' + F; g.fillText(setg().shop, x0, 62);
+    g.fillStyle = '#777'; g.font = '20px ' + F; g.fillText('Expense voucher  ·  ' + xRef(e), x0, 92);
+    g.strokeStyle = '#ddd'; g.lineWidth = 2; g.beginPath(); g.moveTo(40, 120); g.lineTo(W - 40, 120); g.stroke();
+    g.textAlign = 'center'; g.fillStyle = '#777'; g.font = '20px ' + F; g.fillText('Amount', W / 2, 160);
+    g.fillStyle = '#111'; g.font = '800 58px ' + F; g.fillText('AED ' + money(e.amt), W / 2, 225); g.textAlign = 'left';
+    y = 275;
+    rows.forEach(function(r){
+      g.fillStyle = '#777'; g.font = '22px ' + F; g.fillText(r[0], 40, y);
+      g.fillStyle = '#111'; g.font = '700 22px ' + F; g.textAlign = 'right';
+      var t = String(r[1]); while (g.measureText(t).width > W - 260 && t.length > 4) t = t.slice(0, -2); if (t !== String(r[1])) t += '…';
+      g.fillText(t, W - 40, y); g.textAlign = 'left';
+      g.strokeStyle = '#eee'; g.beginPath(); g.moveTo(40, y + 20); g.lineTo(W - 40, y + 20); g.stroke(); y += 62;
+    });
+    g.fillStyle = '#777'; g.font = '18px ' + F; g.fillText('Entered by ' + (e.by || '-') + '  ·  ' + xEnteredAt(e) + (e.editBy ? '  ·  edited by ' + e.editBy : ''), 40, H - 30);
+    cv.toBlob(function(b){ done(b); }, 'image/png');
+  }
+  var im = new Image(); im.onload = function(){ draw(im); }; im.onerror = function(){ draw(null); }; im.src = LOGO;
+}
 function xFromLabel(f){ return f === 'bank' ? 'Bank' : 'Counter cash'; }
 function xDate(d){ return new Date(d + 'T12:00:00').toLocaleDateString('en-GB', {day:'numeric', month:'short'}); }
 function monthLabel(m){ return new Date(m + '-01T12:00:00').toLocaleDateString('en-GB', {month:'long', year:'numeric'}); }
@@ -1581,7 +1626,7 @@ function xList(){
     var more = [e.who, e.note, e.bill ? 'Bill ' + e.bill : ''].filter(Boolean).join(' · ');
     var del = S.xdel === e.id
       ? '<button class="btn plum sm" data-act="xdelyes" data-id="'+e.id+'">Delete</button> <button class="btn ghost sm" data-act="xdelno">Keep</button>'
-      : '<button class="btn ghost sm" data-act="xedit" data-id="'+e.id+'">Edit</button> <button class="btn ghost sm" data-act="xdel" data-id="'+e.id+'">Delete</button>';
+      : '<button class="btn primary sm" data-act="xview" data-id="'+e.id+'">View</button> <button class="btn ghost sm" data-act="xedit" data-id="'+e.id+'">Edit</button> <button class="btn ghost sm" data-act="xdel" data-id="'+e.id+'">Delete</button>';
     return '<tr><td>'+xDate(e.date)+'</td><td>'+esc(xLabel(e))+'</td><td>'+esc(more)+'</td><td><span class="pill cash"'+(e.from === 'bank' ? ' style="background:#efe2f2;color:var(--plum)"' : '')+'>'+xFromLabel(e.from)+'</span></td><td class="n">'+money(e.amt)+'</td><td class="n" style="white-space:nowrap">'+del+'</td></tr>';
   }).join('');
   var filt = '<select class="inp" style="width:auto;min-width:200px" data-f="xfilter" aria-label="Show category"><option value="">All categories</option>'+db.exp.cats.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id === S.xc ? ' selected' : '')+'>'+esc(c.name)+'</option>'; }).join('')+'</select>';
@@ -1674,6 +1719,7 @@ function receiptText(s){
 }
 
 function vSheets(){
+  if (S.xview && S.tab === 'exp') return xVoucher();
   if (S.supopen && S.tab === 'purch') return supForm();
   if (S.spopen && S.tab === 'purch' && S.psup) return supPayForm();
   if (S.rpopen && S.tab === 'credit' && S.cc) return crPayForm();
@@ -1923,7 +1969,7 @@ document.addEventListener('click', function(e){
     case 'dayuse': S.dayUse = d.v === '0' ? today() : shiftDate(S.dayUse || today(), +d.v); break;
     case 'invtab': S.inv = d.id; S.matDel = null; break;
     case 'whtab': S.wt = d.id; break;
-    case 'xtab': S.xt = d.id; S.xdel = null; S.xopen = false; S.ropen = false; break;
+    case 'xtab': S.xt = d.id; S.xdel = null; S.xopen = false; S.ropen = false; S.xview = null; break;
     case 'xmonth': S.xm = d.v === '0' ? today().slice(0, 7) : shiftMonth(S.xm, +d.v); S.xdel = null; break;
     case 'xnew': S.xedit = null; S.xf = xNewForm(); S.xopen = true; break;
     case 'xsave': case 'xsave2':
@@ -1932,9 +1978,21 @@ document.addEventListener('click', function(e){
       if (!(xa > 0)){ toast('Enter the amount'); return; }
       var xo = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:round2(xa), from:xf.from, vat:round2(parseFloat(xf.vat) || 0), who:(xf.who || '').trim(), bill:(xf.bill || '').trim(), note:(xf.note || '').trim()};
       if (S.xedit){ var xe = byId(db.exp.items, S.xedit); if (xe){ var xold = Object.assign({}, xe); Object.assign(xe, xo); xe.editBy = curName(); queueEvent('expense_update', xe); audit('Expenses', 'Expense edited', xAudDesc(xold) + '  →  ' + xAudDesc(xe), {flag:1}); } S.xedit = null; toast('Expense updated'); }
-      else { xo.id = uid('e'); xo.t = Date.now(); xo.by = curName(); db.exp.items.push(xo); audit('Expenses', 'Expense added', xAudDesc(xo)); queueEvent('expense', xo); toast('Expense added'); }
+      else { xo.id = uid('e'); xo.t = Date.now(); xo.by = curName(); db.exp.items.push(xo); audit('Expenses', 'Expense added', xAudDesc(xo)); queueEvent('expense', xo); toast('Expense added'); if (a === 'xsave') S.xview = xo.id; }
       S.xm = xf.date.slice(0, 7); S.xf = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:'', from:xf.from, who:'', bill:'', note:'', vat:''}; S.xedit = null; S.xopen = (a === 'xsave2'); save(); break;
     case 'xedit': var xe2 = byId(db.exp.items, d.id); if (xe2){ S.xedit = xe2.id; S.xf = {date:xe2.date, cat:xe2.cat, sub:xe2.sub, amt:String(xe2.amt), from:xe2.from, vat:xe2.vat ? String(xe2.vat) : '', who:xe2.who || '', bill:xe2.bill || '', note:xe2.note || ''}; S.xt = 'list'; S.xopen = true; } break;
+    case 'xview': S.xview = d.id; break;
+    case 'xviewclose': S.xview = null; break;
+    case 'xvprint': var xve = byId(db.exp.items, S.xview); if (xve){ var xvb = document.getElementById('xvbox'); printHtml('<div style="color:#000;padding:8mm;max-width:130mm">' + (xvb ? xvb.innerHTML : '') + '</div>'); } return;
+    case 'xvimg':
+      var xvi = byId(db.exp.items, S.xview); if (!xvi) return;
+      xVoucherImage(xvi, function(blob){
+        var name = xRef(xvi) + '.png', file = null;
+        try { file = new File([blob], name, {type:'image/png'}); } catch(er){}
+        if (file && navigator.canShare && navigator.canShare({files:[file]})){ navigator.share({files:[file], title:'Expense ' + xRef(xvi)}).catch(function(){}); return; }
+        var a2 = document.createElement('a'); a2.href = URL.createObjectURL(blob); a2.download = name; document.body.appendChild(a2); a2.click(); setTimeout(function(){ URL.revokeObjectURL(a2.href); a2.remove(); }, 1500); toast('Image saved');
+      });
+      return;
     case 'xcancel': S.xedit = null; S.xopen = false; S.xf = xNewForm(); break;
     case 'xdel': S.xdel = d.id; break;
     case 'xdelno': S.xdel = null; break;
