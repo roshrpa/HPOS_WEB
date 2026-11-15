@@ -1168,6 +1168,12 @@ function vCloseCount(date){
     + '<table><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+rows+'</tbody></table>'
     + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap"><label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(S.cname || db.lastStaff || '')+'" autocomplete="off"></label><button class="btn plum sm" data-act="ccsave">Save count</button></div></div>';
 }
+function vCount(){
+  var date = today(); S.closeDate = date;
+  if (!dailyMats().length) return '<div class="page"><div class="card"><h3>Cup and plate count</h3><p style="color:var(--muted)">No counted materials yet. Mark cups and plates as counted in Usage and count first.</p></div></div>';
+  var oc = vOpenCheck(date), cc = vCloseCount(date);
+  return '<div class="page"><p style="color:var(--muted);margin:0 0 12px">Morning: check the cups and plates against last night\'s count. Closing: count what is on the shelf.</p>'+oc+cc+'</div>';
+}
 function vOpenCheck(date){
   if (date !== today() || !dailyMats().length) return '';
   var R = (db.days || {})[date], done = R && R.openCheck ? countRec(R.openCheck.id) : null;
@@ -1287,12 +1293,13 @@ function closeRefresh(){
 var TAB_GROUPS = [
   {id:'sale', label:'', tabs:[['sale','Sale'], ['dash','Dashboard']]},
   {id:'rep', label:'Reports', tabs:[['sales','Bills'], ['range','Cash report'], ['reports','Accounts']]},
-  {id:'stk', label:'Stock', tabs:[['inv','Usage &amp; count'], ['stock','Warehouse']]},
+  {id:'stk', label:'Stock', tabs:[['inv','Usage &amp; count'], ['count','Cup count'], ['stock','Warehouse']]},
   {id:'mon', label:'Money', tabs:[['purch','Purchases'], ['exp','Expenses'], ['cash','Cash'], ['credit','Credit']]},
   {id:'adm', label:'Manage', tabs:[['menu','Menu'], ['users','Users'], ['audit','Audit'], ['settings','Settings']]}
 ];
 var TAB_ICON = {
   sale:'<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 10.5h10.6L20.5 8H6.5"/>',
+  count:'<path d="M5 4h14l-2 16H7z"/><path d="M6 9h12"/>',
   dash:'<rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7.5" height="9.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/>',
   sales:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   range:'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/>',
@@ -1308,11 +1315,11 @@ var TAB_ICON = {
   audit:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
   settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'
 };
-function tabShown(id){ if (id === 'sale' && !saleOn()) return false; if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users'].indexOf(id) < 0) return false; if (TAB_PERM[id] && !can(TAB_PERM[id])) return false; return true; }
+function tabShown(id){ if (id === 'sale' && !saleOn()) return false; if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users','count'].indexOf(id) < 0) return false; if (TAB_PERM[id] && !can(TAB_PERM[id])) return false; return true; }
 function tabLabel(id){ var r = ''; TAB_GROUPS.forEach(function(g){ g.tabs.forEach(function(t){ if (t[0] === id) r = t[1]; }); }); return r; }
 function tabBadge(id){
   var n = 0;
-  try { if (id === 'stock' && can('stock')) n = lowStockCount(); else if (id === 'credit' && can('credit')) n = creditStats().nod; else if (id === 'audit' && can('audit')){ var t = today(); n = db.audit.filter(function(r){ return isFlag(r) && new Date(r.t).toLocaleDateString('en-CA') === t; }).length; } } catch(e){}
+  try { if (id === 'stock' && can('stock')) n = lowStockCount(); else if (id === 'count' && can('count')) n = openCheckPending() ? 1 : 0; else if (id === 'credit' && can('credit')) n = creditStats().nod; else if (id === 'audit' && can('audit')){ var t = today(); n = db.audit.filter(function(r){ return isFlag(r) && new Date(r.t).toLocaleDateString('en-CA') === t; }).length; } } catch(e){}
   return n > 0 ? '<span class="bd">'+n+'</span>' : '';
 }
 function vSide(){
@@ -1743,7 +1750,7 @@ function render(){
   if (S.tab === 'sale' && !saleOn()) S.tab = homeTab();
   var keep = {}; SCR.forEach(function(s){ var e = document.querySelector(s); if (e) keep[s] = [e.scrollTop, e.scrollLeft]; });
   var key = S.tab;
-  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'reports' ? vReports() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'range' ? vRange() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
+  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'reports' ? vReports() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'count' ? vCount() : S.tab === 'range' ? vRange() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
   document.getElementById('app').innerHTML = '<div class="shell">' + vSide() + '<div class="mainc">' + vHeader() + licBanner() + '<main>' + body + '</main></div></div>' + vSheets();
   paintSync();
   SCR.forEach(function(s){ var e = document.querySelector(s), k = keep[s]; if (e && k && key === lastKey && !(s === '.items' && S.catChanged)){ e.scrollTop = k[0]; e.scrollLeft = k[1]; } });
@@ -1895,7 +1902,7 @@ document.addEventListener('click', function(e){
       if (!ocn){ toast('Type your name'); return; }
       var ocr = recordCount('open', ocn, today(), S.ocnt, true); if (!ocr){ toast('Nothing to check'); return; }
       dayRec(today()).openCheck = {id:ocr.id, t:ocr.t, by:ocn}; S.ocnt = {}; S.cname = ocn; save(); toast(countShort(ocr) ? 'Check saved. ' + countShort(ocr) + ' items are short' : 'Check saved. Everything matches'); break;
-    case 'opencheck': S.tab = 'close'; S.closeDate = today(); break;
+    case 'opencheck': S.tab = 'count'; S.closeDate = today(); break;
     case 'dayprint': printHtml(dayReportHtml(S.closeDate || today())); return;
     case 'closeyes':
       S.closeAsk = false;
@@ -2045,11 +2052,11 @@ document.addEventListener('click', function(e){
 /* ---------- Users, PIN login, permissions, audit log ---------- */
 var ROLES = ['Owner', 'Manager', 'Cashier'];
 var PERMS = [
-  ['sales', 'Sales list'], ['reprint', 'Print receipts'], ['close', 'Cash & report'], ['inv', 'Inventory'], ['stock', 'Stock'],
+  ['sales', 'Sales list'], ['reprint', 'Print receipts'], ['close', 'Cash & report'], ['count', 'Cup and plate count'], ['inv', 'Inventory'], ['stock', 'Stock'],
   ['exp', 'Expenses'], ['menu', 'Menu'], ['settings', 'Settings'], ['audit', 'Audit log'], ['users', 'Users and permissions'],
   ['void', 'Cancel bills (approve)'], ['discount', 'Give discounts (approve)'], ['price', 'Change price at sale (approve)']
 ];
-var TAB_PERM = {sales:'sales', close:'close', range:'close', inv:'inv', stock:'stock', exp:'exp', menu:'menu', settings:'settings', audit:'audit', users:'users'};
+var TAB_PERM = {count:'count', sales:'sales', close:'close', range:'close', inv:'inv', stock:'stock', exp:'exp', menu:'menu', settings:'settings', audit:'audit', users:'users'};
 var AUDIT_CATS = ['Sales', 'Purchases', 'Expenses', 'Cash', 'Stock', 'Day close', 'Credit', 'Menu', 'Settings', 'Users and Security'];
 var PRICE_REASONS = ['Customer bargain', 'Near expiry or damaged', 'Price entered wrongly', 'Staff or family', 'Promotion or offer', 'Other (write the reason)'];
 if (!db.users) db.users = [];
@@ -2063,7 +2070,7 @@ S.uid = null; try { S.uid = sessionStorage.getItem('hp_uid') || null; } catch(e)
 function hashPin(p){ var s = 'hp|' + String(p), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return 'h' + (h >>> 0).toString(36); }
 function curUser(){ var u = S.uid && byId(db.users, S.uid); return (u && u.active !== false) ? u : null; }
 function curName(){ var u = curUser(); return u ? u.name : 'System'; }
-function defPerm(role, p){ if (role === 'Owner') return true; if (p === 'creditgive') return true; if (role === 'Manager') return p !== 'users' && p !== 'lock'; return p === 'sales' || p === 'reprint'; }
+function defPerm(role, p){ if (role === 'Owner') return true; if (p === 'creditgive') return true; if (role === 'Manager') return p !== 'users' && p !== 'lock'; return p === 'sales' || p === 'reprint' || p === 'count'; }
 function roleCan(role, p){ if (role === 'Owner') return true; var r = db.perms[role]; if (r && r[p] !== undefined) return !!r[p]; return defPerm(role, p); }
 function can(p, u){ u = u || curUser(); return !!u && roleCan(u.role, p); }
 var PIN_STRICT = {lock:1, users:1};   /* these always ask for the PIN, even from the Owner */
