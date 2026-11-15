@@ -2528,7 +2528,7 @@ function vDash(){
   var avg = cur.length ? tot / cur.length : 0, pavg = prev.length ? ptot / prev.length : 0;
   var ex = dExp(R.from, R.to), pex = dExp(R.pfrom, R.pto);
   var pay = {cash:0, card:0, credit:0}; cur.forEach(function(s){ pay[s.pay] = (pay[s.pay] || 0) + s.total; });
-  var ytd = dSales(t, t), todayVoids = db.sales.filter(function(s){ return s.void && (s.day || new Date(s.t).toLocaleDateString('en-CA')) === t; }).length;
+  var ytd = dSales(t, t), todayVoids = db.sales.filter(function(s){ return s.void && !superseded(s) && (s.day || new Date(s.t).toLocaleDateString('en-CA')) === t; }).length;
   // trend bars
   var tv = [], tl = [], hi = -1, days = kind === 'month' ? +t.slice(8, 10) : 7;
   for (var k = days - 1; k >= 0; k--){ var d = addDays(t, -k); tv.push(dSum(dSales(d, d))); tl.push(kind === 'month' ? String(+d.slice(8, 10)) : new Date(d + 'T12:00:00').toLocaleDateString('en-GB', {weekday:'short'})); }
