@@ -9,7 +9,7 @@
 <style>
 /* Same look as the tablet order pad: pink price badges, plum accents, sage backdrop.
    Layout: item grid on the left, bill on the right. Sales and Stock are full-width tabs. */
-:root{--pink:#df3d8a;--pink-dk:#b82a6f;--plum:#00838f;--sage:#f7eff4;--card:#fff;--ink:#1c1a1f;--muted:#6c6a70;--line:#e4e0e3;--done:#14815f;--done-bg:#dff3ea;--warn-bg:#fff0d2;--warn:#85560a;--font-d:'Poppins','Trebuchet MS',system-ui,sans-serif;--font-ar:'Noto Sans Arabic','Segoe UI',Tahoma,sans-serif;color-scheme:light}
+:root{--pink:#df3d8a;--pink-dk:#b82a6f;--plum:#00838f;--sage:#f8f7f5;--card:#fff;--ink:#1c1a1f;--muted:#6c6a70;--line:#e4e0e3;--done:#14815f;--done-bg:#dff3ea;--warn-bg:#fff0d2;--warn:#85560a;--font-d:'Inter','Segoe UI',system-ui,-apple-system,Roboto,'Helvetica Neue',sans-serif;--font-ar:'Noto Sans Arabic','Segoe UI',Tahoma,sans-serif;color-scheme:light}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0}
 body{background:var(--sage);color:var(--ink);font-family:var(--font-d);font-size:15px;font-weight:500;overflow:hidden}
@@ -214,6 +214,36 @@ td .inp{width:90px;text-align:right}
 }
 #xprint{display:none}
 @media print{.rlogo{filter:grayscale(1) contrast(1.6)}@page{margin:5mm}body.pr #app{display:block}body.pr #app>header,body.pr #app>main{display:none}body.px{background:#fff}body.px #xprint{display:block}body.px #xprint tr{page-break-inside:avoid}body{overflow:visible}#app,#toast{display:none}.scrim{position:static;background:none;padding:0}.sheet{box-shadow:none;width:100%}.btns,.sheet h3,.sheet p{display:none}}
+
+/* ---- calm, neutral look (inspired by the shared reference) ---- */
+body{font-weight:400;letter-spacing:-.005em}
+b,strong,h1,h2,h3{font-weight:600}
+.shell .side{background:#f7f6f3;border-right:1px solid #e9e6e1;padding:14px 12px 16px;gap:1px}
+.sb-brand{padding:2px 4px 12px} .sb-brand b{font-size:15px;font-weight:600} .sb-brand small{font-weight:400}
+.shopcard{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e9e6e1;border-radius:12px;padding:9px 10px;margin:0 0 6px} .shopcard b{display:block;font-size:13px;font-weight:600;line-height:1.2} .shopcard small{color:var(--muted);font-size:11px;font-weight:400}
+.side .grp{font-size:11px;font-weight:500;color:#8a867f;letter-spacing:.09em;padding:16px 10px 5px}
+.side button.it{min-height:38px;padding:8px 10px;border-radius:10px;font-weight:500;font-size:14px;color:#3a3835;gap:11px;border:1px solid transparent}
+.side button.it svg{stroke:#7b776f} .side button.it:hover{background:#efede9}
+.side button.it[aria-current="true"]{background:#fff;color:var(--pink-dk);border-color:#e6e2dc;box-shadow:0 1px 2px rgba(40,30,20,.07)} .side button.it[aria-current="true"] svg{stroke:var(--pink)}
+.side .bd{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border-radius:99px;background:#fde8f1;color:var(--pink-dk);font-size:12px;font-weight:600;display:inline-grid;place-items:center}
+@media (min-width:701px){ .side.min .shopcard{justify-content:center;padding:8px 0} .side.min .shopcard .lbl{display:none} .side.min .bd{position:absolute;top:2px;right:6px;min-width:8px;width:8px;height:8px;padding:0;font-size:0} .side.min button.it{position:relative} }
+header.top{background:#fff;border-bottom:1px solid #e9e6e1;border-image:none;padding:12px 24px;gap:12px}
+header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;letter-spacing:-.01em;line-height:1.2} header.top .ht1 p{margin:2px 0 0;color:var(--muted);font-size:13px;font-weight:400}
+.alertp{display:inline-flex;align-items:center;gap:8px;border-radius:99px;padding:7px 14px;background:#fdf1dc;color:#7a5410;font-size:13px;font-weight:500;min-height:34px} .alertp i{width:7px;height:7px;border-radius:50%;background:#d99a1f}
+.syncpill,.lockbtn{font-weight:500} .userchip b{font-weight:600}
+.page.dash{padding:20px 24px 32px}
+.dhead{margin-bottom:14px;align-items:center} .dper{font-size:13px;color:var(--muted);font-weight:500}
+.dash .seg{border:1px solid #e6e2dc;border-radius:12px;padding:3px;gap:2px;background:#fff} .dash .seg button{border-radius:9px;padding:6px 14px;min-height:34px;font-weight:500;font-size:14px;color:#55524d} .dash .seg button[aria-pressed="true"]{background:var(--pink);color:#fff}
+.kpi,.dcard{border:1px solid #e9e6e1;border-radius:16px;box-shadow:none} .kpi{padding:16px 18px} .dcard{padding:18px}
+.dic{border-radius:10px;border:1px solid #e9e6e1;background:#fff;width:34px;height:34px;color:#55524d}
+.kl{font-weight:500;font-size:13px;color:#6c6a70} .kv{font-size:28px;font-weight:600;letter-spacing:-.02em;margin:12px 0 10px} .ks{border-top:1px solid #efece8;font-size:12.5px;font-weight:400;padding-top:10px}
+.dl{background:none!important;padding:0;font-size:12.5px;font-weight:500} .dl.up{color:#14815f} .dl.dn{color:#c4543a} .dl.flat{color:#8a867f}
+.dt h3{font-size:16px;font-weight:600} .dt small{font-weight:400}
+.dtbl{width:100%;border-collapse:collapse;font-size:14px} .dtbl th{font-size:11.5px;font-weight:500;letter-spacing:.07em;text-transform:uppercase;color:#8a867f;text-align:left;padding:10px 12px;border-top:1px solid #efece8;border-bottom:1px solid #efece8} .dtbl td{padding:12px;border-bottom:1px solid #f1eee9} .dtbl tr:last-child td{border-bottom:0} .dtbl .n{text-align:right;font-variant-numeric:tabular-nums} .dtbl b{font-weight:600}
+.st{display:inline-flex;align-items:center;gap:7px;font-weight:500} .st i{width:7px;height:7px;border-radius:50%;background:currentColor} .st.ok{color:#14815f} .st.bad{color:#c4543a} .st.warn{color:#b8790e}
+.at{border:1px solid #efece8;border-radius:12px} .at b{font-weight:600}
+@media (max-width:700px){ header.top{padding:8px 12px} header.top .ptitle{font-size:16px} header.top .ht1 p{display:none} .alertp{display:none} .page.dash{padding:12px} }
+.dcard .btn.sm{min-height:32px;padding:5px 14px;font-size:13px;font-weight:500;border-radius:9px;border:1px solid #e6e2dc;background:#fff;color:#3a3835;box-shadow:none}
 </style>
 </head>
 <body>
@@ -1181,17 +1211,28 @@ var TAB_ICON = {
 };
 function tabShown(id){ if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users'].indexOf(id) < 0) return false; if (TAB_PERM[id] && !can(TAB_PERM[id])) return false; return true; }
 function tabLabel(id){ var r = ''; TAB_GROUPS.forEach(function(g){ g.tabs.forEach(function(t){ if (t[0] === id) r = t[1]; }); }); return r; }
+function tabBadge(id){
+  var n = 0;
+  try { if (id === 'stock' && can('stock')) n = lowStockCount(); else if (id === 'credit' && can('credit')) n = creditStats().nod; else if (id === 'audit' && can('audit')){ var t = today(); n = db.audit.filter(function(r){ return r.flag && new Date(r.t).toLocaleDateString('en-CA') === t; }).length; } } catch(e){}
+  return n > 0 ? '<span class="bd">'+n+'</span>' : '';
+}
 function vSide(){
-  var h = '<aside class="side'+(S.tab === 'sale' ? ' min' : '')+(S.sbOpen ? ' open' : '')+'"><div class="sb-brand"><img class="logo" src="'+LOGO+'" alt=""><div class="brandtxt"><b>Hollywood POS</b><small>Counter and billing</small></div></div>';
+  var h = '<aside class="side'+(S.tab === 'sale' ? ' min' : '')+(S.sbOpen ? ' open' : '')+'"><div class="sb-brand"><img class="logo" src="'+LOGO+'" alt=""><div class="brandtxt"><b>Hollywood POS</b><small>Counter and billing</small></div></div>'
+    + '<div class="shopcard"><span class="dic">'+dIcon('sale')+'</span><span class="lbl"><b>Hollywood Ice Creams</b><small>'+(window.HP_DESKTOP ? 'Windows counter' : 'Web POS')+'</small></span></div>';
   TAB_GROUPS.forEach(function(g){
     var ts = g.tabs.filter(function(t){ return tabShown(t[0]); }); if (!ts.length) return;
     if (g.label) h += '<div class="grp">'+g.label+'</div>'; else h += '<div class="grp gap"></div>';
-    h += ts.map(function(t){ return '<button class="it" data-act="tab" data-v="'+t[0]+'" aria-current="'+(S.tab===t[0])+'" title="'+t[1]+'"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">'+TAB_ICON[t[0]]+'</svg><span class="lbl">'+t[1]+'</span></button>'; }).join('');
+    h += ts.map(function(t){ return '<button class="it" data-act="tab" data-v="'+t[0]+'" aria-current="'+(S.tab===t[0])+'" title="'+t[1]+'"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">'+TAB_ICON[t[0]]+'</svg><span class="lbl">'+t[1]+'</span>'+tabBadge(t[0])+'</button>'; }).join('');
   });
   return h + '</aside>' + (S.sbOpen ? '<div class="sbscrim" data-act="sbtoggle"></div>' : '');
 }
+function headInfo(){
+  if (S.tab === 'dash'){ var t = today(), c = dSales(t, t); return [new Date().toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'}), c.length + ' bill' + (c.length === 1 ? '' : 's') + ' today · AED ' + money(dSum(c)) + ' sold']; }
+  return [tabLabel(S.tab), ''];
+}
 function vHeader(){
-  return '<header class="top"><button class="menubtn" data-act="sbtoggle" aria-label="Menu"><svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><h1 class="ptitle">'+tabLabel(S.tab)+'</h1><span class="sp"></span><button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+creditPill()+userChip()+'</header>';
+  var hi = headInfo(), ls = 0; try { ls = can('stock') ? lowStockCount() : 0; } catch(e){}
+  return '<header class="top"><button class="menubtn" data-act="sbtoggle" aria-label="Menu"><svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div class="ht1"><h1 class="ptitle">'+hi[0]+'</h1>'+(hi[1] ? '<p>'+hi[1]+'</p>' : '')+'</div><span class="sp"></span>'+(ls > 0 ? '<button class="alertp" data-act="gostock"><i></i>'+ls+' low on stock</button>' : '')+'<button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+creditPill()+userChip()+'</header>';
 }
 
 function vSale(){
@@ -2420,6 +2461,14 @@ function dHBars(rows, color, fmt){
   var mx = Math.max.apply(null, rows.map(function(r){ return r.v; }).concat([1]));
   return rows.length ? rows.map(function(r){ return '<div class="hb"><div class="hl"><span>'+esc(r.k)+'</span><b>'+fmt(r.v)+'</b></div><div class="ht"><i style="width:'+Math.max(2, r.v / mx * 100).toFixed(1)+'%;background:'+color+'"></i></div></div>'; }).join('') : '<div class="empty">No sales in this period.</div>';
 }
+function recentBills(){
+  var L = db.sales.slice().sort(function(a, b){ return b.t - a.t; }).slice(0, 8);
+  if (!L.length) return '<div class="empty">No bills yet.</div>';
+  return '<div class="tblwrap"><table class="dtbl"><thead><tr><th>Bill</th><th>Time</th><th>Items</th><th>Payment</th><th>Status</th><th class="n">Total</th></tr></thead><tbody>' + L.map(function(s){
+    var q = s.lines.reduce(function(a, l){ return a + l.qty; }, 0), pay = s.pay === 'cash' ? 'Cash' : s.pay === 'card' ? 'Card' : 'Credit';
+    return '<tr><td><b>#'+esc(String(s.dev ? s.dev + '-' + s.no : s.no))+'</b></td><td>'+new Date(s.t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'})+'</td><td>'+q+' item'+(q === 1 ? '' : 's')+'</td><td>'+pay+(s.custName ? ' · '+esc(s.custName) : '')+'</td><td>'+(s.void ? '<span class="st bad"><i></i>Cancelled</span>' : '<span class="st ok"><i></i>Paid</span>')+'</td><td class="n">'+money(s.total)+'</td></tr>';
+  }).join('') + '</tbody></table></div>';
+}
 function vDash(){
   var kind = S.dp || 'today', R = dRange(kind), t = today();
   var cur = dSales(R.from, R.to), prev = dSales(R.pfrom, R.pto), tot = dSum(cur), ptot = dSum(prev);
@@ -2478,17 +2527,18 @@ function vDash(){
   var pays = [{k:'Cash', v:pay.cash, c:'#00838f'}, {k:'Card', v:pay.card, c:'#df3d8a'}, {k:'Credit', v:pay.credit, c:'#ffc300'}];
   var payTot = pay.cash + pay.card + pay.credit;
   var legend = pays.map(function(p){ return '<div class="lg"><i style="background:'+p.c+'"></i><span>'+p.k+'</span><b>'+money(p.v)+'</b><em>'+(payTot ? Math.round(p.v / payTot * 100) : 0)+'%</em></div>'; }).join('');
-  return '<div class="page dash"><div class="dhead"><div><h2>'+(kind === 'today' ? new Date().toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'}) : R.label)+'</h2><p>'+cur.length+' bill'+(cur.length === 1 ? '' : 's')+' · AED '+money(tot)+' sold'+(ytd.length && kind !== 'today' ? ' · today AED '+money(dSum(ytd)) : '')+'</p></div>'+seg+'</div>'
+  return '<div class="page dash"><div class="dhead"><span class="dper">'+R.label+'</span>'+seg+'</div>'
     + '<div class="kpis">'+kp.join('')+'</div>'
     + '<div class="dgrid"><div class="dcard span2"><div class="dt"><h3>Sales'+(kind === 'month' ? ' by day' : ' · last 7 days')+'</h3><small>AED per day</small></div>'+dBars(tv, tl, hi, function(v){ return 'AED ' + money(v); })+'</div>'
     + '<div class="dcard"><div class="dt"><h3>Needs attention</h3><small>'+att.length+' item'+(att.length === 1 ? '' : 's')+'</small></div><div class="atl">'+attHtml+'</div></div></div>'
+    + '<div class="dcard" style="margin-bottom:12px"><div class="dt"><div><h3>Recent bills</h3><small>latest 8 · '+db.sales.filter(function(s){ return !s.void; }).length+' bills in total</small></div>'+(can('sales') ? '<button class="btn sm ghost" data-act="gobills">All bills</button>' : '')+'</div>'+recentBills()+'</div>'
     + '<div class="dgrid3"><div class="dcard"><div class="dt"><h3>Payment mix</h3><small>'+R.label+'</small></div><div class="pm">'+dDonut(pays, payTot)+'<div class="lgs">'+legend+'</div></div></div>'
     + '<div class="dcard"><div class="dt"><h3>Busy hours</h3><small>'+(hv[hpk] > 0 ? 'peak '+hl[hpk] : R.label)+'</small></div>'+dBars(hv, hl, hv[hpk] > 0 ? hpk : -1, function(v){ return 'AED ' + money(v); }, 330)+'</div>'
     + '<div class="dcard"><div class="dt"><h3>Sales by category</h3><small>'+R.label+'</small></div>'+dHBars(catRows, '#df3d8a', function(v){ return 'AED ' + money(v); })+'</div></div>'
     + '<div class="dgrid"><div class="dcard span2"><div class="dt"><h3>Sales and expenses</h3><small><i class="sw" style="background:#00838f"></i>Sales <i class="sw" style="background:#ffc300"></i>Expenses · last 6 months</small></div>'+mchart+'</div>'
     + '<div class="dcard"><div class="dt"><h3>Top items</h3><small>by quantity</small></div>'+dHBars(itemRows, '#00838f', function(v, r){ return v + ' sold'; })+'</div></div>'
     + '<div class="kpis money">'+mo.join('')+'</div>'
-    + (flags.length ? '<div class="dcard" style="margin-top:12px"><div class="dt"><h3>Recent flagged actions</h3>'+(can('audit') ? '<button class="btn sm ghost" data-act="goaudit">Open audit log</button>' : '')+'</div><table class="tbl"><tbody>'+flags.map(function(r){ return '<tr><td style="white-space:nowrap">'+auditTime(r.t)+'</td><td>'+esc(r.u)+(r.ap ? '<small style="display:block;color:var(--muted)">approved by '+esc(r.ap)+'</small>' : '')+'</td><td><b>⚑ '+esc(r.act)+'</b><small style="display:block;color:var(--muted)">'+esc(r.d)+'</small></td></tr>'; }).join('')+'</tbody></table></div>' : '')
+    + (flags.length ? '<div class="dcard" style="margin-top:12px"><div class="dt"><h3>Recent flagged actions</h3>'+(can('audit') ? '<button class="btn sm ghost" data-act="goaudit">Open audit log</button>' : '')+'</div><table class="dtbl"><tbody>'+flags.map(function(r){ return '<tr><td style="white-space:nowrap">'+auditTime(r.t)+'</td><td>'+esc(r.u)+(r.ap ? '<small style="display:block;color:var(--muted)">approved by '+esc(r.ap)+'</small>' : '')+'</td><td><b>⚑ '+esc(r.act)+'</b><small style="display:block;color:var(--muted)">'+esc(r.d)+'</small></td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + '</div>';
 }
 
