@@ -1677,7 +1677,7 @@ function vSheets(){
     if (vs) return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Cancel bill"><h3>Cancel bill #'+vs.no+'</h3><p>AED '+money(vs.total)+'. A reason is required and appears in the report.</p>'
       + '<label class="fld">Reason<select id="vreason" class="inp" data-f="vreason"><option value="">Choose a reason</option>'+VOID_REASONS.map(function(r){ return '<option'+(r===vf.reason?' selected':'')+'>'+esc(r)+'</option>'; }).join('')+'</select></label>'
       + '<label class="fld" style="margin-top:10px">Note'+(vf.reason.indexOf('Other')===0?' (required)':' (optional)')+'<input id="vnote" class="inp" data-f="vnote" value="'+esc(vf.note)+'" autocomplete="off"></label>'
-      + (pinOn() ? '<label class="fld" style="margin-top:10px">'+pinLabel('void')+'<input id="mpin" class="inp" type="password" inputmode="numeric" data-f="vpin" value="'+esc(vf.pin||'')+'" autocomplete="off"></label>' : '')
+      + (pinNeeded('void') ? pinOpen('void','margin-top:10px')+'<input id="mpin" class="inp" type="password" inputmode="numeric" data-f="vpin" value="'+esc(vf.pin||'')+'" autocomplete="off"></label>' : '')
       + '<div class="btns"><button class="btn ghost" data-act="voidclose">Keep the bill</button><button class="btn primary" data-act="voidyes"'+((reasonOk(vf) && pinOk(vf))?'':' disabled')+'>Cancel bill</button></div></div></div>';
   }
   if (S.discForm){
@@ -1688,7 +1688,7 @@ function vSheets(){
       + '<div class="quick">'+(df.type==='pct' ? [5,10,15,20].map(function(v){ return '<button data-act="dquick" data-v="'+v+'">'+v+'%</button>'; }).join('') : [2,5,10,20].map(function(v){ return '<button data-act="dquick" data-v="'+v+'">'+v+'</button>'; }).join(''))+'</div>'
       + '<label class="fld">Reason<select id="dreason" class="inp" data-f="dreason"><option value="">Choose a reason</option>'+DISC_REASONS.map(function(r){ return '<option'+(r===df.reason?' selected':'')+'>'+esc(r)+'</option>'; }).join('')+'</select></label>'
       + '<label class="fld" style="margin-top:10px">Note'+(df.reason.indexOf('Other')===0?' (required)':' (optional)')+'<input id="dnote" class="inp" data-f="dnote" value="'+esc(df.note)+'" autocomplete="off"></label>'
-      + (pinOn() ? '<label class="fld" style="margin-top:10px">'+pinLabel('discount')+'<input id="mpin" class="inp" type="password" inputmode="numeric" data-f="dpin" value="'+esc(df.pin||'')+'" autocomplete="off"></label>' : '')
+      + (pinNeeded('discount') ? pinOpen('discount','margin-top:10px')+'<input id="mpin" class="inp" type="password" inputmode="numeric" data-f="dpin" value="'+esc(df.pin||'')+'" autocomplete="off"></label>' : '')
       + '<div class="change"><span>New total</span><span id="dnew">AED '+money(sb - dam)+'</span></div>'
       + '<div class="btns"><button class="btn ghost" data-act="discclose">Back</button><button class="btn primary" data-act="discapply"'+((dv > 0 && reasonOk(df) && pinOk(df)) ? '' : ' disabled')+'>Apply discount</button></div></div></div>';
   }
@@ -2040,7 +2040,11 @@ function curName(){ var u = curUser(); return u ? u.name : 'System'; }
 function defPerm(role, p){ if (role === 'Owner') return true; if (p === 'creditgive') return true; if (role === 'Manager') return p !== 'users' && p !== 'lock'; return p === 'sales' || p === 'reprint'; }
 function roleCan(role, p){ if (role === 'Owner') return true; var r = db.perms[role]; if (r && r[p] !== undefined) return !!r[p]; return defPerm(role, p); }
 function can(p, u){ u = u || curUser(); return !!u && roleCan(u.role, p); }
+var PIN_STRICT = {lock:1, users:1};   /* these always ask for the PIN, even from the Owner */
+function pinNeeded(perm){ return !!PIN_STRICT[perm] || !(perm && curUser() && can(perm)); }
+function pinOpen(perm, style){ var n = pinNeeded(perm); return '<label class="fld" style="' + (style || '') + (n ? '' : ';display:none') + '">' + (n ? pinLabel(perm) : ''); }
 function pinUser(pin, perm){
+  if (perm && !PIN_STRICT[perm] && curUser() && can(perm)) return curUser();   /* the signed-in user is responsible for his own device */
   if (!pin) return null; var h = hashPin(pin), i, u;
   for (i = 0; i < db.users.length; i++){ u = db.users[i]; if (u.active !== false && u.pin === h && (!perm || can(perm, u))) return u; }
   return null;
@@ -2212,7 +2216,7 @@ function vPriceSheet(){
     + '<label class="fld">New price (AED, each)<input id="pnew" class="inp" type="number" inputmode="decimal" step="0.01" min="0" data-f="pval" value="'+esc(pf.val)+'" autocomplete="off"></label>'
     + '<label class="fld" style="margin-top:10px">Reason<select id="preason" class="inp" data-f="preason"><option value="">Choose a reason</option>'+PRICE_REASONS.map(function(r){ return '<option'+(r === pf.reason ? ' selected' : '')+'>'+esc(r)+'</option>'; }).join('')+'</select></label>'
     + '<label class="fld" style="margin-top:10px">Note'+(pf.reason.indexOf('Other') === 0 ? ' (required)' : ' (optional)')+'<input id="pnote" class="inp" data-f="pnote" value="'+esc(pf.note)+'" autocomplete="off"></label>'
-    + '<label class="fld" style="margin-top:10px">'+pinLabel('price')+'<input id="ppin" class="inp" type="password" inputmode="numeric" data-f="ppin" value="'+esc(pf.pin || '')+'" autocomplete="off"></label>'
+    + pinOpen('price','margin-top:10px')+'<input id="ppin" class="inp" type="password" inputmode="numeric" data-f="ppin" value="'+esc(pf.pin || '')+'" autocomplete="off"></label>'
     + '<div class="btns"><button class="btn ghost" data-act="pricecancel">Cancel</button><button class="btn primary" data-act="priceok"'+(priceFormOk() ? '' : ' disabled')+'>Apply price</button></div></div></div>';
 }
 function priceFormOk(){ var pf = S.priceForm; if (!pf) return false; var v = parseFloat(pf.val); return v >= 0 && pf.val !== '' && reasonOk(pf) && pinOk(pf); }
@@ -2493,7 +2497,7 @@ function vCash(){
     + '<label class="fld">'+(f.kind === 'settle' ? 'Gross card amount (AED)' : 'Amount (AED)')+'<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cf" data-k="amt" value="'+esc(f.amt)+'"></label>'
     + (f.kind === 'settle' ? '<label class="fld">Bank / machine fee (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cf" data-k="fee" value="'+esc(f.fee)+'"></label>' : '')
     + '<label class="fld">Reason / note'+((f.kind === 'dep' || f.kind === 'wd' || f.kind === 'settle') ? ' (optional)' : ' (required)')+'<input class="inp" data-f="cf" data-k="note" value="'+esc(f.note)+'" autocomplete="off"></label>'
-    + '<label class="fld">'+pinLabel('cash')+'<input class="inp" type="password" inputmode="numeric" data-f="cf" data-k="pin" value="'+esc(f.pin)+'" autocomplete="off"></label></div>'
+    + pinOpen('cash','')+'<input class="inp" type="password" inputmode="numeric" data-f="cf" data-k="pin" value="'+esc(f.pin)+'" autocomplete="off"></label></div>'
     + (f.kind === 'settle' ? '<p style="color:var(--muted);margin:8px 0 0;font-size:13px">Enter what the bank paid before the fee. The bank balance goes up by the amount minus the fee, and "Card to receive" goes down by the amount.</p>' : '')
     + '<div class="btns"><button class="btn primary" data-act="cashadd">Save entry</button></div></div>';
   var acct = S.ca, lv = ledgerView(acct, S.cm);
@@ -2504,7 +2508,7 @@ function vCash(){
     + (lv.rows.slice().reverse().map(function(r){
       var del = '';
       if (r.src === 'Cash tab'){
-        del = S.cdel === r.id ? '<input class="inp" type="password" inputmode="numeric" placeholder="PIN" data-f="cdelpin" value="'+esc(S.cdelpin)+'" style="width:90px;display:inline-block"> <button class="btn sm danger" data-act="cdely" data-id="'+r.id+'">Delete</button> <button class="btn sm ghost" data-act="cdeln">×</button>' : '<button class="btn sm ghost" data-act="cdel" data-id="'+r.id+'">Delete</button>';
+        del = S.cdel === r.id ? '<input class="inp" type="password" inputmode="numeric" placeholder="PIN" data-f="cdelpin" value="'+esc(S.cdelpin)+'" style="width:90px;display:'+(pinNeeded('cash') ? 'inline-block' : 'none')+'"> <button class="btn sm danger" data-act="cdely" data-id="'+r.id+'">Delete</button> <button class="btn sm ghost" data-act="cdeln">×</button>' : '<button class="btn sm ghost" data-act="cdel" data-id="'+r.id+'">Delete</button>';
       }
       return '<tr><td style="white-space:nowrap">'+xDate(r.date)+'</td><td>'+esc(r.label)+'<small style="display:block;color:var(--muted)">'+esc(r.src)+'</small></td><td>'+esc(r.by || '')+'</td><td style="text-align:right">'+(r.amt > 0 ? money(r.amt) : '')+'</td><td style="text-align:right">'+(r.amt < 0 ? money(-r.amt) : '')+'</td><td style="text-align:right">'+money(r.bal)+'</td><td>'+del+'</td></tr>';
     }).join('') || '<tr><td colspan="7" class="empty">No movements this month.</td></tr>')+'</tbody></table></div></div>';
@@ -2512,7 +2516,7 @@ function vCash(){
   var open = '<div class="card"><h3>Opening balances</h3><p style="color:var(--muted);margin:0 0 10px">The balance on the day you start using this ledger. Movements before that date are ignored. Now: drawer AED '+money(+od.drawer.amt || 0)+(od.drawer.date ? ' from '+xDate(od.drawer.date) : '')+', bank AED '+money(+od.bank.amt || 0)+(od.bank.date ? ' from '+xDate(od.bank.date) : '')+'.</p><div class="fgrid">'
     + '<label class="fld">Drawer opening (AED)<input class="inp" type="number" step="any" inputmode="decimal" data-f="cop" data-k="da" value="'+esc(o.da)+'"></label><label class="fld">Drawer opening date<input class="inp" type="date" data-f="cop" data-k="dd" value="'+esc(o.dd)+'"></label>'
     + '<label class="fld">Bank opening (AED)<input class="inp" type="number" step="any" inputmode="decimal" data-f="cop" data-k="ba" value="'+esc(o.ba)+'"></label><label class="fld">Bank opening date<input class="inp" type="date" data-f="cop" data-k="bd" value="'+esc(o.bd)+'"></label>'
-    + '<label class="fld">'+pinLabel('cash')+'<input class="inp" type="password" inputmode="numeric" data-f="cop" data-k="pin" value="'+esc(o.pin)+'" autocomplete="off"></label></div>'
+    + pinOpen('cash','')+'<input class="inp" type="password" inputmode="numeric" data-f="cop" data-k="pin" value="'+esc(o.pin)+'" autocomplete="off"></label></div>'
     + '<div class="btns"><button class="btn plum" data-act="copsave">Save opening balances</button></div></div>';
   return '<div class="page"><div class="tiles">'+tile('Counter drawer', 'AED '+money(dB))+tile('Bank', 'AED '+money(bB))+tile('Card to receive', 'AED '+money(ctr), 'sold by card, not yet in bank')+tile('Owner drawings ' + monthLabel(m).split(' ')[0], 'AED '+money(ownerDraw(m)))+'</div>'
     + form + led + open + '</div>';
@@ -2821,7 +2825,7 @@ function vPurNew(){
     + '<div class="btns" style="justify-content:flex-start"><button class="btn sm ghost" data-act="pladd">+ Add item line</button></div>'
     + '<div class="fgrid" style="margin-top:10px">'+(G.vat ? '<label class="fld">VAT on the bill (AED, input VAT)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="pf" data-k="vat" value="'+esc(f.vat)+'"></label>' : '')
     + '<label class="fld">Note (optional)<input class="inp" data-f="pf" data-k="note" value="'+esc(f.note)+'" autocomplete="off"></label>'
-    + '<label class="fld">'+pinLabel('purch')+'<input class="inp" type="password" inputmode="numeric" data-f="pf" data-k="pin" value="'+esc(f.pin)+'" autocomplete="off"></label></div>'
+    + pinOpen('purch','')+'<input class="inp" type="password" inputmode="numeric" data-f="pf" data-k="pin" value="'+esc(f.pin)+'" autocomplete="off"></label></div>'
     + '<p style="margin:12px 0 0;font-size:15px">Items AED <b id="ptsub">'+money(T.sub)+'</b>'+(G.vat ? ' · VAT AED <b id="ptvat">'+money(T.vat)+'</b>' : '')+' · <b>Total AED <span id="ptot">'+money(T.total)+'</span></b></p>'
     + '<p style="color:var(--muted);margin:6px 0 0;font-size:13px">Saving adds the stock to the warehouse or shop, updates the average cost and records the payment. '+(f.pay === 'credit' ? 'This amount will be added to what you owe the supplier.' : 'The money goes out of the '+(f.pay === 'bank' ? 'bank' : 'counter drawer')+'.')+'</p>'
     + '<div class="btns"><button class="btn primary" data-act="purchsave">Save purchase</button></div></div>';
@@ -2831,7 +2835,7 @@ function vPurHist(){
   var list = db.pur.list.filter(function(p){ return p.date.slice(0, 7) === S.pm; }).slice().sort(function(a, b){ return b.date < a.date ? -1 : b.date > a.date ? 1 : b.t - a.t; });
   var tot = list.filter(function(p){ return !p.void; }).reduce(function(a, p){ return a + p.total; }, 0);
   var rows = list.map(function(p){
-    var act = p.void ? '<span class="pill void">Cancelled</span>' : (S.pcan === p.id ? '<input class="inp" type="password" inputmode="numeric" placeholder="PIN" data-f="pcanpin" value="'+esc(S.pcanpin)+'" style="width:90px;display:inline-block"> <button class="btn sm danger" data-act="pcany" data-id="'+p.id+'">Cancel it</button> <button class="btn sm ghost" data-act="pcann">×</button>' : '<button class="btn sm ghost" data-act="pcan" data-id="'+p.id+'">Cancel</button>');
+    var act = p.void ? '<span class="pill void">Cancelled</span>' : (S.pcan === p.id ? '<input class="inp" type="password" inputmode="numeric" placeholder="PIN" data-f="pcanpin" value="'+esc(S.pcanpin)+'" style="width:90px;display:'+(pinNeeded('purch') ? 'inline-block' : 'none')+'"> <button class="btn sm danger" data-act="pcany" data-id="'+p.id+'">Cancel it</button> <button class="btn sm ghost" data-act="pcann">×</button>' : '<button class="btn sm ghost" data-act="pcan" data-id="'+p.id+'">Cancel</button>');
     return '<tr'+(p.void ? ' style="opacity:.55"' : '')+'><td style="white-space:nowrap">'+xDate(p.date)+'</td><td>'+esc(supName(p.sup))+(p.inv ? '<small style="display:block;color:var(--muted)">inv '+esc(p.inv)+'</small>' : '')+'</td><td style="font-size:13px">'+esc(purDesc(p))+'</td><td><span class="pill cash">'+(p.pay === 'credit' ? 'Credit' : p.pay === 'bank' ? 'Bank' : 'Cash')+'</span></td><td class="n" style="text-align:right">'+money(p.total)+(p.vat ? '<small style="display:block;color:var(--muted)">VAT '+money(p.vat)+'</small>' : '')+'</td><td>'+esc(p.by || '')+'</td><td>'+act+'</td></tr>';
   }).join('');
   return '<div class="card"><div class="bar"><button class="btn sm ghost" data-act="pmonth" data-v="-1">‹</button><b>'+monthLabel(S.pm)+'</b><button class="btn sm ghost" data-act="pmonth" data-v="1">›</button><span class="sp"></span><b>Total AED '+money(tot)+'</b></div>'
@@ -2864,7 +2868,7 @@ function vSup(){
       + '<label class="fld">Amount (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="spf" data-k="amt" value="'+esc(p.amt)+'" placeholder="'+(b > 0 ? money(b) : '')+'"></label>'
       + '<label class="fld">Paid from<select class="inp" data-f="spfs" data-k="from"><option value="cash"'+(p.from === 'cash' ? ' selected' : '')+'>Counter cash</option><option value="bank"'+(p.from === 'bank' ? ' selected' : '')+'>Bank</option></select></label>'
       + '<label class="fld">Note (optional)<input class="inp" data-f="spf" data-k="note" value="'+esc(p.note)+'" autocomplete="off"></label>'
-      + '<label class="fld">'+pinLabel('purch')+'<input class="inp" type="password" inputmode="numeric" data-f="spf" data-k="pin" value="'+esc(p.pin)+'" autocomplete="off"></label></div>'
+      + pinOpen('purch','')+'<input class="inp" type="password" inputmode="numeric" data-f="spf" data-k="pin" value="'+esc(p.pin)+'" autocomplete="off"></label></div>'
       + '<div class="btns"><button class="btn primary" data-act="suppay">Record payment</button></div></div>';
   }
   return out;
@@ -3027,7 +3031,7 @@ function vCreditSheet(total){
     + (cu ? '<p style="margin:8px 0 0;font-size:14px">Owes AED <b>'+money(r.bal)+'</b> · limit AED '+money(r.lim)+' · available AED '+money(Math.max(0, r.lim - r.bal))+(custOverdue(cu.id).amt ? ' · <b style="color:var(--pink-dk)">overdue AED '+money(custOverdue(cu.id).amt)+'</b>' : '')+'</p>' : '')
     + '<label class="fld" style="margin-top:10px">Credit given by<select class="inp" data-f="crs" data-k="given">'+creditStaff().map(function(u){ return '<option value="'+u.id+'"'+(u.id === c.given ? ' selected' : '')+'>'+esc(u.name)+'</option>'; }).join('')+'</select></label>'
     + '<label class="fld" style="margin-top:10px">PIN of the person giving credit<input id="crpin" class="inp" type="password" inputmode="numeric" data-f="cr" data-k="pin" value="'+esc(c.pin)+'" autocomplete="off"></label>'
-    + (r.over ? '<p style="color:var(--pink-dk);margin:10px 0 0;font-size:14px">This bill goes over the credit limit (limit AED '+money(r.lim)+'). A manager must approve.</p><label class="fld" style="margin-top:6px">Manager PIN<input class="inp" type="password" inputmode="numeric" data-f="cr" data-k="opin" value="'+esc(c.opin)+'" autocomplete="off"></label>' : '')
+    + (r.over ? '<p style="color:var(--pink-dk);margin:10px 0 0;font-size:14px">This bill goes over the credit limit (limit AED '+money(r.lim)+'). A manager must approve.</p><label class="fld" style="margin-top:6px;'+(pinNeeded('creditover') ? '' : 'display:none')+'">Manager PIN<input class="inp" type="password" inputmode="numeric" data-f="cr" data-k="opin" value="'+esc(c.opin)+'" autocomplete="off"></label>' : '')
     + '<p id="crmsg" style="color:var(--pink-dk);margin:10px 0 0;font-size:14px">'+esc(r.ok ? '' : r.msg)+'</p>'
     + '<div class="btns"><button class="btn ghost" data-act="paycancel">Back</button><button class="btn primary" data-act="creditok"'+(r.ok ? '' : ' disabled')+'>Give on credit</button></div></div></div>';
 }
@@ -3075,11 +3079,11 @@ function vCustDetail(){
     + '<label class="fld">Amount (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="crp" data-k="amt" value="'+esc(p.amt)+'" placeholder="'+(b > 0 ? money(b) : '')+'"></label>'
     + '<label class="fld">Received by<select class="inp" data-f="crps" data-k="method"><option value="cash"'+(p.method === 'cash' ? ' selected' : '')+'>Cash (counter drawer)</option><option value="card"'+(p.method === 'card' ? ' selected' : '')+'>Card machine</option><option value="bank"'+(p.method === 'bank' ? ' selected' : '')+'>Bank transfer</option></select></label>'
     + '<label class="fld">Note (optional)<input class="inp" data-f="crp" data-k="note" value="'+esc(p.note)+'" autocomplete="off"></label>'
-    + '<label class="fld">'+pinLabel('credit')+'<input class="inp" type="password" inputmode="numeric" data-f="crp" data-k="pin" value="'+esc(p.pin)+'" autocomplete="off"></label></div>'
+    + pinOpen('credit','')+'<input class="inp" type="password" inputmode="numeric" data-f="crp" data-k="pin" value="'+esc(p.pin)+'" autocomplete="off"></label></div>'
     + '<p style="color:var(--muted);margin:8px 0 0;font-size:13px">The payment clears the oldest bills first. Cash goes into the counter drawer, bank into the bank, card into "Card to receive".</p>'
     + '<div class="btns"><button class="btn primary" data-act="crpay">Record payment</button></div></div>'
     + '<div class="card"><h3>Customer details and limit</h3><div class="fgrid"><label class="fld">Name<input class="inp" data-f="ced" data-k="name" value="'+esc(e.name)+'"></label><label class="fld">Phone<input class="inp" data-f="ced" data-k="phone" value="'+esc(e.phone)+'"></label><label class="fld">Credit limit (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="ced" data-k="limit" value="'+esc(e.limit)+'"></label>'
-    + '<label class="fld">'+pinLabel('credit')+'<input class="inp" type="password" inputmode="numeric" data-f="ced" data-k="pin" value="'+esc(e.pin || '')+'" autocomplete="off"></label></div>'
+    + pinOpen('credit','')+'<input class="inp" type="password" inputmode="numeric" data-f="ced" data-k="pin" value="'+esc(e.pin || '')+'" autocomplete="off"></label></div>'
     + '<div class="btns"><button class="btn plum" data-act="custsave">Save details</button> <button class="btn ghost" data-act="custtoggle">'+(c.active === false ? 'Activate customer' : 'Deactivate customer')+'</button></div></div>';
 }
 function ageRows(){
@@ -3235,7 +3239,7 @@ function xRec(){
   }).join('');
   var pend = recPending(m).length;
   return xMonthBar() + '<div class="card"><h3>Recurring expenses</h3><p style="margin:0 0 8px;color:var(--muted)">Monthly costs like rent, salary and internet. Press Post to add this month\'s expense. You can change the amount first (electricity changes every month). A month cannot be posted twice.</p>'
-    + (can('exp') ? '' : '<label class="fld" style="max-width:240px;margin-bottom:8px">'+pinLabel('exp')+'<input class="inp" type="password" inputmode="numeric" data-f="recpin" value="'+esc(S.recpin)+'" autocomplete="off"></label>')
+    + pinOpen('exp','max-width:240px;margin-bottom:8px')+'<input class="inp" type="password" inputmode="numeric" data-f="recpin" value="'+esc(S.recpin)+'" autocomplete="off"></label>'
     + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Expense</th><th style="text-align:right">This month (AED)</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="3" class="empty">No recurring expenses yet.</td></tr>')+'</tbody></table></div>'
     + (pend ? '<div class="btns"><button class="btn primary" data-act="recpostall">Post all '+pend+' pending for '+esc(monthLabel(m))+'</button></div>' : '')+'</div>'
     + '<div class="card"><h3>Add a recurring expense</h3><div class="fgrid"><label class="fld">Name<input class="inp" data-f="rf" data-k="name" value="'+esc(f.name)+'" autocomplete="off"></label>'
@@ -3368,7 +3372,7 @@ function vReports(){
     var cur = today().slice(0, 7), ms = [], i; for (i = 1; i <= 12; i++) ms.push(shiftMonth(cur, -i));
     bar = '';
     body = '<div class="card"><h3>Lock months</h3><p style="margin:0 0 8px;color:var(--muted)">After you have checked a month and given the reports to your partners, lock it. Nothing dated in a locked month can be added, changed, cancelled or deleted. Only the Owner can unlock it, and it is recorded.</p>'
-      + '<label class="fld" style="max-width:240px;margin-bottom:8px">'+pinLabel('lock')+'<input class="inp" type="password" inputmode="numeric" data-f="rpin" value="'+esc(S.rpin)+'" autocomplete="off"></label>'
+      + pinOpen('lock','max-width:240px;margin-bottom:8px')+'<input class="inp" type="password" inputmode="numeric" data-f="rpin" value="'+esc(S.rpin)+'" autocomplete="off"></label>'
       + '<table class="tbl"><tbody>' + ms.map(function(k){ var L = db.locks[k]; return '<tr><td><b>'+esc(monthLabel(k))+'</b>'+(L ? '<small style="display:block;color:var(--muted)">locked by '+esc(L.by)+' · '+auditTime(L.t)+'</small>' : '')+'</td><td style="text-align:right">'+(L ? '<span class="pill cash">Locked</span> <button class="btn sm ghost" data-act="mlock" data-m="'+k+'" data-v="0">Unlock</button>' : '<button class="btn sm primary" data-act="mlock" data-m="'+k+'" data-v="1">Lock</button>')+'</td></tr>'; }).join('') + '</tbody></table></div>';
   } else body = '<div class="card"><h3 style="margin:0 0 4px">Monthly report</h3>' + R.wrap(monthlyRows(m, false)) + '</div>';
   return '<div class="page"><div class="bar">'+seg+'</div>' + bar + body + '</div>';
