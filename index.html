@@ -870,18 +870,6 @@ function tabCatchUp(){   // tablet orders that came in before this version: bill
   return ch;
 }
 /* Testing period: sales, tablet orders and stock go back to the starting point (stock 100 in the shop and the warehouse) */
-async function testReset(){
-  var u = curUser(); if (!u || !can('users')) return;
-  if (!S.trpin){ toast('Type your PIN first'); return; }
-  S.trbusy = true; render();
-  try {
-    var r = await syncApi('/test/reset', {method:'POST', body:{name:u.name, pin:S.trpin}});
-    applyTestReset({id:r.id}); S.trpin = '';
-    audit('Settings', 'Test data reset', 'All bills, tablet orders and stock movements cleared; stock set to 100', {flag:1});
-    toast('Test data cleared. Stock is 100 everywhere.');
-  } catch(e){ toast(e.message || 'Could not reset'); }
-  S.trbusy = false; render();
-}
 function applyTestReset(p){
   if (!p || !p.id || db.resetSeen === p.id) return false;
   db.resetSeen = p.id;
@@ -1042,7 +1030,6 @@ function vSettings(){
     + sw(G.allowZero, 'tgzero', 'Allow sale when item stock is 0', G.allowZero ? 'Staff can keep selling even if the stock count was not updated. Stock goes below zero so you can see it.' : 'An item with 0 stock shows Sold out and cannot be sold.')
     + sw(!!G.showSale, 'tgsale', 'Show the Sale tab in this POS', G.showSale ? 'The Sale screen is available in the menu. The Windows counter app always has it.' : 'Off: orders are taken on the tablet and appear here as bills. Turn on to bill from this screen.')
     + sw(!!G.carryOpen, 'tgcarry', 'Carry the closing cash to the next day', G.carryOpen ? 'On Day close you enter how much cash stays in the counter. It becomes the opening cash of the next day automatically.' : 'Type the opening cash by hand every morning.')
-    + (can('users') && syncOn() ? '<div class="card"><h3>Testing period: reset test data</h3><p style="color:var(--muted);font-size:13px;margin:0 0 10px">Deletes all bills (including cancelled ones) and all tablet orders, and puts the stock of every item back to 100 in the shop and 100 in the warehouse, on every connected device and on the server. Menu, recipes, expenses, purchases, users and settings are not touched. This cannot be undone.</p><div class="fgrid"><label class="fld">Your PIN<input class="inp" type="password" inputmode="numeric" autocomplete="off" data-f="trpin" value="'+esc(S.trpin || '')+'"></label></div><div class="btns"><button class="btn danger" data-act="testreset"'+(S.trbusy ? ' disabled' : '')+'>'+(S.trbusy ? 'Resetting…' : 'Reset test data')+'</button></div></div>' : '')
     + '<div class="card"><p style="margin:0;color:var(--muted)">Logins, PINs and permissions are managed in the Users tab (Owner only).</p></div>'
     + backupCard() + syncCard()
     + '<div class="card"><h3>Shop and receipt</h3><div class="fgrid">'+inp('Shop name','shop',G.shop)+inp('Phone on receipt','tel',G.tel)+inp('Instagram on receipt','insta',G.insta)+inp('Low stock warning at (items)','lowAt',G.lowAt,'number')+'</div></div>'
@@ -1870,7 +1857,6 @@ document.addEventListener('click', function(e){
       if (!setg().pinOn && String(setg().pin || '').length < 4){ toast('Set a PIN of at least 4 digits first'); break; }
       setg().pinOn = !setg().pinOn; S.unlocked = true; save(); break;
     case 'tgvat': db.settings.vat = !db.settings.vat; save(); break;
-    case 'testreset': testReset(); break;
     case 'tgsale': db.settings.showSale = !db.settings.showSale; if (!db.settings.showSale && S.tab === 'sale') S.tab = 'dash'; save(); break;
     case 'tgcarry': db.settings.carryOpen = !db.settings.carryOpen; save(); break;
     case 'tgzero': db.settings.allowZero = !db.settings.allowZero; save(); break;
@@ -3367,7 +3353,7 @@ DASH_EXT.push(backupAgeTile);
 document.addEventListener('input', function(e){
   var t = e.target, f = t.dataset && t.dataset.f; if (!f) return;
   if (f === 'rf') S.rf[t.dataset.k] = t.value; else if (f === 'recpin') S.recpin = t.value; else if (f === 'recamt') S.recAmt[t.dataset.id] = t.value;
-  else if (f === 'trpin') S.trpin = t.value; else if (f === 'rpin') S.rpin = t.value; else if (f === 'osv') S.osv = t.value; else if (f === 'bkpin') S.bkpin = t.value;
+  else if (f === 'rpin') S.rpin = t.value; else if (f === 'osv') S.osv = t.value; else if (f === 'bkpin') S.bkpin = t.value;
 });
 document.addEventListener('change', function(e){
   var t = e.target, f = t.dataset && t.dataset.f;

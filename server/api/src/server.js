@@ -7,6 +7,7 @@ const nodePath = require('path');
 const { Pool } = require('pg');
 const users = require('./users');
 const tenancy = require('./tenancy');
+const superadmin = require('./superadmin');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
@@ -108,6 +109,10 @@ async function route(req, res) {
     });
     if (done !== false) return;
   }
+  if (path === '/super' || path.startsWith('/super/') || path === '/admin/super') {
+    const done = await superadmin.handle(req, res, path, m, pool, { send: send, readJson: readJson, isAdmin: isAdmin });
+    if (done !== false) return;
+  }
   if (path === '/enroll' && m === 'POST') {
     if (SHOP_KEY.length < 4) return send(res, 404, { error: 'enrolling is not switched on' });
     const now = Date.now();
@@ -129,24 +134,6 @@ async function route(req, res) {
     const name = String(b.name || '').trim();
     if (!name) return send(res, 400, { error: 'name is required' });
     return send(res, 201, await one('select register_device($1, $2) as r', [name.slice(0, 80), String(b.kind || 'tablet').slice(0, 20)]));
-  }
-  if (path === '/test/reset' && m === 'POST') {
-    // Testing period only: wipes sales, tablet orders and stock movements for every device. Owner name + PIN are checked here.
-    const dev = await device(req), br = await branch(req);
-    const b = await readJson(req);
-    let u;
-    try { u = await users.verify(pool, br, b.name, b.pin); } catch (e) { return send(res, e.status || 401, { error: e.message }); }
-    if (u.role !== 'Owner') return send(res, 403, { error: 'Only the Owner can reset test data.' });
-    const id = require('crypto').randomUUID();
-    const c = await pool.connect();
-    try {
-      await c.query('begin');
-      await c.query("delete from events where branch_id = $1 and type in ('sale','sale_cancel','order','order_update','order_pay','order_cancel','order_done','num','wh_move')", [br]);
-      await c.query('delete from sales where branch_id = $1', [br]);
-      await c.query("insert into events(id, device_id, type, payload, client_time) values ($1, $2, 'test_reset', $3::jsonb, now())", [id, dev, JSON.stringify({ id: id, by: u.name, t: Date.now() })]);
-      await c.query('commit');
-    } catch (e) { await c.query('rollback').catch(function () {}); throw e; } finally { c.release(); }
-    return send(res, 200, { ok: true, id: id, by: u.name });
   }
   if (path === '/admin/report/day' && m === 'GET') {
     if (!isAdmin(req)) return send(res, 403, { error: 'admin token required' });
@@ -189,7 +176,7 @@ const server = http.createServer(function (req, res) {
     if (!res.headersSent) send(res, status, { error: status >= 500 ? 'server error' : e.message });
   });
 });
-users.ensureSchema(pool).then(function () { return tenancy.ensureSchema(pool); }).then(function () {
+users.ensureSchema(pool).then(function () { return tenancy.ensureSchema(pool); }).then(function () { return superadmin.ensureSchema(pool); }).then(function () {
   server.listen(PORT, function () { console.log('Hollywood POS API listening on ' + PORT); });
 }).catch(function (e) { console.error('Could not prepare the users table', e); process.exit(1); });
 process.on('SIGTERM', function () { server.close(function () { pool.end().then(function () { process.exit(0); }); }); });

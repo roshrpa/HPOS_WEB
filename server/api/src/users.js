@@ -107,6 +107,12 @@ async function pinTaken(pool, branch, pin, exceptId) {
   const r = await pool.query('select 1 from users where branch_id = $3 and pin_local = $1 and active and id <> $2 limit 1', [hashPinLocal(pin), exceptId || '', branch]);
   return r.rowCount > 0;
 }
+// The licence allows a number of active users per branch (the branch admin counts).
+async function checkSeat(pool, branch, exceptId) {
+  const b = (await pool.query('select max_users from branches where id = $1', [branch])).rows[0];
+  const used = (await pool.query('select count(*)::int n from users where branch_id = $1 and active and id <> $2', [branch, exceptId || ''])).rows[0].n;
+  if (b && used + 1 > b.max_users) throw err(409, 'Your plan allows ' + b.max_users + ' users and all are in use. Contact your system provider to add more.');
+}
 async function ownerCount(pool, branch) { return (await pool.query("select count(*)::int n from users where branch_id = $1 and role = 'Owner' and active", [branch])).rows[0].n; }
 
 // h = helpers from server.js: { one, readJson, send, device, registerDevice(name, kind), bearerDevice(req) }
@@ -137,6 +143,7 @@ async function handle(req, res, path, m, pool, h) {
     const br = await tenancy.branchByCode(pool, b.shop);
     if (!br) throw err(404, 'Unknown shop code.');
     const ex = (await pool.query('select id from users where branch_id = $2 and lower(name) = lower($1)', [name, br.id])).rows[0];
+    await checkSeat(pool, br.id, ex ? ex.id : '');
     if (await pinTaken(pool, br.id, b.pin, ex ? ex.id : '')) throw err(409, 'That PIN is already used by another user.');
     if (ex) { await pool.query("update users set role = $2, active = true, pin_hash = $3, pin_local = $4, ver = nextval('users_ver_seq') where id = $1", [ex.id, role, scryptHash(b.pin), hashPinLocal(b.pin)]); delete fails[br.id + '|' + name.toLowerCase()]; }
     else await pool.query('insert into users(id, name, role, pin_hash, pin_local, branch_id) values ($1,$2,$3,$4,$5,$6)', ['u' + crypto.randomBytes(6).toString('hex'), name, role, scryptHash(b.pin), hashPinLocal(b.pin), br.id]);
@@ -162,6 +169,7 @@ async function handle(req, res, path, m, pool, h) {
       if (!name) throw err(400, 'Enter a name.');
       if (!PIN_RE.test(String(t.pin || ''))) throw err(400, 'PIN must be 6 digits or more (numbers only).');
       if (await pinTaken(pool, br, t.pin)) throw err(409, 'That PIN is already used. Choose another.');
+      await checkSeat(pool, br);
       try { await pool.query('insert into users(id, name, role, pin_hash, pin_local, branch_id) values ($1,$2,$3,$4,$5,$6)', ['u' + crypto.randomBytes(6).toString('hex'), name, role, scryptHash(t.pin), hashPinLocal(t.pin), br]); }
       catch (e) { if (e.code === '23505') throw err(409, 'There is already a user with that name.'); throw e; }
     } else {
@@ -180,6 +188,7 @@ async function handle(req, res, path, m, pool, h) {
         if (ROLES.indexOf(role) < 0) throw err(400, 'Unknown role.');
         if (tu.role === 'Owner' && tu.active && (role !== 'Owner' || !active) && (await ownerCount(pool, br)) < 2) throw err(409, 'There must be at least one active Owner.');
         if (tu.id === au.id && !active) throw err(409, 'You cannot deactivate yourself.');
+        if (active && !tu.active) await checkSeat(pool, br, tu.id);
         try { await pool.query('update users set name = $2, role = $3, active = $4, ver = nextval(\'users_ver_seq\') where id = $1', [tu.id, name, role, active]); }
         catch (e) { if (e.code === '23505') throw err(409, 'There is already a user with that name.'); throw e; }
       } else throw err(400, 'Unknown operation.');

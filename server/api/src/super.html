@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Super admin</title>
+<style>
+:root{--acc:#df3d8a;--accd:#b82a6f;--ink:#1c1a1f;--mut:#6c6a70;--line:#e9e6e1;--bg:#f8f7f5;--ok:#14815f;--bad:#c4543a;--warn:#b8790e}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.35 Inter,'Segoe UI',system-ui,-apple-system,Roboto,sans-serif}
+header{background:#fff;border-bottom:1px solid var(--line);padding:12px 24px;display:flex;align-items:center;gap:12px} header h1{margin:0;font-size:18px;font-weight:600;flex:1} header small{color:var(--mut)}
+main{padding:20px 24px;max-width:1200px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px}
+.card h2{margin:0;font-size:16px;font-weight:600} .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+input,select{font:inherit;border:1px solid #e0dcd6;border-radius:9px;padding:0 10px;height:34px;background:#fff;min-width:0} label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mut)}
+button{font:inherit;font-weight:600;border-radius:9px;border:1px solid #e0dcd6;background:#fff;color:var(--ink);height:34px;padding:0 14px;cursor:pointer} button.pri{background:var(--acc);border-color:var(--acc);color:#fff} button.sm{height:28px;padding:0 10px;font-size:13px;font-weight:500} button.dng{color:var(--bad);border-color:#f0c9bf} button:disabled{opacity:.5}
+table{width:100%;border-collapse:collapse;margin-top:10px} th{font-size:11px;font-weight:500;letter-spacing:.07em;text-transform:uppercase;color:#8a867f;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)} td{padding:7px 8px;border-bottom:1px solid #f1eee9;vertical-align:middle} tr:last-child td{border-bottom:0}
+.st{display:inline-flex;align-items:center;gap:6px;font-weight:500} .st i{width:7px;height:7px;border-radius:50%;background:currentColor} .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)} .mut{color:var(--mut)}
+.msg{padding:8px 12px;border-radius:10px;margin-bottom:12px;background:#fdf1dc;color:#7a5410} .msg.e{background:#fdeae5;color:#8a2f1b}
+.scrim{position:fixed;inset:0;background:rgba(30,24,20,.35);display:grid;place-items:center;padding:16px} .modal{background:#fff;border-radius:16px;padding:18px;width:min(440px,100%);box-shadow:0 10px 40px rgba(0,0,0,.2)} .modal h3{margin:0 0 12px;font-size:16px} .grid{display:grid;gap:10px;grid-template-columns:1fr 1fr} .grid .w{grid-column:1/-1}
+.login{max-width:340px;margin:12vh auto} .login .card{padding:20px} .login label{margin-bottom:10px}
+</style></head><body>
+<div id="app"></div>
+<script>
+var T = ''; try { T = sessionStorage.getItem('st') || ''; } catch(e){}
+var D = null, M = null, MSG = null, WHO = '';
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+async function api(path, body){
+  var r = await fetch(path, {method: body ? 'POST' : 'GET', headers: Object.assign({'Content-Type':'application/json'}, T ? {'X-Super-Token': T} : {}), body: body ? JSON.stringify(body) : undefined});
+  var j = null; try { j = await r.json(); } catch(e){}
+  if (r.status === 401 && T){ T = ''; try { sessionStorage.removeItem('st'); } catch(e){} D = null; render(); }
+  if (!r.ok) throw new Error((j && j.error) || ('Server answered ' + r.status));
+  return j;
+}
+function daysLeft(d){ if (!d) return null; var a = new Date(d + 'T23:59:59'), n = new Date(); return Math.ceil((a - n) / 86400000); }
+function lic(b){
+  var n = daysLeft(b.expires_on);
+  if (n === null) return '<span class="mut">No end date</span>';
+  var c = n < 0 ? 'bad' : n <= 30 ? 'warn' : 'ok', t = n < 0 ? 'Expired ' + (-n) + ' d ago' : n + ' days left';
+  return '<span class="st '+c+'"><i></i>'+esc(b.expires_on)+' · '+t+'</span>';
+}
+function addDays(base, n){ var d = new Date(base + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); }
+function render(){
+  var a = document.getElementById('app');
+  if (!T){
+    a.innerHTML = '<div class="login"><div class="card"><h2 style="margin-bottom:14px">Super admin</h2>' + (MSG ? '<div class="msg e">'+esc(MSG)+'</div>' : '')
+      + '<label>Name<input id="n" autocomplete="username"></label><label>Password<input id="p" type="password" autocomplete="current-password"></label><button class="pri" id="go" style="width:100%">Sign in</button></div></div>';
+    document.getElementById('go').onclick = login; document.getElementById('p').onkeydown = function(e){ if (e.key === 'Enter') login(); };
+    return;
+  }
+  var h = '<header><h1>Companies and branches</h1><small>'+esc(WHO)+'</small><button class="sm" id="out">Sign out</button></header><main>';
+  if (MSG) h += '<div class="msg'+(MSG.e ? ' e' : '')+'">'+esc(MSG.t || MSG)+'</div>';
+  h += '<div class="card"><div class="row"><h2 style="flex:1">New company</h2><input id="cn" placeholder="Company name"><button class="pri" id="cadd">Add company</button></div></div>';
+  (D ? D.companies : []).forEach(function(c){
+    h += '<div class="card"><div class="row"><h2 style="flex:1">'+esc(c.name)+'</h2><button class="sm" data-a="newb" data-c="'+esc(c.id)+'">+ Add branch</button></div>';
+    h += c.branches.length ? '<table><thead><tr><th>Shop code</th><th>Branch</th><th>Users</th><th>Devices</th><th>Bills</th><th>Licence</th><th>Status</th><th></th></tr></thead><tbody>' + c.branches.map(function(b){
+      return '<tr><td><b>'+esc(b.code)+'</b></td><td>'+esc(b.name)+(b.admins ? '' : ' <span class="warn">(no admin yet)</span>')+'</td><td>'+b.users+' / '+b.max_users+'</td><td>'+b.devices+'</td><td>'+b.bills+'</td><td>'+lic(b)+'</td>'
+        + '<td><span class="st '+(b.active ? 'ok' : 'bad')+'"><i></i>'+(b.active ? 'Active' : 'Switched off')+'</span></td>'
+        + '<td style="white-space:nowrap;text-align:right"><button class="sm" data-a="edit" data-b="'+esc(b.id)+'">Edit</button> <button class="sm" data-a="adm" data-b="'+esc(b.id)+'">Admin</button> <button class="sm dng" data-a="rst" data-b="'+esc(b.id)+'">Reset test data</button></td></tr>';
+    }).join('') + '</tbody></table>' : '<p class="mut" style="margin:10px 0 0">No branches yet.</p>';
+    h += '</div>';
+  });
+  h += '</main>' + (M ? modal() : '');
+  a.innerHTML = h;
+  document.getElementById('out').onclick = async function(){ try { await api('/super/logout', {}); } catch(e){} T = ''; try { sessionStorage.removeItem('st'); } catch(e){} D = null; render(); };
+  document.getElementById('cadd').onclick = function(){ run(function(){ return api('/super/company', {name: document.getElementById('cn').value}); }, 'Company added.'); };
+  [].forEach.call(document.querySelectorAll('[data-a]'), function(el){ el.onclick = function(){ M = {a: el.dataset.a, b: el.dataset.b, c: el.dataset.c}; MSG = null; render(); }; });
+  if (M) wire();
+}
+function findB(id){ var r = null; D.companies.forEach(function(c){ c.branches.forEach(function(b){ if (b.id === id) r = b; }); }); return r; }
+function modal(){
+  var b = M.b ? findB(M.b) : null, h = '<div class="scrim" id="scr"><div class="modal">';
+  if (M.a === 'newb') h += '<h3>New branch</h3><div class="grid"><label class="w">Branch name<input id="f1" placeholder="Main branch"></label><label>Shop code<input id="f2" placeholder="abc1" autocapitalize="off"></label><label>Users allowed<input id="f3" type="number" min="1" value="3"></label><label class="w">Licence ends (optional)<input id="f4" type="date"></label></div><p class="mut">The shop code is typed once on each device. Create the branch admin next.</p>';
+  if (M.a === 'edit') h += '<h3>Edit '+esc(b.code)+'</h3><div class="grid"><label class="w">Branch name<input id="f1" value="'+esc(b.name)+'"></label><label>Users allowed<input id="f3" type="number" min="1" value="'+b.max_users+'"></label><label>Licence ends<input id="f4" type="date" value="'+esc(b.expires_on || '')+'"></label><div class="w row"><button class="sm" data-x="30">+30 days</button><button class="sm" data-x="365">+1 year</button><button class="sm" data-x="clr">No end date</button></div><label class="w">Status<select id="f5"><option value="1"'+(b.active ? ' selected' : '')+'>Active</option><option value="0"'+(!b.active ? ' selected' : '')+'>Switched off (nobody can sign in)</option></select></label></div>';
+  if (M.a === 'adm') h += '<h3>Branch admin for '+esc(b.code)+'</h3><div class="grid"><label>Admin name<input id="f1" autocapitalize="off"></label><label>PIN (6+ digits)<input id="f2" type="password" inputmode="numeric"></label></div><p class="mut">Creates the admin, or resets the PIN if the name exists. The admin then makes the branch users ('+b.users+' of '+b.max_users+' used).</p>';
+  if (M.a === 'rst') h += '<h3>Reset test data</h3><p>Deletes <b>all bills and tablet orders</b> of <b>'+esc(b.code)+'</b> and sets stock back to 100 (shop and warehouse) on every device. Menu, recipes, expenses, users and settings stay. This cannot be undone.</p><label>Type the shop code to confirm<input id="f1" autocapitalize="off" placeholder="'+esc(b.code)+'"></label>';
+  h += '<div class="row" style="justify-content:flex-end;margin-top:14px"><button id="cx">Cancel</button><button class="'+(M.a === 'rst' ? 'dng' : 'pri')+'" id="ok">'+(M.a === 'rst' ? 'Reset' : 'Save')+'</button></div></div></div>';
+  return h;
+}
+function wire(){
+  var $ = function(i){ return document.getElementById(i); };
+  $('cx').onclick = function(){ M = null; render(); }; $('scr').onclick = function(e){ if (e.target.id === 'scr'){ M = null; render(); } };
+  [].forEach.call(document.querySelectorAll('[data-x]'), function(el){ el.onclick = function(){ var x = el.dataset.x, f = $('f4'); if (x === 'clr') f.value = ''; else { var cur = f.value, t = new Date().toLocaleDateString('en-CA'); f.value = addDays(cur && cur > t ? cur : t, +x); } }; });
+  $('ok').onclick = function(){
+    var a = M.a, id = M.b;
+    run(function(){
+      if (a === 'newb') return api('/super/branch', {company_id: M.c, name: $('f1').value, code: $('f2').value, max_users: $('f3').value, expires_on: $('f4').value});
+      if (a === 'edit') return api('/super/branch/' + id, {name: $('f1').value, max_users: $('f3').value, expires_on: $('f4').value, active: $('f5').value === '1'});
+      if (a === 'adm') return api('/super/branch/' + id + '/admin', {name: $('f1').value, pin: $('f2').value});
+      if (a === 'rst') return api('/super/branch/' + id + '/reset-test', {confirm: $('f1').value});
+    }, a === 'rst' ? 'Test data reset.' : 'Saved.');
+  };
+}
+async function run(fn, ok){
+  try { D = await fn(); MSG = {t: ok}; M = null; } catch(e){ MSG = {t: e.message, e: 1}; }
+  render();
+}
+async function login(){
+  try { var r = await api('/super/login', {name: document.getElementById('n').value, password: document.getElementById('p').value}); T = r.token; WHO = r.name; try { sessionStorage.setItem('st', T); sessionStorage.setItem('sn', WHO); } catch(e){} MSG = null; D = await api('/super/overview'); }
+  catch(e){ MSG = e.message; T = ''; }
+  render();
+}
+(async function(){ if (T){ try { WHO = sessionStorage.getItem('sn') || ''; D = await api('/super/overview'); } catch(e){ T = ''; } } render(); })();
+</script></body></html>
