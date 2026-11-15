@@ -456,20 +456,20 @@ function num(n){ return Math.round(n * 100) / 100; }
 if (db.inv && db.inv.base && db.invBaseFix !== 1){ db.invBaseFix = 1; var cts = (db.inv.counts || []).map(function(c){ return c.t; }); Object.keys(db.inv.base).forEach(function(k){ var b = db.inv.base[k]; if (b && b.t && cts.indexOf(b.t) < 0) b.t = 0; }); save(); }
 function rkey(cat, size){ return ((cat === 'Mini Melts Ice Cream' || cat === 'Minimals Ice Cream') ? 'Minimelts Ice Cream' : cat) + '|' + (size || ''); }
 function mat(id){ return byId(db.inv.materials, id); }
-function usageMap(){
+function usageMap(asOf){
   var u = {};
-  db.sales.forEach(function(s){ if (s.void) return; s.lines.forEach(function(l){
+  db.sales.forEach(function(s){ if (s.void || (asOf && s.t > asOf)) return; s.lines.forEach(function(l){
     var r = db.inv.recipes[rkey(l.cat, l.size)]; if (!r) return;
     r.forEach(function(x){ var b = db.inv.base[x.m] || {t:0}; if (s.t > b.t) u[x.m] = (u[x.m] || 0) + x.q * l.qty; });
   }); });
   return u;
 }
-function expectedMap(){
-  var u = usageMap(), e = {};
+function expectedMap(asOf){
+  var u = usageMap(asOf), e = {};
   db.inv.materials.forEach(function(m){
     var b = db.inv.base[m.id] || {t:0, q:0}, q = b.q;
-    db.inv.purchases.forEach(function(p){ if (p.m === m.id && p.t > b.t) q += p.q; });
-    db.inv.waste.forEach(function(w){ if (w.m === m.id && w.t > b.t) q -= w.q; });
+    db.inv.purchases.forEach(function(p){ if (p.m === m.id && p.t > b.t && !(asOf && p.t > asOf)) q += p.q; });
+    db.inv.waste.forEach(function(w){ if (w.m === m.id && w.t > b.t && !(asOf && w.t > asOf)) q -= w.q; });
     e[m.id] = {exp:q - (u[m.id] || 0), used:u[m.id] || 0};
   });
   return e;
@@ -1131,7 +1131,7 @@ function closeText(date){
 /* ---------- Daily cup and plate count (closing count and next morning check) ---------- */
 function dailyMats(){ return db.inv.materials.filter(function(m){ return m.cup; }); }
 function recordCount(kind, by, day, vals, fill){
-  var E = expectedMap(), lines = [], now = Date.now();
+  var now = S.cstart || Date.now(), E = expectedMap(now), lines = [];
   dailyMats().forEach(function(m){
     var v = vals[m.id], cnt;
     if (v === undefined || v === ''){ if (!fill) return; cnt = E[m.id].exp; } else { cnt = parseFloat(v); if (isNaN(cnt)) return; }
@@ -1165,7 +1165,7 @@ function countSummary(rec){
   return 'Counted by <b>'+esc(rec.by || '-')+'</b> at '+fdate(rec.t)+' · '+(sh ? '<span style="color:var(--pink-dk);font-weight:700">'+sh+' items short</span>' : 'everything matches')+(loss > 0 ? ' · possible unbilled sales about AED '+money(loss) : '');
 }
 function vCloseCount(date){
-  var R = dayRec(date), rec = countRec(R.closeCount && R.closeCount.id), E = expectedMap();
+  var R = dayRec(date), rec = countRec(R.closeCount && R.closeCount.id), E = expectedMap(S.cstart || 0);
   if (!dailyMats().length) return '';
   if (rec && !S.ccRedo) return '<div class="tbl"><h3>Stock count at closing</h3><div>'+countSummary(rec)+'</div>'+countTable(rec)+'<div class="btns"><button class="btn ghost sm" data-act="ccredo">Count again</button></div></div>';
   var rows = dailyMats().map(function(m){
@@ -1185,7 +1185,7 @@ function vOpenCheck(date){
   var R = (db.days || {})[date], done = R && R.openCheck ? countRec(R.openCheck.id) : null;
   if (done) return '<div class="tbl"><h3>Opening stock check</h3><div>'+countSummary(done)+'</div>'+(countShort(done) ? countTable(done) : '')+'</div>';
   var lc = lastCloseCount(); if (!lc || !lc.rec) return '';
-  var E = expectedMap();
+  var E = expectedMap(S.cstart || 0);
   var rows = dailyMats().map(function(m){
     var cl = lc.rec.lines.filter(function(l){ return l.m === m.id; })[0];
     return '<tr><td>'+esc(m.name)+'</td><td class="n">'+(cl ? num(cl.counted) : '-')+'</td><td class="n">'+num(E[m.id].exp)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="oc" data-m="'+m.id+'" placeholder="'+num(E[m.id].exp)+'" value="'+esc(S.ocnt[m.id] === undefined ? '' : S.ocnt[m.id])+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
@@ -1849,6 +1849,7 @@ document.addEventListener('input', function(e){
   if (f === 'sync'){ sync[t.dataset.k] = t.value.trim(); saveSync(); paintSync(); return; }
   if (f === 'set'){ var kk = t.dataset.k; db.settings[kk] = (kk === 'rate' || kk === 'lowAt') ? (parseFloat(t.value) || 0) : t.value; save(); return; }
   if (t.id === 'whq'){ var wq0 = t.value.trim().toLowerCase(); document.querySelectorAll('tr[data-n]').forEach(function(r){ r.style.display = (!wq0 || r.dataset.n.indexOf(wq0) >= 0) ? '' : 'none'; }); return; }
+  if ((f === 'cc' || f === 'oc') && (!S.cstart || Date.now() - S.cstart > 3600000)) S.cstart = Date.now();
   if (f === 'cc'){ if (t.value === '') delete S.ccnt[t.dataset.m]; else S.ccnt[t.dataset.m] = t.value; return; }
   if (f === 'oc'){ if (t.value === '') delete S.ocnt[t.dataset.m]; else S.ocnt[t.dataset.m] = t.value; return; }
   if (f === 'ccname'){ S.cname = t.value; return; }
@@ -1953,12 +1954,12 @@ document.addEventListener('click', function(e){
       var ccd = S.closeDate || today(), ccn = (S.cname || db.lastStaff || '').trim();
       if (!ccn){ toast('Type your name'); return; }
       var ccr = recordCount('close', ccn, ccd, S.ccnt, false); if (!ccr){ toast('Type at least one count'); return; }
-      dayRec(ccd).closeCount = {id:ccr.id, t:ccr.t, by:ccn}; S.ccnt = {}; S.ccRedo = false; S.cname = ccn; save(); toast('Count saved'); break;
+      dayRec(ccd).closeCount = {id:ccr.id, t:ccr.t, by:ccn}; S.ccnt = {}; S.cstart = 0; S.ccRedo = false; S.cname = ccn; save(); toast('Count saved'); break;
     case 'ocsave':
       var ocn = (S.cname || db.lastStaff || '').trim();
       if (!ocn){ toast('Type your name'); return; }
       var ocr = recordCount('open', ocn, today(), S.ocnt, true); if (!ocr){ toast('Nothing to check'); return; }
-      dayRec(today()).openCheck = {id:ocr.id, t:ocr.t, by:ocn}; S.ocnt = {}; S.cname = ocn; save(); toast(countShort(ocr) ? 'Check saved. ' + countShort(ocr) + ' items are short' : 'Check saved. Everything matches'); break;
+      dayRec(today()).openCheck = {id:ocr.id, t:ocr.t, by:ocn}; S.ocnt = {}; S.cstart = 0; S.cname = ocn; save(); toast(countShort(ocr) ? 'Check saved. ' + countShort(ocr) + ' items are short' : 'Check saved. Everything matches'); break;
     case 'opencheck': S.tab = 'count'; S.closeDate = today(); break;
     case 'dayprint': printHtml(dayReportHtml(S.closeDate || today())); return;
     case 'closeyes':
