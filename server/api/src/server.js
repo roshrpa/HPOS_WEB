@@ -54,6 +54,7 @@ async function branch(req) {
   const b = await tenancy.branchOfDevice(pool, dev);
   if (!b) throw Object.assign(new Error('unknown device token'), { status: 401 });
   if (!b.active) throw Object.assign(new Error('This branch is switched off.'), { status: 403 });
+  if (tenancy.licenceExpired(b)) throw Object.assign(new Error(tenancy.LICENCE_MSG), { status: 403 });
   return b.id;
 }
 async function device(req) {

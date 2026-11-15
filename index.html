@@ -287,6 +287,8 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
  .page .card p{margin:6px 0;font-size:13px}
  .page .bar{margin-bottom:10px} .seg button{min-height:34px;padding:4px 16px;font-size:14px}
 }
+
+.licbar{display:flex;align-items:center;gap:10px;background:#fdf1dc;color:#7a5410;border-bottom:1px solid #f0dcae;padding:8px 18px;font-size:13px}.licbar span{flex:1}.licbar button{background:none;border:0;font-size:20px;line-height:1;cursor:pointer;color:inherit}
 </style>
 </head>
 <body>
@@ -592,6 +594,31 @@ var sync = (function(){
 })();
 var syncBusy = false, syncTimer = null, pendingRender = false;
 var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/* Licence: warn in the last 30 days, block everything after the end date until the provider extends it. */
+function licDays(){ var e = sync.shopInfo && sync.shopInfo.expires_on; if (!e) return null; return Math.round((Date.parse(e) - Date.parse(today())) / 86400000); }
+function licBlocked(){ if (!sync.token) return false; var d = licDays(); return !!sync.licBlock || (d !== null && d < 0); }
+function licHit(e){ if (e && e.status === 403 && /Licence expired/i.test(e.message || '')){ if (!sync.licBlock){ sync.licBlock = true; saveSync(); srvCall('/auth/status?shop=' + encodeURIComponent(sync.shop || '')).then(function(r){ if (r.ok && r.json && r.json.shop){ sync.shopInfo = r.json.shop; saveSync(); render(); } }).catch(function(){}); } try { render(); } catch(x){} } }
+async function licCheck(){
+  try {
+    var r = await srvCall('/auth/status?shop=' + encodeURIComponent(sync.shop || ''));
+    if (r.ok && r.json && r.json.shop){ sync.shopInfo = r.json.shop; sync.licBlock = !!r.json.shop.expired; saveSync(); if (!sync.licBlock){ toast('Licence active again'); kickSync(); } else toast('Still expired. Contact your system provider.'); }
+    else toast('Could not check. Try again.');
+  } catch(e){ toast('Cannot reach the server'); }
+  render();
+}
+function vLicBlock(){
+  var e = sync.shopInfo && sync.shopInfo.expires_on; if (e && licDays() >= 0) e = '';
+  return '<div style="max-width:440px;margin:12vh auto 0;padding:0 18px"><div class="card" style="padding:26px;text-align:center"><h2 style="margin:0 0 10px">Licence expired</h2>'
+    + '<p style="margin:0 0 6px;color:var(--mut)">' + (e ? 'The licence of ' + esc((sync.shopInfo.name || '') ) + ' ended on ' + esc(e) + '.' : 'The licence has ended.') + '</p>'
+    + '<p style="margin:0 0 18px;color:var(--mut)">Nothing can be used until your system provider extends it. Your data is safe.</p>'
+    + '<button class="btn pri" data-act="liccheck">Check again</button></div></div>';
+}
+function licBanner(){
+  var d = licDays(); if (d === null || d > 30 || d < 0) return '';
+  var k = 'hp_licdis_' + today(); try { if (sessionStorage.getItem(k)) return ''; } catch(e){}
+  return '<div class="licbar"><span>Your licence ' + (d === 0 ? 'ends <b>today</b>' : 'ends in <b>' + d + ' day' + (d === 1 ? '' : 's') + '</b> (' + esc(sync.shopInfo.expires_on) + ')') + '. After that nothing can be used. Contact your system provider to renew.</span><button data-act="licdis" aria-label="Dismiss">&times;</button></div>';
+}
+setInterval(function(){ if (licBlocked() && !document.hidden) licCheck(); }, 60000);
 function saveSync(){ try { localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch(e){} }
 function uuid(){
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -690,7 +717,7 @@ async function syncApi(path, o){
       body: o.body ? JSON.stringify(o.body) : undefined
     });
     var j = null; try { j = await r.json(); } catch(e){}
-    if (!r.ok){ var er = new Error((j && j.error) || ('Server answered ' + r.status)); er.status = r.status; throw er; }
+    if (!r.ok){ var er = new Error((j && j.error) || ('Server answered ' + r.status)); er.status = r.status; licHit(er); throw er; }
     return j;
   } catch(e){
     if (e.name === 'AbortError') e.message = 'The server did not answer';
@@ -1694,7 +1721,7 @@ function render(){
   var keep = {}; SCR.forEach(function(s){ var e = document.querySelector(s); if (e) keep[s] = [e.scrollTop, e.scrollLeft]; });
   var key = S.tab;
   var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'reports' ? vReports() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'range' ? vRange() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
-  document.getElementById('app').innerHTML = '<div class="shell">' + vSide() + '<div class="mainc">' + vHeader() + '<main>' + body + '</main></div></div>' + vSheets();
+  document.getElementById('app').innerHTML = '<div class="shell">' + vSide() + '<div class="mainc">' + vHeader() + licBanner() + '<main>' + body + '</main></div></div>' + vSheets();
   paintSync();
   SCR.forEach(function(s){ var e = document.querySelector(s), k = keep[s]; if (e && k && key === lastKey && !(s === '.items' && S.catChanged)){ e.scrollTop = k[0]; e.scrollLeft = k[1]; } });
   S.catChanged = false; lastKey = key;
@@ -1805,6 +1832,8 @@ document.addEventListener('click', function(e){
   switch (a){
     case 'dashp': S.dp = d.v; break;
     case 'gobills': S.tab = 'sales'; break;
+    case 'liccheck': licCheck(); break;
+    case 'licdis': try { sessionStorage.setItem('hp_licdis_' + today(), '1'); } catch(er){} render(); break;
     case 'sbtoggle': S.sbOpen = !S.sbOpen; break;
     case 'tab': S.sbOpen = false; S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
     case 'cat': S.cat = d.id; S.catChanged = true; break;
@@ -2078,10 +2107,10 @@ function applyServerUsers(list, ver){
 async function serverSignIn(path, body){
   body.device = deviceInfo(); body.token = sync.token || ''; body.shop = sync.shop || '';
   var r = await srvCall(path, {method: 'POST', body: body});
-  if (!r.ok){ var er = new Error((r.json && r.json.error) || ('Server answered ' + r.status)); er.status = r.status; throw er; }
+  if (!r.ok){ var er = new Error((r.json && r.json.error) || ('Server answered ' + r.status)); er.status = r.status; licHit(er); throw er; }
   if (r.json.token){ sync.url = srvUrl(); sync.token = r.json.token; sync.err = ''; saveSync(); }
   else if (!sync.url){ sync.url = srvUrl(); saveSync(); }
-  if (r.json.shop && r.json.shop.code){ sync.shop = r.json.shop.code; sync.shopInfo = r.json.shop; saveSync(); }
+  if (r.json.shop && r.json.shop.code){ sync.shop = r.json.shop.code; sync.shopInfo = r.json.shop; sync.licBlock = false; saveSync(); }
   applyServerUsers(r.json.users, r.json.ver);
   return r.json.user;
 }
@@ -2149,6 +2178,7 @@ function vServerLogin(){
     + '<div class="btns"><button class="btn primary" data-act="srvlogin"'+(S.srv.busy ? ' disabled' : '')+'>'+(S.srv.busy ? 'Signing in' : 'Sign in')+'</button></div>');
 }
 function authScreen(){
+  if (licBlocked()) return vLicBlock();
   if (!db.users.length){
     if (S.srv.st === 'local') return vSetup();
     if (!S.srv.st) checkServer();

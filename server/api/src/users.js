@@ -129,6 +129,7 @@ async function handle(req, res, path, m, pool, h) {
     const br = await tenancy.branchByCode(pool, b.shop);
     if (!br) throw err(404, 'Unknown shop code. Check it with whoever set up your system.');
     if (!br.active) throw err(403, 'This branch is switched off.');
+    if (tenancy.licenceExpired(br)) throw err(403, tenancy.LICENCE_MSG);
     const u = await verify(pool, br.id, b.name, b.pin);
     return finishLogin(res, pool, h, br, u.name, b);
   }

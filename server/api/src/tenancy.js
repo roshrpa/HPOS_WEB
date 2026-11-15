@@ -121,7 +121,15 @@ async function branchByCode(pool, code) {
     : await pool.query('select b.*, c.name as company_name from branches b join companies c on c.id = b.company_id where b.legacy_default');
   return r.rows[0] || null;
 }
-function publicBranch(b) {
-  return { id: b.id, code: b.code, name: b.name, company: b.company_name || '', expires_on: b.expires_on ? new Date(b.expires_on).toISOString().slice(0, 10) : null, max_users: b.max_users };
+const LICENCE_MSG = 'Licence expired. Contact your system provider to renew.';
+// The licence runs to the end of its last day (UAE time). Returns days left (0 = last day) or null for no end date.
+function licenceDays(b) {
+  if (!b.expires_on) return null;
+  const exp = new Date(b.expires_on).toISOString().slice(0, 10), now = new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10);
+  return Math.round((Date.parse(exp) - Date.parse(now)) / 86400000);
 }
-module.exports = { ensureSchema, branchOfDevice, branchByCode, publicBranch };
+function licenceExpired(b) { const d = licenceDays(b); return d !== null && d < 0; }
+function publicBranch(b) {
+  return { days_left: licenceDays(b), expired: licenceExpired(b), id: b.id, code: b.code, name: b.name, company: b.company_name || '', expires_on: b.expires_on ? new Date(b.expires_on).toISOString().slice(0, 10) : null, max_users: b.max_users };
+}
+module.exports = { ensureSchema, branchOfDevice, branchByCode, publicBranch, licenceExpired, LICENCE_MSG };
