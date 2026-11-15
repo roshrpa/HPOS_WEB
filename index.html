@@ -289,6 +289,11 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 }
 
 .licbar{display:flex;align-items:center;gap:10px;background:#fdf1dc;color:#7a5410;border-bottom:1px solid #f0dcae;padding:8px 18px;font-size:13px}.licbar span{flex:1}.licbar button{background:none;border:0;font-size:20px;line-height:1;cursor:pointer;color:inherit}
+.plh,.plr{display:grid;grid-template-columns:minmax(150px,2.2fr) 84px 124px 104px 132px minmax(96px,1fr) 34px;gap:6px;align-items:center}
+.plh{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8a867f;padding:10px 0 4px}
+.plr{margin:0 0 4px}.plr .inp{height:34px!important;padding:0 8px!important;font-size:14px!important;min-width:0}.plr small{font-size:12px;color:var(--muted)}
+.plr .plx{height:30px;width:30px;padding:0;font-size:18px;line-height:1}
+@media (max-width:760px){.plh{display:none}.plr{grid-template-columns:1fr 1fr;padding:8px 0;border-bottom:1px solid #ece9e4;margin:0}.plr>:first-child{grid-column:1/-1}}
 </style>
 </head>
 <body>
@@ -2805,15 +2810,16 @@ function vPurch(){
 }
 function plRows(){
   var f = S.pf;
-  return f.lines.map(function(l, i){
+  return '<div class="plh"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost (AED)</span><span>Goes to</span><span></span><span></span></div>' + f.lines.map(function(l, i){
     var ctn = l.key && whCtn(l.key), pcs = l.key && parseFloat(l.qty) > 0 ? num(toPcs(l.key, parseFloat(l.qty), l.unit)) : 0, per = pcs > 0 && parseFloat(l.amt) >= 0 ? parseFloat(l.amt) / pcs : null;
-    return '<div class="card" style="margin:8px 0;padding:10px"><div class="fgrid">'
-      + '<label class="fld">Item<select class="inp" data-f="pls" data-i="'+i+'" data-k="key">'+itemOptions(l.key)+'</select></label>'
-      + '<label class="fld">Quantity<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="pl" data-i="'+i+'" data-k="qty" value="'+esc(l.qty)+'"></label>'
-      + '<label class="fld">Unit<select class="inp" data-f="pls" data-i="'+i+'" data-k="unit"><option value="pcs"'+(l.unit === 'pcs' ? ' selected' : '')+'>Pieces</option>'+(ctn ? '<option value="ctn"'+(l.unit === 'ctn' ? ' selected' : '')+'>Cartons ('+ctn+' pcs)</option>' : '')+'</select></label>'
-      + '<label class="fld">Line cost (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="pl" data-i="'+i+'" data-k="amt" value="'+esc(l.amt)+'"></label>'
-      + '<label class="fld">Goes to<select class="inp" data-f="pls" data-i="'+i+'" data-k="to"><option value="wh"'+(l.to === 'wh' ? ' selected' : '')+'>Warehouse</option><option value="shop"'+(l.to === 'shop' ? ' selected' : '')+'>Shop (direct)</option></select></label></div>'
-      + '<div class="bar" style="margin-top:6px"><small id="plp'+i+'" style="color:var(--muted)">'+(pcs ? num(pcs)+' pcs' + (per !== null ? ' · AED '+money(per)+' each' : '') : '')+'</small><span class="sp"></span>'+(f.lines.length > 1 ? '<button class="btn sm ghost" data-act="plrm" data-i="'+i+'">Remove line</button>' : '')+'</div></div>';
+    return '<div class="plr">'
+      + '<select class="inp" aria-label="Item" data-f="pls" data-i="'+i+'" data-k="key">'+itemOptions(l.key)+'</select>'
+      + '<input class="inp" aria-label="Quantity" placeholder="Qty" type="number" min="0" step="any" inputmode="decimal" data-f="pl" data-i="'+i+'" data-k="qty" value="'+esc(l.qty)+'">'
+      + '<select class="inp" aria-label="Unit" data-f="pls" data-i="'+i+'" data-k="unit"><option value="pcs"'+(l.unit === 'pcs' ? ' selected' : '')+'>Pieces</option>'+(ctn ? '<option value="ctn"'+(l.unit === 'ctn' ? ' selected' : '')+'>Cartons ('+ctn+' pcs)</option>' : '')+'</select>'
+      + '<input class="inp" aria-label="Line cost (AED)" placeholder="AED" type="number" min="0" step="any" inputmode="decimal" data-f="pl" data-i="'+i+'" data-k="amt" value="'+esc(l.amt)+'">'
+      + '<select class="inp" aria-label="Goes to" data-f="pls" data-i="'+i+'" data-k="to"><option value="wh"'+(l.to === 'wh' ? ' selected' : '')+'>Warehouse</option><option value="shop"'+(l.to === 'shop' ? ' selected' : '')+'>Shop (direct)</option></select>'
+      + '<small id="plp'+i+'">'+(pcs ? num(pcs)+' pcs' + (per !== null ? ' · AED '+money(per)+' each' : '') : '')+'</small>'
+      + (f.lines.length > 1 ? '<button class="btn sm ghost plx" data-act="plrm" data-i="'+i+'" aria-label="Remove line" title="Remove line">&times;</button>' : '<span></span>') + '</div>';
   }).join('');
 }
 function vPurNew(){
