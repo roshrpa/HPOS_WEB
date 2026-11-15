@@ -1311,7 +1311,7 @@ function tabShown(id){ if (id === 'sale' && !saleOn()) return false; if (window.
 function tabLabel(id){ var r = ''; TAB_GROUPS.forEach(function(g){ g.tabs.forEach(function(t){ if (t[0] === id) r = t[1]; }); }); return r; }
 function tabBadge(id){
   var n = 0;
-  try { if (id === 'stock' && can('stock')) n = lowStockCount(); else if (id === 'credit' && can('credit')) n = creditStats().nod; else if (id === 'audit' && can('audit')){ var t = today(); n = db.audit.filter(function(r){ return r.flag && new Date(r.t).toLocaleDateString('en-CA') === t; }).length; } } catch(e){}
+  try { if (id === 'stock' && can('stock')) n = lowStockCount(); else if (id === 'credit' && can('credit')) n = creditStats().nod; else if (id === 'audit' && can('audit')){ var t = today(); n = db.audit.filter(function(r){ return isFlag(r) && new Date(r.t).toLocaleDateString('en-CA') === t; }).length; } } catch(e){}
   return n > 0 ? '<span class="bd">'+n+'</span>' : '';
 }
 function vSide(){
@@ -2061,6 +2061,7 @@ function apprName(f){ var u = pinUser(f.pin, f.perm); return u ? u.name : ''; }
 function pinOn(){ return true; }
 function pinOk(f){ return !!pinUser(f.pin, f.perm); }
 function pinLabel(perm){ return can(perm) ? 'Your PIN' : 'Approver PIN (manager or owner)'; }
+function isFlag(r){ return !!r.flag || r.cat === 'Cash'; }   /* every cash entry, change and delete stands out in red */
 function audit(cat, act, detail, o){
   o = o || {};
   var r = {id:uid('a'), t:Date.now(), u:curName(), uid:S.uid || '', cat:cat, act:act, d:detail || ''};
@@ -2262,7 +2263,7 @@ function auditList(){
   return db.audit.filter(function(r){
     if (f.cat && r.cat !== f.cat) return false;
     if (f.user && r.u !== f.user) return false;
-    if (f.flag && !r.flag) return false;
+    if (f.flag && !isFlag(r)) return false;
     var dk = new Date(r.t - new Date(r.t).getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     if (f.from && dk < f.from) return false;
     if (f.to && dk > f.to) return false;
@@ -2275,7 +2276,7 @@ function vAudit(){
   var f = S.af, list = auditList(), shown = list.slice(0, 300);
   var names = {}; db.audit.forEach(function(r){ names[r.u] = 1; });
   var rows = shown.map(function(r){
-    return '<tr'+(r.flag ? ' style="background:#fff0f5"' : '')+'><td style="white-space:nowrap">'+auditTime(r.t)+'</td><td>'+esc(r.u)+(r.ap ? '<small style="display:block;color:var(--muted)">approved by '+esc(r.ap)+'</small>' : '')+'</td><td><span class="pill cash">'+esc(r.cat)+'</span></td><td><b>'+(r.flag ? '⚑ ' : '')+esc(r.act)+'</b><span style="display:block;color:var(--muted);font-size:13px">'+esc(r.d)+'</span></td></tr>';
+    return '<tr'+(isFlag(r) ? ' style="background:#fdeceb;box-shadow:inset 4px 0 0 #d33f3f"' : '')+'><td style="white-space:nowrap">'+auditTime(r.t)+'</td><td>'+esc(r.u)+(r.ap ? '<small style="display:block;color:var(--muted)">approved by '+esc(r.ap)+'</small>' : '')+'</td><td><span class="pill cash">'+esc(r.cat)+'</span></td><td><b'+(isFlag(r) ? ' style="color:#b3261e"' : '')+'>'+(isFlag(r) ? '⚑ ' : '')+esc(r.act)+'</b><span style="display:block;color:var(--muted);font-size:13px">'+esc(r.d)+'</span></td></tr>';
   }).join('');
   return '<div class="page"><div class="card"><h3>Audit log</h3><p style="color:var(--muted);margin:0 0 10px">A permanent record of who did what. It cannot be edited or deleted. Flagged (⚑) lines are price changes, discounts, cancellations, deletions and adjustments.</p>'
     + '<div class="fgrid"><label class="fld">Category<select class="inp" data-f="afs" data-k="cat"><option value="">All</option>'+AUDIT_CATS.map(function(c){ return '<option'+(c === f.cat ? ' selected' : '')+'>'+c+'</option>'; }).join('')+'</select></label>'
@@ -2292,12 +2293,12 @@ function auditPrintHtml(list){
   var sub = [f.cat || 'All categories', f.user || 'All users', (f.from || f.to) ? (f.from || '…') + ' to ' + (f.to || '…') : 'All dates'].join(' · ');
   return '<div style="color:#000;padding:4mm"><div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><img src="'+LOGO+'" alt="" style="height:54px"><div><div style="font-size:22px;font-weight:700">'+esc(G.shop)+'</div><div style="font-size:15px">Audit log · '+esc(sub)+'</div></div></div>'
     + '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="'+th+'">When</th><th style="'+th+'">User</th><th style="'+th+'">Category</th><th style="'+th+'">Action</th><th style="'+th+'">Details</th></tr></thead><tbody>'
-    + list.map(function(r){ return '<tr><td style="'+td+';white-space:nowrap">'+auditTime(r.t)+'</td><td style="'+td+'">'+esc(r.u)+(r.ap ? '<br>appr. '+esc(r.ap) : '')+'</td><td style="'+td+'">'+esc(r.cat)+'</td><td style="'+td+';font-weight:700">'+(r.flag ? '⚑ ' : '')+esc(r.act)+'</td><td style="'+td+'">'+esc(r.d)+'</td></tr>'; }).join('')
+    + list.map(function(r){ return '<tr><td style="'+td+';white-space:nowrap">'+auditTime(r.t)+'</td><td style="'+td+'">'+esc(r.u)+(r.ap ? '<br>appr. '+esc(r.ap) : '')+'</td><td style="'+td+'">'+esc(r.cat)+'</td><td style="'+td+';font-weight:700">'+(isFlag(r) ? '⚑ ' : '')+esc(r.act)+'</td><td style="'+td+'">'+esc(r.d)+'</td></tr>'; }).join('')
     + '</tbody></table><div style="margin-top:14px;font-size:11px">Printed '+auditTime(Date.now())+' by '+esc(curName())+'</div></div>';
 }
 function auditCsv(list){
   var rows = [['When', 'User', 'Approved by', 'Category', 'Action', 'Details', 'Flag']];
-  list.forEach(function(r){ rows.push([auditTime(r.t), r.u, r.ap || '', r.cat, r.act, r.d, r.flag ? 'Yes' : '']); });
+  list.forEach(function(r){ rows.push([auditTime(r.t), r.u, r.ap || '', r.cat, r.act, r.d, isFlag(r) ? 'Yes' : '']); });
   return '﻿' + rows.map(function(r){ return r.map(function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
 }
 
@@ -2633,7 +2634,7 @@ function vDash(){
   mchart = '<svg viewBox="0 0 560 186" class="dchart" role="img"><line x1="26" x2="560" y1="160" y2="160" stroke="#eee"/>'+mchart+'</svg>';
   // attention
   var att = [], ls = lowStockCount(), st = can('credit') ? creditStats() : null, pb = can('purch') ? payablesTotal() : 0;
-  var flagsToday = db.audit.filter(function(r){ return r.flag && new Date(r.t).toLocaleDateString('en-CA') === t; }).length;
+  var flagsToday = db.audit.filter(function(r){ return isFlag(r) && new Date(r.t).toLocaleDateString('en-CA') === t; }).length;
   function a1(ic, ti, su, act, tone){ att.push('<'+(act ? 'button data-act="'+act+'"' : 'div')+' class="at '+(tone || '')+'"><span class="dic">'+dIcon(ic)+'</span><span><b>'+ti+'</b><small>'+su+'</small></span></'+(act ? 'button' : 'div')+'>'); }
   if (openCheckPending()) a1('inv', 'Opening stock check', 'Count cups and plates for today', 'opencheck', 'warn');
   if (ls > 0) a1('stock', ls + ' item' + (ls > 1 ? 's' : '') + ' low on stock', 'Open the warehouse', 'gostock', 'warn');
@@ -2642,7 +2643,7 @@ function vDash(){
   if (todayVoids) a1('sales', todayVoids + ' cancelled bill' + (todayVoids > 1 ? 's' : '') + ' today', 'Check the reasons', 'gobills', 'bad');
   if (flagsToday && can('audit')) a1('audit', flagsToday + ' flagged action' + (flagsToday > 1 ? 's' : '') + ' today', 'Discounts, price changes, cancels', 'goaudit', 'warn');
   var attHtml = att.length ? att.join('') : '<div class="at ok"><span class="dic">'+dIcon('audit')+'</span><span><b>All clear</b><small>Nothing needs your attention right now.</small></span></div>';
-  var flags = db.audit.filter(function(r){ return r.flag; }).slice(-6).reverse();
+  var flags = db.audit.filter(isFlag).slice(-6).reverse();
   var seg = '<div class="seg">' + [['today', 'Today'], ['week', '7 days'], ['month', 'This month'], ['last', 'Last month']].map(function(x){ return '<button data-act="dashp" data-v="'+x[0]+'" aria-pressed="'+(kind === x[0])+'">'+x[1]+'</button>'; }).join('') + '</div>';
   var money1 = function(x){ return 'AED ' + money(x); };
   var kp = [
