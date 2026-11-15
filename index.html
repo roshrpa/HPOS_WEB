@@ -3746,7 +3746,7 @@ function rgPrintHtml(N){
     + '<div style="flex:1">' + sec('Drawer check', '#c0182f') + drawer + '</div></div>'
     + sec('Sales by category') + catTbl
     + sec('Expenses', '#f2b01e') + expTbl
-    + (g.note ? sec('Note') + '<div style="font-size:12px">' + esc(g.note) + '</div>' : '')
+    + (g.note ? sec('Reason / note', '#c0182f') + '<div style="font-size:12px;white-space:pre-wrap">' + esc(g.note) + '</div>' : '')
     + '<div style="display:flex;gap:30px;margin-top:34px;font-size:11px;color:' + MUT + '"><div style="flex:1;border-top:1px solid #999;padding-top:4px">Prepared by</div><div style="flex:1;border-top:1px solid #999;padding-top:4px">Checked by</div></div>'
     + '</div>';
 }
@@ -3766,11 +3766,10 @@ function vRange(){
     + '<div class="rgwrap">'
     + '<div class="card"><h3>Sales</h3><table class="tbl" style="width:100%">' + row('Bills', N.ok.length + ' · ' + N.units + ' items') + row('Gross sales', money(N.gross)) + (N.disc ? row('Discounts', money(N.disc)) : '') + row('<b>Net sales</b>', '<b>' + money(N.net) + '</b>') + (N.vat > 0 ? row('VAT included', money(N.vat)) : '')
     + row('Cash', money(N.cash)) + row('Card', money(N.card)) + (N.credit ? row('Credit', money(N.credit)) : '') + (N.voids.length ? row('Cancelled bills', N.voids.length + ' · ' + money(N.voidTot)) : '') + '</table></div>'
-    + '<div class="card"><h3>Drawer cash check</h3><div class="fgrid">' + fld('Cash counted in the drawer now (AED)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="counted" value="' + esc(g.counted) + '">') + fld('Card machine total (optional)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="card" value="' + esc(g.card) + '">') + '</div>'
+    + '<div class="card"><h3>Drawer cash check</h3><div class="fgrid">' + fld('Cash counted in the drawer now (AED)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="counted" value="' + esc(g.counted) + '">') + '</div>'
     + '<table class="tbl" style="width:100%;margin-top:10px">' + row('Cash in the drawer at the start <span style="color:var(--muted)">(' + esc(fdate(new Date(g.from).getTime())) + ')</span>', money(N.open)) + row('+ Cash sales', money(N.cash)) + (N.other ? row('+/− Other cash in / out', money(N.other)) : '') + row('− Cash expenses', money(N.expOut)) + row('<b>Should be in the drawer now</b>', '<b>' + money(N.expected) + '</b>') + (N.diff !== null ? row('Counted', money(parseFloat(g.counted))) : '') + '</table>'
     + (N.diff !== null ? mmBox('Cash', N.diff) : '<p style="margin:10px 0 0;color:var(--muted);font-size:13px">Type the cash you counted to see if it matches.</p>')
-    + (N.cardDiff !== null ? mmBox('Card', N.cardDiff) : '')
-    + '<div class="fgrid" style="margin-top:10px">' + fld('Note (printed on the report)', '<input class="inp" data-f="rg" data-k="note" value="' + esc(g.note) + '">') + '</div></div>'
+    + '<label class="fld" style="margin-top:12px">Why is it more or less? Write the reason (printed on the report)<textarea class="inp" data-f="rg" data-k="note" rows="5" style="font-family:inherit;font-size:14px;min-height:120px;height:auto;padding:10px 12px;line-height:1.4;resize:vertical" placeholder="Staff: explain here if the cash is more or less than it should be">' + esc(g.note) + '</textarea></label></div>'
     + '<div class="card"><h3>By category</h3><table class="tbl" style="width:100%">' + catRows + '</table></div>'
     + (expRows ? '<div class="card"><h3>Cash expenses in this period</h3><table class="tbl" style="width:100%">' + expRows + '</table></div>' : '')
     + '</div></div>';
