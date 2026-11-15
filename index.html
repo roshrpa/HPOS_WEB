@@ -1024,7 +1024,7 @@ var CASHOUT_REASONS = ['Bought supplies','Paid supplier','Staff advance','Delive
 function dayRec(date){ db.days = db.days || {}; if (!db.days[date]) db.days[date] = {opening:'', counted:'', keep:'', cardMachine:'', note:'', cashOut:[], closed:null}; return db.days[date]; }
 function dayData(date){
   var all = db.sales.filter(function(s){ return (s.day || new Date(s.t).toLocaleDateString('en-CA')) === date; });
-  var ok = all.filter(function(s){ return !s.void; }), voids = all.filter(function(s){ return s.void; });
+  var ok = all.filter(function(s){ return !s.void; }), voids = all.filter(function(s){ return s.void && !superseded(s); });
   var sum = function(arr, f){ return arr.reduce(function(a,s){ return a + (f(s) || 0); }, 0); };
   var net = sum(ok, function(s){ return s.total; }), disc = sum(ok, function(s){ return s.discount; });
   var cash = sum(ok.filter(function(s){ return s.pay === 'cash'; }), function(s){ return s.total; });
@@ -2519,7 +2519,7 @@ function dHBars(rows, color, fmt){
   return rows.length ? rows.map(function(r){ return '<div class="hb"><div class="hl"><span>'+esc(r.k)+'</span><b>'+fmt(r.v)+'</b></div><div class="ht"><i style="width:'+Math.max(2, r.v / mx * 100).toFixed(1)+'%;background:'+color+'"></i></div></div>'; }).join('') : '<div class="empty">No sales in this period.</div>';
 }
 function recentBills(){
-  var L = db.sales.slice().sort(function(a, b){ return b.t - a.t; }).slice(0, 8);
+  var L = db.sales.filter(function(s){ return !superseded(s); }).sort(function(a, b){ return b.t - a.t; }).slice(0, 8);
   if (!L.length) return '<div class="empty">No bills yet.</div>';
   return '<div class="tblwrap"><table class="dtbl"><thead><tr><th>Bill</th><th>Time</th><th>Items</th><th>Payment</th><th>Status</th><th class="n">Total</th></tr></thead><tbody>' + L.map(function(s){
     var q = s.lines.reduce(function(a, l){ return a + l.qty; }, 0), pay = s.pay === 'cash' ? 'Cash' : s.pay === 'card' ? 'Card' : 'Credit';
@@ -3193,7 +3193,7 @@ function postRec(r, m, ap){
 
 /* ----- report data ----- */
 function monthData(m){
-  var end = monthEnd(m), sales = db.sales.filter(function(s){ return (s.day || '').slice(0, 7) === m; }), ok = sales.filter(function(s){ return !s.void; }), voids = sales.filter(function(s){ return s.void; });
+  var end = monthEnd(m), sales = db.sales.filter(function(s){ return (s.day || '').slice(0, 7) === m; }), ok = sales.filter(function(s){ return !s.void; }), voids = sales.filter(function(s){ return s.void && !superseded(s); });
   var sum = function(a, f){ return a.reduce(function(x, y){ return x + (f(y) || 0); }, 0); };
   var D = {m:m, end:end, bills:ok.length, net:round2(sum(ok, function(s){ return s.total; })), disc:round2(sum(ok, function(s){ return s.discount; })), vat:round2(sum(ok, function(s){ return s.vat; })), voidN:voids.length, voidAmt:round2(sum(voids, function(s){ return s.total; })), pay:{cash:0, card:0, credit:0}, cat:{}};
   ok.forEach(function(s){ D.pay[s.pay] = round2((D.pay[s.pay] || 0) + s.total); s.lines.forEach(function(l){ D.cat[l.cat] = round2((D.cat[l.cat] || 0) + l.qty * l.price); }); });
@@ -3411,7 +3411,7 @@ function rgState(){
 function rgNums(){
   var g = rgState(), a = new Date(g.from).getTime(), b = new Date(g.to).getTime() + 59999; if (isNaN(a)) a = 0; if (isNaN(b)) b = Date.now();
   var inR = function(t){ return t >= a && t <= b; };
-  var all = db.sales.filter(function(s){ return inR(s.t); }), ok = all.filter(function(s){ return !s.void; }), voids = all.filter(function(s){ return s.void; });
+  var all = db.sales.filter(function(s){ return inR(s.t); }), ok = all.filter(function(s){ return !s.void; }), voids = all.filter(function(s){ return s.void && !superseded(s); });
   var sum = function(arr, f){ return arr.reduce(function(x, s){ return x + (f(s) || 0); }, 0); };
   var net = sum(ok, function(s){ return s.total; }), disc = sum(ok, function(s){ return s.discount; });
   var by = function(m){ return sum(ok.filter(function(s){ return s.pay === m; }), function(s){ return s.total; }); };
