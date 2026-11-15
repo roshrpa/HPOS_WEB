@@ -433,6 +433,9 @@ if (!db.inv || db.inv.v !== 9) db.inv = invDefault();
 if (db.settings && db.settings.pin === undefined){ db.settings.pinOn = false; db.settings.pin = '1234'; }
 if (!db.settings) db.settings = {pinOn:false, pin:'1234', shop:'Hollywood Ice Creams', tel:'056 900 4121 / 07 236 1564', insta:'@hollywoodicecreams_ae', trn:'', vat:false, rate:5, allowZero:true, lowAt:5};
 if (db.settings.carryOpen === undefined) db.settings.carryOpen = true;
+if (db.settings.showSale === undefined) db.settings.showSale = false;
+function saleOn(){ return !!window.HP_DESKTOP || !!(db.settings && db.settings.showSale); }
+function homeTab(){ return saleOn() ? 'sale' : 'dash'; }
 /* Test start: every menu item begins with 100 in stock (runs once per browser) */
 if (db.stockSeed !== 1){ db.stock = {}; menu.forEach(function(c){ c.items.forEach(function(it0){ db.stock[skey(c.name, it0.name)] = 100; }); }); db.stockSeed = 1; save(); }
 function num(n){ return Math.round(n * 100) / 100; }
@@ -1008,6 +1011,7 @@ function vSettings(){
     + sw(G.vat, 'tgvat', 'Charge VAT', G.vat ? 'Bills and receipts show VAT and the receipt says TAX INVOICE.' : 'No VAT on bills. Receipts say RECEIPT. Use this while the shop is below the VAT registration limit.')
     + (G.vat ? '<div class="card"><div class="fgrid">'+inp('VAT rate (%)','rate',G.rate,'number')+inp('Tax registration number (TRN)','trn',G.trn)+'</div><p style="color:var(--muted);font-size:13px;margin:10px 0 0">Prices in the menu are treated as including VAT.</p></div>' : '')
     + sw(G.allowZero, 'tgzero', 'Allow sale when item stock is 0', G.allowZero ? 'Staff can keep selling even if the stock count was not updated. Stock goes below zero so you can see it.' : 'An item with 0 stock shows Sold out and cannot be sold.')
+    + sw(!!G.showSale, 'tgsale', 'Show the Sale tab in this POS', G.showSale ? 'The Sale screen is available in the menu. The Windows counter app always has it.' : 'Off: orders are taken on the tablet and appear here as bills. Turn on to bill from this screen.')
     + sw(!!G.carryOpen, 'tgcarry', 'Carry the closing cash to the next day', G.carryOpen ? 'On Day close you enter how much cash stays in the counter. It becomes the opening cash of the next day automatically.' : 'Type the opening cash by hand every morning.')
     + '<div class="card"><p style="margin:0;color:var(--muted)">Logins, PINs and permissions are managed in the Users tab (Owner only).</p></div>'
     + backupCard() + syncCard()
@@ -1254,7 +1258,7 @@ var TAB_ICON = {
   audit:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
   settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'
 };
-function tabShown(id){ if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users'].indexOf(id) < 0) return false; if (TAB_PERM[id] && !can(TAB_PERM[id])) return false; return true; }
+function tabShown(id){ if (id === 'sale' && !saleOn()) return false; if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users'].indexOf(id) < 0) return false; if (TAB_PERM[id] && !can(TAB_PERM[id])) return false; return true; }
 function tabLabel(id){ var r = ''; TAB_GROUPS.forEach(function(g){ g.tabs.forEach(function(t){ if (t[0] === id) r = t[1]; }); }); return r; }
 function tabBadge(id){
   var n = 0;
@@ -1668,7 +1672,8 @@ var SCR = ['.items', '.cats', '.rail', '.lines', '.page', '.ed .main', '.ed .lis
 function render(){
   normalizeDisc();
   var au = authScreen(); if (au){ document.getElementById('app').innerHTML = au; var lp0 = document.getElementById('lpin'); if (lp0) lp0.focus(); return; }
-  if (TAB_PERM[S.tab] && !can(TAB_PERM[S.tab])) S.tab = 'sale';
+  if (TAB_PERM[S.tab] && !can(TAB_PERM[S.tab])) S.tab = homeTab();
+  if (S.tab === 'sale' && !saleOn()) S.tab = homeTab();
   var keep = {}; SCR.forEach(function(s){ var e = document.querySelector(s); if (e) keep[s] = [e.scrollTop, e.scrollLeft]; });
   var key = S.tab;
   var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'reports' ? vReports() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'range' ? vRange() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
@@ -1835,6 +1840,7 @@ document.addEventListener('click', function(e){
       if (!setg().pinOn && String(setg().pin || '').length < 4){ toast('Set a PIN of at least 4 digits first'); break; }
       setg().pinOn = !setg().pinOn; S.unlocked = true; save(); break;
     case 'tgvat': db.settings.vat = !db.settings.vat; save(); break;
+    case 'tgsale': db.settings.showSale = !db.settings.showSale; if (!db.settings.showSale && S.tab === 'sale') S.tab = 'dash'; save(); break;
     case 'tgcarry': db.settings.carryOpen = !db.settings.carryOpen; save(); break;
     case 'tgzero': db.settings.allowZero = !db.settings.allowZero; save(); break;
     case 'dayuse': S.dayUse = d.v === '0' ? today() : shiftDate(S.dayUse || today(), +d.v); break;
@@ -2003,7 +2009,7 @@ function audit(cat, act, detail, o){
   if (o.ap && o.ap !== r.u) r.ap = o.ap; if (o.flag) r.flag = 1;
   db.audit.push(r); save(); queueEvent('audit', r);
 }
-function lockNow(){ if (curUser()) audit('Users and Security', 'Locked', ''); S.uid = null; try { sessionStorage.removeItem('hp_uid'); } catch(e){} S.lu = null; S.lpin = ''; S.lerr = ''; S.tab = 'sale'; }
+function lockNow(){ if (curUser()) audit('Users and Security', 'Locked', ''); S.uid = null; try { sessionStorage.removeItem('hp_uid'); } catch(e){} S.lu = null; S.lpin = ''; S.lerr = ''; S.tab = homeTab(); }
 
 /* ----- login and first-run setup ----- */
 function vSetup(){
@@ -2063,7 +2069,7 @@ async function serverSignIn(path, body){
 }
 function finishSignIn(u, auditAct){
   S.uid = u.id; try { sessionStorage.setItem('hp_uid', u.id); } catch(er){}
-  S.lpin = ''; S.lerr = ''; S.tab = 'sale'; S.sl = {name:'', pin:''}; S.su = {name:'', pin:'', pin2:''}; S.srv.busy = false;
+  S.lpin = ''; S.lerr = ''; S.tab = homeTab(); S.sl = {name:'', pin:''}; S.su = {name:'', pin:'', pin2:''}; S.srv.busy = false;
   audit('Users and Security', auditAct, ''); kickSync(); render();
 }
 function srvFail(e){ S.srv.busy = false; S.lpin = ''; S.lerr = e.net ? 'Cannot reach the server. Check the internet and try again.' : (e.message || 'Could not sign in'); render(); }
