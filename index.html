@@ -390,7 +390,7 @@ var K = 'hollywood_pos_v1', mem = null;
 function today(){ return new Date().toLocaleDateString('en-CA'); }
 var db = (function(){ try { var r = localStorage.getItem(K); if (r) return JSON.parse(r); } catch(e){} return mem || {sales:[], counter:0, day:today(), stock:{}}; })();
 db.sales.forEach(function(s){ if (typeof s.id !== 'string'){ s.id = String(s.id); s.legacy = true; } });
-function save(){ mem = db; try { localStorage.setItem(K, JSON.stringify(db)); } catch(e){} if (typeof stateDiffSoon === 'function') stateDiffSoon(); }
+function save(){ if (window.__out) return; mem = db; try { localStorage.setItem(K, JSON.stringify(db)); } catch(e){} if (typeof stateDiffSoon === 'function') stateDiffSoon(); }
 
 /* ---------- Inventory: materials, recipes, purchases, waste, stock count, variance ---------- */
 function invDefault(){
@@ -619,7 +619,7 @@ function licBanner(){
   return '<div class="licbar"><span>Your licence ' + (d === 0 ? 'ends <b>today</b>' : 'ends in <b>' + d + ' day' + (d === 1 ? '' : 's') + '</b> (' + esc(sync.shopInfo.expires_on) + ')') + '. After that nothing can be used. Contact your system provider to renew.</span><button data-act="licdis" aria-label="Dismiss">&times;</button></div>';
 }
 setInterval(function(){ if (licBlocked() && !document.hidden) licCheck(); }, 60000);
-function saveSync(){ try { localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch(e){} }
+function saveSync(){ if (window.__out) return; try { localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch(e){} }
 function uuid(){
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
   var b = new Uint8Array(16);
@@ -2055,6 +2055,18 @@ function audit(cat, act, detail, o){
   if (o.ap && o.ap !== r.u) r.ap = o.ap; if (o.flag) r.flag = 1;
   db.audit.push(r); save(); queueEvent('audit', r);
 }
+/* Sign out: send everything to the server, then forget this device's data and go back to the shop code / user / PIN screen. */
+async function signOutDevice(){
+  if (!window.confirm('Sign out of this device?\n\nEverything is saved on the server. You will need the shop code, user name and PIN to sign in again.')) return;
+  toast('Sending changes to the server…');
+  try { stateDiff(); await runSync(); } catch(e){}
+  if (sync.outbox.length){ toast('Some changes are not sent yet. Connect to the internet and try again.'); render(); return; }
+  var url = sync.url, shop = sync.shop;
+  try { audit('Users and Security', 'Signed out', ''); } catch(e){}
+  dirty = false; window.__out = true;
+  try { localStorage.clear(); sessionStorage.clear(); localStorage.setItem(SYNC_KEY, JSON.stringify({url: url || '', shop: shop || ''})); } catch(e){}
+  location.reload();
+}
 function lockNow(){ if (curUser()) audit('Users and Security', 'Locked', ''); S.uid = null; try { sessionStorage.removeItem('hp_uid'); } catch(e){} S.lu = null; S.lpin = ''; S.lerr = ''; S.tab = homeTab(); }
 
 /* ----- login and first-run setup ----- */
@@ -2189,7 +2201,7 @@ function authScreen(){
 }
 function userChip(){
   var u = curUser(); if (!u) return '';
-  return '<span class="userchip"><b>'+esc(u.name)+'</b><small>'+u.role+'</small></span><button class="lockbtn" data-act="locknow" aria-label="Lock">Lock</button>';
+  return '<span class="userchip"><b>'+esc(u.name)+'</b><small>'+u.role+'</small></span><button class="lockbtn" data-act="locknow" aria-label="Lock">Lock</button>' + (sync.token ? '<button class="lockbtn" data-act="signout" aria-label="Sign out">Sign out</button>' : '');
 }
 
 /* ----- price change at sale ----- */
@@ -2346,6 +2358,7 @@ document.addEventListener('click', function(e){
     case 'loginok':
       doLogin(); return;
     case 'locknow': lockNow(); break;
+    case 'signout': signOutDevice(); break;
     case 'pricechg': S.priceForm = {i:+d.i, val:'', reason:'', note:'', pin:'', perm:'price'}; break;
     case 'pricecancel': S.priceForm = null; break;
     case 'priceok':
