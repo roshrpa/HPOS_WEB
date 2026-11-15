@@ -1285,7 +1285,7 @@ function vClose(){
     + (D.voids.length ? '<div class="tbl"><h3>Cancelled bills</h3><table><thead><tr><th>No.</th><th>Reason</th><th class="n">AED</th></tr></thead><tbody>'+D.voids.map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+esc(s.voidReason||'')+(s.voidNote?' <span style="color:var(--muted)">· '+esc(s.voidNote)+'</span>':'')+'</td><td class="n">'+money(s.total)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + (D.ok.some(function(s){ return s.discount > 0; }) ? '<div class="tbl"><h3>Discounts given</h3><table><thead><tr><th>No.</th><th>Reason</th><th class="n">AED</th></tr></thead><tbody>'+D.ok.filter(function(s){ return s.discount > 0; }).map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+esc(s.discReason||'')+(s.discNote?' <span style="color:var(--muted)">· '+esc(s.discNote)+'</span>':'')+'</td><td class="n">'+money(s.discount)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + '<div class="card"><h3>Note</h3>'+fl('Anything to remember about today','<input class="inp" data-f="day" data-k="note" value="'+esc(R.note)+'">')+'</div>'
-    + '<div class="btns" style="max-width:760px;flex-wrap:wrap"><button class="btn ghost" data-act="copyclose">Copy report</button><button class="btn ghost" data-act="dayprint">Print or save as PDF</button><button class="btn primary" data-act="saveclose">'+(R.closed ? 'Update closing' : 'Close the day')+'</button></div>'
+    + '<div class="btns" style="max-width:760px;flex-wrap:wrap"><button class="btn ghost" data-act="dayprint">Print or save as PDF</button><button class="btn primary" data-act="saveclose">'+(R.closed ? 'Update closing' : 'Close the day')+'</button></div>'
     + (hist ? '<div class="tbl" style="margin-top:16px"><h3>Closed days</h3><table><thead><tr><th>Day</th><th class="n">Net</th><th class="n">Cash</th><th class="n">Card</th><th class="n">Cash difference</th></tr></thead><tbody>'+hist+'</tbody></table></div>' : '')
     + '</div>';
 }
@@ -3754,6 +3754,12 @@ function mmBox(lbl, d){
   var ok = d === 0, col = ok ? '#0b7a4b' : '#c0182f', bg = ok ? '#e6f6ee' : '#fdecef';
   return '<div style="margin-top:10px;padding:10px 14px;border-radius:12px;font-weight:700;font-size:16px;background:' + bg + ';color:' + col + ';border:1.5px solid ' + col + '">' + lbl + ': ' + (ok ? 'Matches' : (d > 0 ? 'Over by AED ' + money(d) : 'Short by AED ' + money(-d))) + '</div>';
 }
+function drawerChecksHtml(){
+  var L = db.audit.filter(function(r){ return r.cat === 'Cash' && r.act === 'Drawer counted'; }).slice(-5).reverse();
+  if (!L.length) return '';
+  return '<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:8px"><div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px">Recent drawer checks</div>' + L.map(function(r){
+    return '<div style="font-size:12.5px;padding:3px 0;' + (r.flag ? 'color:#c0182f' : '') + '"><b>' + esc(r.u) + '</b> · ' + auditTime(r.t) + '<br><span style="color:var(--muted)">' + esc(r.d) + '</span></div>'; }).join('') + '</div>';
+}
 function vRange(){
   var N = rgNums(), g = N.g;
   var row = function(a, b, st){ return '<tr><td>' + a + '</td><td class="n" style="' + (st || '') + '">' + b + '</td></tr>'; };
@@ -3762,14 +3768,16 @@ function vRange(){
   return '<div class="page"><div class="card rgtop"><div class="rgtopin">'
     + fld('From', '<input class="inp" type="datetime-local" data-f="rg" data-k="from" value="' + esc(g.from) + '">') + fld('To', '<input class="inp" type="datetime-local" data-f="rg" data-k="to" value="' + esc(g.to) + '">')
     + '<div class="rgq"><button class="btn ghost sm" data-act="rgq" data-v="today">Today</button><button class="btn ghost sm" data-act="rgq" data-v="yest">Yesterday</button><button class="btn ghost sm" data-act="rgq" data-v="week">Last 7 days</button><button class="btn ghost sm" data-act="rgq" data-v="month">This month</button><button class="btn ghost sm" data-act="rgq" data-v="now">Up to now</button></div>'
-    + '<span class="sp"></span><div class="rgact"><button class="btn ghost sm" data-act="rgcopy">Copy</button><button class="btn primary sm" data-act="rgprint">Print / PDF</button></div></div></div>'
+    + '<span class="sp"></span><div class="rgact"><button class="btn primary sm" data-act="rgprint">Print / PDF</button></div></div></div>'
     + '<div class="rgwrap">'
     + '<div class="card"><h3>Sales</h3><table class="tbl" style="width:100%">' + row('Bills', N.ok.length + ' · ' + N.units + ' items') + row('Gross sales', money(N.gross)) + (N.disc ? row('Discounts', money(N.disc)) : '') + row('<b>Net sales</b>', '<b>' + money(N.net) + '</b>') + (N.vat > 0 ? row('VAT included', money(N.vat)) : '')
     + row('Cash', money(N.cash)) + row('Card', money(N.card)) + (N.credit ? row('Credit', money(N.credit)) : '') + (N.voids.length ? row('Cancelled bills', N.voids.length + ' · ' + money(N.voidTot)) : '') + '</table></div>'
     + '<div class="card"><h3>Drawer cash check</h3><label class="fld" style="display:block;margin:2px 0 4px"><span style="display:block;font-size:14px;font-weight:700;margin-bottom:6px">Cash counted in the drawer now (AED)</span><input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="counted" value="' + esc(g.counted) + '" placeholder="Amount" style="width:100%;height:50px;min-height:50px;font-size:22px;font-weight:700;padding:0 14px;border-width:2px"></label>'
     + '<table class="tbl" style="width:100%;margin-top:10px">' + row('Cash in the drawer at the start <span style="color:var(--muted)">(' + esc(fdate(new Date(g.from).getTime())) + ')</span>', money(N.open)) + row('+ Cash sales', money(N.cash)) + (N.other ? row('+/− Other cash in / out', money(N.other)) : '') + row('− Cash expenses', money(N.expOut)) + row('<b>Should be in the drawer now</b>', '<b>' + money(N.expected) + '</b>') + (N.diff !== null ? row('Counted', money(parseFloat(g.counted))) : '') + '</table>'
     + (N.diff !== null ? mmBox('Cash', N.diff) : '<p style="margin:10px 0 0;color:var(--muted);font-size:13px">Type the cash you counted to see if it matches.</p>')
-    + '<label class="fld" style="display:block;margin-top:12px"><span style="display:block;font-size:14px;font-weight:700;margin-bottom:6px">Why is it more or less? Write the reason <span style="font-weight:400;color:var(--muted)">(printed on the report)</span></span><textarea class="inp" data-f="rg" data-k="note" rows="5" style="font-family:inherit;font-size:14px;min-height:120px;height:auto;padding:10px 12px;line-height:1.4;resize:vertical" placeholder="Staff: explain here if the cash is more or less than it should be">' + esc(g.note) + '</textarea></label></div>'
+    + '<label class="fld" style="display:block;margin-top:12px"><span style="display:block;font-size:14px;font-weight:700;margin-bottom:6px">Why is it more or less? Write the reason <span style="font-weight:400;color:var(--muted)">(printed on the report)</span></span><textarea class="inp" data-f="rg" data-k="note" rows="5" style="font-family:inherit;font-size:14px;min-height:120px;height:auto;padding:10px 12px;line-height:1.4;resize:vertical" placeholder="Staff: explain here if the cash is more or less than it should be">' + esc(g.note) + '</textarea></label>'
+    + '<div class="btns" style="justify-content:flex-start;margin-top:10px"><button class="btn plum sm" data-act="rgsavechk"' + (N.diff === null ? ' disabled style="opacity:.5"' : '') + '>Save this check</button><span style="color:var(--muted);font-size:12.5px;align-self:center">Records who counted, when, the amount and the reason in the Audit.</span></div>'
+    + drawerChecksHtml() + '</div>'
     + '<div class="card"><h3>By category</h3><table class="tbl" style="width:100%">' + catRows + '</table></div>'
     + '<div class="card"><h3>Cash expenses in this period</h3>' + (expRows ? '<table class="tbl" style="width:100%">' + expRows + row('<b>Total</b>', '<b>' + money(N.expOut) + '</b>') + '</table>' : '<p style="margin:0;color:var(--muted)">No expenses were recorded for this period.</p>') + '</div>'
     + '</div></div>';
@@ -3789,6 +3797,11 @@ document.addEventListener('click', function(ev){
     else if (v === 'month'){ s.setDate(1); g.from = rgLocal(s.getTime()); g.to = rgLocal(Date.now()); }
     else g.to = rgLocal(Date.now());
     render();
+  } else if (a === 'rgsavechk'){
+    var NN = rgNums(); if (NN.diff === null){ toast('Type the cash you counted first'); return; }
+    var dd = NN.diff === 0 ? 'matches' : (NN.diff > 0 ? 'over by ' + money(NN.diff) : 'short by ' + money(-NN.diff));
+    audit('Cash', 'Drawer counted', 'Counted AED ' + money(parseFloat(g.counted)) + ' · should be ' + money(NN.expected) + ' · ' + dd + ' · ' + fdate(new Date(g.from).getTime()) + ' to ' + fdate(new Date(g.to).getTime()) + (g.note ? ' · reason: ' + g.note : ''), {flag:NN.diff !== 0});
+    toast('Check saved'); render();
   } else if (a === 'rgcopy'){
     var txt = rgText(rgNums()); try { navigator.clipboard.writeText(txt).then(function(){ toast('Report copied'); }, function(){ toast('Copy not allowed here'); }); } catch(e){ toast('Copy not allowed here'); }
   } else if (a === 'rgprint'){
