@@ -169,14 +169,11 @@ td .inp{width:90px;text-align:right}
 .ed .main{overflow-y:auto;padding:14px 20px 40px}
 .ed .cat .mv{margin-left:auto;display:flex;gap:2px}
 .ed .cat .mv span{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:rgba(0,0,0,.08);font-size:13px}
-.cntpg{max-width:560px}
-.cntpg .card{padding:12px 14px;margin-bottom:10px}
-.cntpg .card h3{margin:0 0 6px;font-size:15px}
-.cntpg .card p{font-size:12.5px;line-height:1.35}
-.cntpg th,.cntpg td{padding:2px 8px;font-size:13px;line-height:1.2}
-.cntpg td .inp{min-height:26px;height:26px;width:70px;font-size:13px;border-radius:7px;padding:0 6px;border-width:1px}
-.cntpg .fld .inp{min-height:34px;font-size:13px}
-.cntpg .btn{min-height:34px}
+.cntpg .tbl>p{margin:6px 0;padding:0 14px;font-size:12.5px;color:var(--muted)}
+.cntpg .tbl>div,.cntpg .tbl>.btns{margin:8px 14px}
+.cntpg .tbl table{width:100%}
+.cntpg .tbl table .inp{width:80px;text-align:right}
+.cntpg .tbl .fld .inp{width:100%;text-align:left;height:30px!important;min-height:30px!important}
 .card{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(28,26,31,.1)}
 .card h3{margin:0 0 12px;font-size:17px}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
@@ -1170,10 +1167,10 @@ function countSummary(rec){
 function vCloseCount(date){
   var R = dayRec(date), rec = countRec(R.closeCount && R.closeCount.id), E = expectedMap();
   if (!dailyMats().length) return '';
-  if (rec && !S.ccRedo) return '<div class="card"><h3>Stock count at closing</h3><div>'+countSummary(rec)+'</div>'+countTable(rec)+'<div class="btns"><button class="btn ghost sm" data-act="ccredo">Count again</button></div></div>';
+  if (rec && !S.ccRedo) return '<div class="tbl"><h3>Stock count at closing</h3><div>'+countSummary(rec)+'</div>'+countTable(rec)+'<div class="btns"><button class="btn ghost sm" data-act="ccredo">Count again</button></div></div>';
   var rows = dailyMats().map(function(m){
     return '<tr><td>'+esc(m.name)+'</td><td class="n">'+num(E[m.id].exp)+' '+esc(m.unit)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cc" data-m="'+m.id+'" placeholder="count" value="'+esc(S.ccnt[m.id] === undefined ? '' : S.ccnt[m.id])+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
-  return '<div class="card"><h3>Stock count at closing</h3><p style="color:var(--muted);margin:0 0 8px">Count the cups and plates on the shelf and type them in. Tomorrow morning the staff check the same numbers. A row left empty is not counted.</p>'
+  return '<div class="tbl"><h3>Stock count at closing</h3><p style="color:var(--muted);margin:0 0 8px">Count the cups and plates on the shelf and type them in. Tomorrow morning the staff check the same numbers. A row left empty is not counted.</p>'
     + '<table><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+rows+'</tbody></table>'
     + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap"><label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(S.cname || db.lastStaff || '')+'" autocomplete="off"></label><button class="btn plum sm" data-act="ccsave">Save count</button></div></div>';
 }
@@ -1181,18 +1178,18 @@ function vCount(){
   var date = today(); S.closeDate = date;
   if (!dailyMats().length) return '<div class="page"><div class="card"><h3>Cup and plate count</h3><p style="color:var(--muted)">No counted materials yet. Mark cups and plates as counted in Usage and count first.</p></div></div>';
   var oc = vOpenCheck(date), cc = vCloseCount(date);
-  return '<div class="page cntpg"><p style="color:var(--muted);margin:0 0 8px;font-size:13px">Morning: check the cups and plates against last night\'s count. Closing: count what is on the shelf.</p>'+oc+cc+'</div>';
+  return '<div class="page cntpg"><p style="color:var(--muted);margin:0 0 10px">Morning: check the cups and plates against last night\'s count. Closing: count what is on the shelf.</p>'+oc+cc+'</div>';
 }
 function vOpenCheck(date){
   if (date !== today() || !dailyMats().length) return '';
   var R = (db.days || {})[date], done = R && R.openCheck ? countRec(R.openCheck.id) : null;
-  if (done) return '<div class="card"><h3>Opening stock check</h3><div>'+countSummary(done)+'</div>'+(countShort(done) ? countTable(done) : '')+'</div>';
+  if (done) return '<div class="tbl"><h3>Opening stock check</h3><div>'+countSummary(done)+'</div>'+(countShort(done) ? countTable(done) : '')+'</div>';
   var lc = lastCloseCount(); if (!lc || !lc.rec) return '';
   var E = expectedMap();
   var rows = dailyMats().map(function(m){
     var cl = lc.rec.lines.filter(function(l){ return l.m === m.id; })[0];
     return '<tr><td>'+esc(m.name)+'</td><td class="n">'+(cl ? num(cl.counted) : '-')+'</td><td class="n">'+num(E[m.id].exp)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="oc" data-m="'+m.id+'" placeholder="'+num(E[m.id].exp)+'" value="'+esc(S.ocnt[m.id] === undefined ? '' : S.ocnt[m.id])+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
-  return '<div class="card" style="border:2px solid var(--pink)"><h3>Opening stock check</h3><p style="color:var(--muted);margin:0 0 8px">Check the cups and plates in the shop against the count at closing ('+esc(lc.day)+', counted by '+esc(lc.rec.by || '-')+'). If a number is right, leave it empty. If it is different, type what you really see. Do this when you are free.</p>'
+  return '<div class="tbl" style="border:2px solid var(--pink)"><h3>Opening stock check</h3><p style="color:var(--muted);margin:0 0 8px">Check the cups and plates in the shop against the count at closing ('+esc(lc.day)+', counted by '+esc(lc.rec.by || '-')+'). If a number is right, leave it empty. If it is different, type what you really see. Do this when you are free.</p>'
     + '<table><thead><tr><th>Material</th><th class="n">Closing count</th><th class="n">In the system now</th><th class="n">Counted now</th></tr></thead><tbody>'+rows+'</tbody></table>'
     + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap"><label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(S.cname || db.lastStaff || '')+'" autocomplete="off"></label><button class="btn primary sm" data-act="ocsave">Confirm check</button></div></div>';
 }
@@ -1607,6 +1604,9 @@ function vExp(){
   var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="xtab" data-id="'+t[0]+'" aria-pressed="'+(S.xt===t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
   var body = S.xt === 'sum' ? xSummary() : S.xt === 'cat' ? xCats() : S.xt === 'rec' ? xRec() : xList();
   return '<div class="page"><div class="bar">'+seg+'</div>'+body+'</div>';
+}
+function monthSeg(act, m, isNow){
+  return '<div class="seg"><button data-act="'+act+'" data-v="-1" aria-label="Previous month">◀</button><button data-act="'+act+'" data-v="0" aria-pressed="'+(m === today().slice(0, 7))+'">'+esc(monthLabel(m))+'</button><button data-act="'+act+'" data-v="1" aria-label="Next month">▶</button></div>';
 }
 function xMonthBar(){
   return '<div class="seg" style="margin-bottom:10px"><button data-act="xmonth" data-v="-1" aria-label="Previous month">◀</button><button data-act="xmonth" data-v="0" aria-pressed="'+(S.xm === today().slice(0, 7))+'">'+esc(monthLabel(S.xm))+'</button><button data-act="xmonth" data-v="1" aria-label="Next month">▶</button></div>';
@@ -2634,22 +2634,21 @@ function vCash(){
   var f = S.cf, tile = function(a, b, c){ return '<div class="tile"><small>'+a+'</small><b>'+b+'</b>'+(c ? '<small>'+c+'</small>' : '')+'</div>'; };
   var dB = cashBal('drawer'), bB = cashBal('bank'), ctr = cardToReceive(), m = today().slice(0, 7);
   var needAcct = f.kind === 'cap' || f.kind === 'draw';
-  var form = '<div class="bar"><span class="sp"></span><button class="btn primary sm" data-act="cashnew">+ Add cash entry</button></div>';
+  var form = '';
   var acct = S.ca, lv = ledgerView(acct, S.cm);
-  var led = '<div class="card"><div class="bar"><h3 style="margin:0">Ledger</h3><span class="sp"></span><div class="seg"><button data-act="cacct" data-id="drawer" aria-pressed="'+(acct === 'drawer')+'">Drawer</button><button data-act="cacct" data-id="bank" aria-pressed="'+(acct === 'bank')+'">Bank</button></div></div>'
-    + '<div class="bar" style="margin:8px 0"><button class="btn sm ghost" data-act="cmonth" data-v="-1">‹</button><b>'+monthLabel(S.cm)+'</b><button class="btn sm ghost" data-act="cmonth" data-v="1">›</button><span class="sp"></span><button class="btn sm ghost" data-act="cprint">Print / PDF</button> <button class="btn sm ghost" data-act="ccsv">CSV</button></div>'
-    + '<p style="margin:0 0 8px;color:var(--muted)">Start AED '+money(lv.start)+' · In '+money(lv.inn)+' · Out '+money(lv.outt)+' · <b style="color:var(--ink,#222)">End AED '+money(lv.end)+'</b></p>'
-    + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Details</th><th>By</th><th style="text-align:right">In</th><th style="text-align:right">Out</th><th style="text-align:right">Balance</th><th></th></tr></thead><tbody>'
+  var led = '<div class="bar"><div class="seg"><button data-act="cacct" data-id="drawer" aria-pressed="'+(acct === 'drawer')+'">Drawer</button><button data-act="cacct" data-id="bank" aria-pressed="'+(acct === 'bank')+'">Bank</button></div>'+monthSeg('cmonth', S.cm)+'<span class="sp"></span><button class="btn ghost sm" data-act="cprint">Print / PDF</button><button class="btn ghost sm" data-act="ccsv">CSV</button><button class="btn primary sm" data-act="cashnew">+ Add cash entry</button></div>'
+    + '<div class="tbl"><h3>'+(acct === 'bank' ? 'Bank' : 'Counter drawer')+' · '+esc(monthLabel(S.cm))+' <span style="font-weight:400;color:var(--muted);font-size:13px">Start AED '+money(lv.start)+' · In '+money(lv.inn)+' · Out '+money(lv.outt)+' · <b style="color:var(--ink,#222)">End AED '+money(lv.end)+'</b></span></h3>'
+    + '<table><thead><tr><th>Date</th><th>Details</th><th>By</th><th class="n">In</th><th class="n">Out</th><th class="n">Balance</th><th></th></tr></thead><tbody>'
     + (lv.rows.slice().reverse().map(function(r){
       var del = '';
       if (r.src === 'Cash tab'){
         del = S.cdel === r.id ? '<input class="inp" type="password" inputmode="numeric" placeholder="PIN" data-f="cdelpin" value="'+esc(S.cdelpin)+'" style="width:90px;display:'+(pinNeeded('cash') ? 'inline-block' : 'none')+'"> <button class="btn sm danger" data-act="cdely" data-id="'+r.id+'">Delete</button> <button class="btn sm ghost" data-act="cdeln">×</button>' : '<button class="btn sm ghost" data-act="cdel" data-id="'+r.id+'">Delete</button>';
       }
       return '<tr><td style="white-space:nowrap">'+xDate(r.date)+'</td><td>'+esc(r.label)+'<small style="display:block;color:var(--muted)">'+esc(r.src)+'</small></td><td>'+esc(r.by || '')+'</td><td style="text-align:right">'+(r.amt > 0 ? money(r.amt) : '')+'</td><td style="text-align:right">'+(r.amt < 0 ? money(-r.amt) : '')+'</td><td style="text-align:right">'+money(r.bal)+'</td><td>'+del+'</td></tr>';
-    }).join('') || '<tr><td colspan="7" class="empty">No movements this month.</td></tr>')+'</tbody></table></div></div>';
+    }).join('') || '<tr><td colspan="7">No movements this month.</td></tr>')+'</tbody></table></div>';
   var o = S.cop, od = db.cash.open;
-  var open = '<div class="card"><h3>Opening balances</h3><p style="color:var(--muted);margin:0 0 10px">The balance on the day you start using this ledger. Movements before that date are ignored. Now: drawer AED '+money(+od.drawer.amt || 0)+(od.drawer.date ? ' from '+xDate(od.drawer.date) : '')+', bank AED '+money(+od.bank.amt || 0)+(od.bank.date ? ' from '+xDate(od.bank.date) : '')+'.</p>'
-    + '<div class="btns" style="justify-content:flex-start"><button class="btn plum" data-act="copnew">Set opening balances</button></div></div>';
+  var open = '<div class="tbl"><h3>Opening balances</h3><div style="padding:8px 14px"><p style="color:var(--muted);margin:0 0 8px;font-size:13px">The balance on the day you start using this ledger. Movements before that date are ignored. Now: drawer AED '+money(+od.drawer.amt || 0)+(od.drawer.date ? ' from '+xDate(od.drawer.date) : '')+', bank AED '+money(+od.bank.amt || 0)+(od.bank.date ? ' from '+xDate(od.bank.date) : '')+'.</p>'
+    + '<div class="btns" style="justify-content:flex-start"><button class="btn plum sm" data-act="copnew">Set opening balances</button></div></div></div>';
   return '<div class="page"><div class="tiles">'+tile('Counter drawer', 'AED '+money(dB))+tile('Bank', 'AED '+money(bB))+tile('Card to receive', 'AED '+money(ctr), 'sold by card, not yet in bank')+tile('Owner drawings ' + monthLabel(m).split(' ')[0], 'AED '+money(ownerDraw(m)))+'</div>'
     + form + led + open + '</div>';
 }
@@ -2815,7 +2814,7 @@ document.addEventListener('click', function(e){
   var a = el.dataset.act, d = el.dataset;
   switch (a){
     case 'cacct': S.ca = d.id; break;
-    case 'cmonth': S.cm = shiftMonth(S.cm, +d.v); break;
+    case 'cmonth': S.cm = d.v === '0' ? today().slice(0, 7) : shiftMonth(S.cm, +d.v); break;
     case 'gocash': S.tab = can('cash') ? 'cash' : S.tab; break;
     case 'goexp': S.tab = can('exp') ? 'exp' : S.tab; break;
     case 'gostock': S.tab = can('stock') ? 'stock' : S.tab; break;
@@ -2980,8 +2979,8 @@ function vPurHist(){
     var act = p.void ? '<span class="pill void">Cancelled</span>' : (S.pcan === p.id ? '<input class="inp" type="password" inputmode="numeric" placeholder="PIN" data-f="pcanpin" value="'+esc(S.pcanpin)+'" style="width:90px;display:'+(pinNeeded('purch') ? 'inline-block' : 'none')+'"> <button class="btn sm danger" data-act="pcany" data-id="'+p.id+'">Cancel it</button> <button class="btn sm ghost" data-act="pcann">×</button>' : '<button class="btn sm ghost" data-act="pedit" data-id="'+p.id+'">Edit</button> <button class="btn sm ghost" data-act="pcan" data-id="'+p.id+'">Cancel</button>');
     return '<tr'+(p.void ? ' style="opacity:.55"' : '')+'><td style="white-space:nowrap">'+xDate(p.date)+(p.edited ? ' <span class="pill" style="background:#fdf1dc;color:#7a5410">Edited</span>' : '')+'</td><td>'+esc(supName(p.sup))+(p.inv ? '<small style="display:block;color:var(--muted)">inv '+esc(p.inv)+'</small>' : '')+'</td><td style="font-size:13px">'+esc(purDesc(p))+'</td><td><span class="pill cash">'+(p.pay === 'credit' ? 'Credit' : p.pay === 'bank' ? 'Bank' : 'Cash')+'</span></td><td class="n" style="text-align:right">'+money(p.total)+(p.vat ? '<small style="display:block;color:var(--muted)">VAT '+money(p.vat)+'</small>' : '')+'</td><td>'+esc(p.by || '')+'</td><td>'+act+'</td></tr>';
   }).join('');
-  return '<div class="card"><div class="bar"><button class="btn sm ghost" data-act="pmonth" data-v="-1">‹</button><b>'+monthLabel(S.pm)+'</b><button class="btn sm ghost" data-act="pmonth" data-v="1">›</button><span class="sp"></span><b>Total AED '+money(tot)+'</b><button class="btn primary sm" data-act="pnew" style="margin-left:12px">+ New purchase</button></div>'
-    + '<div class="tblwrap" style="margin-top:8px"><table class="tbl"><thead><tr><th>Date</th><th>Supplier</th><th>Items</th><th>Paid</th><th style="text-align:right">AED</th><th>By</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="7" class="empty">No purchases this month.</td></tr>')+'</tbody></table></div></div>';
+  return '<div class="bar">'+monthSeg('pmonth', S.pm)+'<span class="sp"></span><button class="btn primary sm" data-act="pnew">+ New purchase</button></div>'
+    + '<div class="tbl"><h3>'+esc(monthLabel(S.pm))+' · AED '+money(tot)+'</h3><table><thead><tr><th>Date</th><th>Supplier</th><th>Items</th><th>Paid</th><th class="n">AED</th><th>By</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="7">No purchases this month.</td></tr>')+'</tbody></table></div>';
 }
 function supStatement(id){
   var rows = [];
@@ -3079,7 +3078,7 @@ document.addEventListener('click', function(e){
   switch (a){
     case 'ptab': S.pt = d.id; S.popen = false; S.pedit = null; break;
     case 'gopurch': S.tab = can('purch') ? 'purch' : S.tab; break;
-    case 'pmonth': S.pm = shiftMonth(S.pm, +d.v); break;
+    case 'pmonth': S.pm = d.v === '0' ? today().slice(0, 7) : shiftMonth(S.pm, +d.v); break;
     case 'pladd': S.pf.lines.push({key:'', qty:'', unit:'pcs', amt:'', to:'wh'}); break;
     case 'plrm': S.pf.lines.splice(+d.i, 1); break;
     case 'purchsave':
@@ -3238,10 +3237,11 @@ function vCustList(){
     return '<tr><td><b>'+esc(r.c.name)+'</b>'+(r.c.active === false ? ' <span class="pill void">Inactive</span>' : '')+'<small style="display:block;color:var(--muted)">'+esc(r.c.phone)+'</small></td><td style="text-align:right">'+money(r.c.limit)+'</td><td style="text-align:right"><b>'+money(r.b)+'</b></td><td style="text-align:right;'+(r.o.amt ? 'color:var(--pink-dk)' : '')+'">'+(r.o.amt ? money(r.o.amt)+'<small style="display:block">'+r.o.days+' days late</small>' : '-')+'</td><td style="text-align:right"><button class="btn sm ghost" data-act="custopen" data-id="'+r.c.id+'">Open</button></td></tr>';
   }).join('');
   return '<div class="tiles">'+tile('Credit outstanding', 'AED '+money(st.out), st.n+' customers')+tile('Overdue', 'AED '+money(st.od), st.nod+' customers · more than '+creditDays()+' days')+'</div>'
-    + '<div class="card"><div class="bar"><h3 style="margin:0">Credit customers</h3><span class="sp"></span><button class="btn primary sm" data-act="custnew">+ Add customer</button></div><div class="tblwrap"><table class="tbl"><thead><tr><th>Customer</th><th style="text-align:right">Limit</th><th style="text-align:right">Owes</th><th style="text-align:right">Overdue</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="5" class="empty">No credit customers yet. They are added when you sell on credit.</td></tr>')+'</tbody></table></div></div>'
-    + '<div class="card"><h3>Defaults</h3><p style="margin:0 0 8px;color:var(--muted)">Used for new customers. A bill is overdue when it is unpaid after the credit days.</p><div class="fgrid">'
+    + '<div class="bar"><span class="sp"></span><button class="btn primary sm" data-act="custnew">+ Add customer</button></div>'
+    + '<div class="tbl"><h3>Credit customers</h3><table><thead><tr><th>Customer</th><th class="n">Limit</th><th class="n">Owes</th><th class="n">Overdue</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="5">No credit customers yet. They are added when you sell on credit.</td></tr>')+'</tbody></table></div>'
+    + '<div class="tbl"><h3>Defaults</h3><div style="padding:8px 14px"><p style="margin:0 0 8px;color:var(--muted);font-size:13px">Used for new customers. A bill is overdue when it is unpaid after the credit days.</p><div class="fgrid">'
     + '<label class="fld">Default credit limit (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cset" data-k="creditLimit" value="'+creditLimitDef()+'"></label>'
-    + '<label class="fld">Credit days (due after)<input class="inp" type="number" min="1" step="1" inputmode="numeric" data-f="cset" data-k="creditDays" value="'+creditDays()+'"></label></div></div>';
+    + '<label class="fld">Credit days (due after)<input class="inp" type="number" min="1" step="1" inputmode="numeric" data-f="cset" data-k="creditDays" value="'+creditDays()+'"></label></div></div></div>';
 }
 function custStatement(id){
   var rows = [];
