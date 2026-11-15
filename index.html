@@ -245,6 +245,13 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 @media (max-width:700px){ header.top{padding:8px 12px} header.top .ptitle{font-size:16px} header.top .ht1 p{display:none} .alertp{display:none} .page.dash{padding:12px} }
 .dcard .btn.sm{min-height:32px;padding:5px 14px;font-size:13px;font-weight:500;border-radius:9px;border:1px solid #e6e2dc;background:#fff;color:#3a3835;box-shadow:none}
 .pill.edt{background:#fdf1dc;color:#7a5410;font-size:11px;font-weight:600;padding:2px 8px;margin-left:4px}
+/* cash report layout */
+.rgwrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;align-items:start;padding:0 0 24px}
+.rgwrap>.card{margin:0;min-width:0;width:auto;max-width:none;height:auto;flex:none} .rgwrap .tbl td{padding:9px 4px} .rgwrap .tbl td.n{white-space:nowrap;text-align:right} .rgwrap .tbl td:first-child{word-break:normal}
+.rgwrap .fgrid{display:grid;grid-template-columns:1fr;gap:10px}
+.rgwrap .rgq{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px} .rgwrap .rgq .btn{flex:0 1 auto;min-height:38px;padding:7px 14px;font-size:14px;font-weight:500;border-radius:10px;white-space:nowrap}
+.rgwrap .rgbtns{grid-column:1/-1;display:flex;gap:10px;justify-content:flex-start;margin:0} .rgwrap .rgbtns .btn{flex:0 0 auto;width:auto;height:auto;min-height:42px;padding:9px 22px;font-size:14px;font-weight:500;border-radius:10px}
+.rgwrap .inp{border-radius:10px;min-height:42px}
 </style>
 </head>
 <body>
@@ -3400,9 +3407,9 @@ function vRange(){
   var row = function(a, b, st){ return '<tr><td>' + a + '</td><td class="n" style="' + (st || '') + '">' + b + '</td></tr>'; };
   var catRows = Object.keys(N.cat).map(function(k){ return row(esc(k) + ' <span style="color:var(--muted)">× ' + N.cat[k].qty + '</span>', money(N.cat[k].amt)); }).join('') || '<tr><td colspan="2" style="color:var(--muted)">No sales in this period.</td></tr>';
   var expRows = N.exps.map(function(e){ return row(esc(xLabel(e)) + (e.who ? ' <span style="color:var(--muted)">(' + esc(e.who) + ')</span>' : ''), money(e.amt)); }).join('');
-  return '<div class="card"><h3>Cash and report by date and time</h3>'
+  return '<div class="page"><div class="rgwrap"><div class="card rgfilter"><h3>Cash and report by date and time</h3>'
     + '<div class="fgrid">' + fld('From', '<input class="inp" type="datetime-local" data-f="rg" data-k="from" value="' + esc(g.from) + '">') + fld('To', '<input class="inp" type="datetime-local" data-f="rg" data-k="to" value="' + esc(g.to) + '">') + '</div>'
-    + '<div class="btns" style="margin-top:10px;flex-wrap:wrap"><button class="btn ghost sm" data-act="rgq" data-v="today">Today</button><button class="btn ghost sm" data-act="rgq" data-v="yest">Yesterday</button><button class="btn ghost sm" data-act="rgq" data-v="week">Last 7 days</button><button class="btn ghost sm" data-act="rgq" data-v="month">This month</button><button class="btn ghost sm" data-act="rgq" data-v="now">Up to now</button></div></div>'
+    + '<div class="btns rgq"><button class="btn ghost sm" data-act="rgq" data-v="today">Today</button><button class="btn ghost sm" data-act="rgq" data-v="yest">Yesterday</button><button class="btn ghost sm" data-act="rgq" data-v="week">Last 7 days</button><button class="btn ghost sm" data-act="rgq" data-v="month">This month</button><button class="btn ghost sm" data-act="rgq" data-v="now">Up to now</button></div></div>'
     + '<div class="card"><h3>Sales</h3><table class="tbl" style="width:100%">' + row('Bills', N.ok.length + ' · ' + N.units + ' items') + row('Gross sales', money(N.gross)) + (N.disc ? row('Discounts', money(N.disc)) : '') + row('<b>Net sales</b>', '<b>' + money(N.net) + '</b>') + (N.vat > 0 ? row('VAT included', money(N.vat)) : '')
     + row('Cash', money(N.cash)) + row('Card', money(N.card)) + (N.credit ? row('Credit', money(N.credit)) : '') + (N.voids.length ? row('Cancelled bills', N.voids.length + ' · ' + money(N.voidTot)) : '') + '</table></div>'
     + '<div class="card"><h3>Drawer cash check</h3><div class="fgrid">' + fld('Cash in the drawer at the start (AED)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="open" value="' + esc(g.open) + '">') + fld('Cash counted now (AED)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="counted" value="' + esc(g.counted) + '">') + '</div>'
@@ -3412,7 +3419,7 @@ function vRange(){
     + (N.cardDiff !== null ? '<p style="margin:8px 0 0;' + diffStyle(N.cardDiff) + '">Card: ' + diffText(N.cardDiff) + '</p>' : '') + '</div>'
     + '<div class="card"><h3>By category</h3><table class="tbl" style="width:100%">' + catRows + '</table></div>'
     + (expRows ? '<div class="card"><h3>Cash expenses in this period</h3><table class="tbl" style="width:100%">' + expRows + '</table></div>' : '')
-    + '<div class="btns" style="max-width:760px;flex-wrap:wrap"><button class="btn ghost" data-act="rgcopy">Copy report</button><button class="btn ghost" data-act="rgprint">Print or save as PDF</button></div>';
+    + '<div class="btns rgbtns"><button class="btn ghost" data-act="rgcopy">Copy report</button><button class="btn ghost" data-act="rgprint">Print or save as PDF</button></div></div></div>';
 }
 document.addEventListener('change', function(ev){
   var el = ev.target.closest ? ev.target.closest('[data-f=rg]') : null; if (!el) return;
