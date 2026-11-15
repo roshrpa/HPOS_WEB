@@ -610,6 +610,7 @@ async function runSync(){
       sync.lastSeq = p.last_seq; saveSync();
       more = p.events.length >= 500;
     }
+    if (tabCatchUp()) changed = true;
     try { var us = await syncApi('/users'); if (us && us.users && us.users.length && us.ver !== sync.uver){ applyServerUsers(us.users, us.ver); changed = true; } }
     catch(e){ if (e.status === 401) throw e; }
     if (await cfgSync()) changed = true;
@@ -734,20 +735,29 @@ function tabCust(c){
 }
 function tabSale(o){
   if (!o || o.legacy) return false;
-  var ch = false, want = null;
+  var ch = false, want = null, ck = '';
   var okPay = o.pay === 'cash' || o.pay === 'card' || (o.pay === 'credit' && o.credit);
-  if (o.status === 'new' && okPay && o.lines && o.lines.length)
-    want = detUuid(o.id + '|' + (o.rev || 0) + '|' + JSON.stringify([o.lines.map(function(l){ return [l.cat, l.name, l.size, l.price, l.qty]; }), o.pay, o.credit ? [o.credit.name, o.credit.phone] : 0]));
-  db.sales.filter(function(s){ return s.tord === o.id && !s.void && s.id !== want; }).forEach(function(s){ tabVoid(s, o.status === 'cancelled' ? 'Cancelled on tablet' : 'Order changed on tablet'); ch = true; });
+  var mine = db.sales.filter(function(s){ return s.tord === o.id; });
+  if (o.status === 'new' && okPay && o.lines && o.lines.length){
+    ck = detUuid(JSON.stringify([o.lines.map(function(l){ return [l.cat, l.name, l.size, l.price, l.qty]; }), o.pay, o.credit ? [o.credit.name, o.credit.phone] : 0]));
+    var cur = mine.filter(function(s){ return !s.void && s.ck === ck; })[0];
+    want = cur ? cur.id : detUuid(o.id + '|' + mine.length + '|' + ck);
+  }
+  mine.filter(function(s){ return !s.void && s.id !== want; }).forEach(function(s){ tabVoid(s, o.status === 'cancelled' ? 'Cancelled on tablet' : 'Order changed on tablet'); ch = true; });
   if (want && !byId(db.sales, want)){
     var tot = round2(o.lines.reduce(function(a, l){ return a + l.qty * l.price; }, 0)), cu = o.pay === 'credit' ? tabCust(o.credit) : null, day = o.day || new Date(o.t).toLocaleDateString('en-CA');
-    var sl = {id:want, tord:o.id, auto:1, no:tOrderLabel(o), dev:'', t:o.t, day:day, lines:o.lines.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty}; }),
+    var sl = {id:want, tord:o.id, ck:ck, auto:1, no:tOrderLabel(o), dev:'', t:o.t, day:day, lines:o.lines.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty}; }),
       subtotal:tot, discount:0, discReason:'', discNote:'', discBy:'', total:tot, pay:o.pay, tendered:o.pay === 'cash' ? tot : 0, void:false, vat:vatOf(tot), vatRate:setg().vat ? setg().rate : 0, by:o.by || 'Tablet',
       cust:cu ? cu.id : '', custName:cu ? cu.name : '', custPhone:cu ? cu.phone : '', givenBy:(o.credit && o.credit.by) || '', due:cu ? addDays(day, creditDays()) : ''};
     stockMove(sl.lines, -1); db.sales.push(sl); ch = true;
-    queueEvent('sale', {id:sl.id, tord:o.id, no:sl.no, day:sl.day, t:sl.t, pay:sl.pay, subtotal:sl.subtotal, discount:0, discReason:'', discNote:'', total:sl.total, vat:sl.vat, vatRate:sl.vatRate, tendered:sl.tendered,
+    queueEvent('sale', {id:sl.id, tord:o.id, ck:ck, no:sl.no, day:sl.day, t:sl.t, pay:sl.pay, subtotal:sl.subtotal, discount:0, discReason:'', discNote:'', total:sl.total, vat:sl.vat, vatRate:sl.vatRate, tendered:sl.tendered,
       cust:sl.cust, custName:sl.custName, custPhone:sl.custPhone, givenBy:sl.givenBy, due:sl.due, by:sl.by, discBy:'', lines:sl.lines}, detUuid(sl.id + '|sale'));
   }
+  return ch;
+}
+function tabCatchUp(){   // tablet orders that came in before this version: bill the ones that have no sale yet
+  var ch = false; (db.tOrders || []).forEach(function(o){ if (o.status === 'new' && !o.legacy && !db.sales.some(function(s){ return s.tord === o.id; })){ if (tabSale(o)) ch = true; } });
+  if (ch){ db.sales.sort(function(a, b){ return a.t - b.t; }); save(); }
   return ch;
 }
 function applyRemote(events){
@@ -758,18 +768,18 @@ function applyRemote(events){
     if (e.type === 'sale'){
       if (isUuid(p.id) && !byId(db.sales, p.id)){
         db.sales.push({id:p.id, no:p.no, t:p.t || e.t, day:p.day || new Date(p.t || e.t).toLocaleDateString('en-CA'), lines:p.lines || [], subtotal:p.subtotal != null ? p.subtotal : p.total, discount:p.discount || 0,
-          discReason:p.discReason || '', discNote:p.discNote || '', total:p.total, pay:p.pay, tendered:p.tendered || 0, void:false, tord:p.tord || '', auto:p.tord ? 1 : 0, vat:p.vat || 0, vatRate:p.vatRate || 0, remote:true, cust:p.cust || '', custName:p.custName || '', custPhone:p.custPhone || '', givenBy:p.givenBy || '', due:p.due || '', by:p.by || '', discBy:p.discBy || ''});
+          discReason:p.discReason || '', discNote:p.discNote || '', total:p.total, pay:p.pay, tendered:p.tendered || 0, void:false, tord:p.tord || '', ck:p.ck || '', auto:p.tord ? 1 : 0, vat:p.vat || 0, vatRate:p.vatRate || 0, remote:true, cust:p.cust || '', custName:p.custName || '', custPhone:p.custPhone || '', givenBy:p.givenBy || '', due:p.due || '', by:p.by || '', discBy:p.discBy || ''});
         stockMove(p.lines || [], -1); changed = true;
       }
     } else if (e.type === 'sale_cancel'){
       var s = byId(db.sales, p.id);
       if (s && !s.void){ s.void = true; s.voidReason = p.reason || ''; s.voidNote = p.note || ''; s.voidT = e.t; stockMove(s.lines, +1); changed = true; }
     } else if (e.type === 'order'){
-      if (isUuid(p.id) && !tord(p.id)){ var no1 = {id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, day:p.day || '', by:p.by || '', rev:0, lines:p.lines || [], note:p.note || '', pay:p.pay || '', credit:p.credit || null, status:'new'}; db.tOrders.push(no1); tabSale(no1); changed = true; }
+      if (isUuid(p.id) && !tord(p.id)){ var no1 = {id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, day:p.day || '', by:p.by || '', lines:p.lines || [], note:p.note || '', pay:p.pay || '', credit:p.credit || null, status:'new'}; db.tOrders.push(no1); tabSale(no1); changed = true; }
     } else if (e.type === 'order_update'){
-      var o = tord(p.id); if (o && o.status === 'new'){ o.lines = p.lines || o.lines; o.note = p.note || ''; if (p.pay !== undefined) o.pay = p.pay || ''; if (p.credit !== undefined) o.credit = p.credit || null; o.rev = (o.rev || 0) + 1; tabSale(o); changed = true; }
+      var o = tord(p.id); if (o && o.status === 'new'){ o.lines = p.lines || o.lines; o.note = p.note || ''; if (p.pay !== undefined) o.pay = p.pay || ''; if (p.credit !== undefined) o.credit = p.credit || null; tabSale(o); changed = true; }
     } else if (e.type === 'order_pay'){
-      var o4 = tord(p.id); if (o4 && o4.status === 'new'){ o4.pay = p.pay || ''; o4.rev = (o4.rev || 0) + 1; tabSale(o4); changed = true; }
+      var o4 = tord(p.id); if (o4 && o4.status === 'new'){ o4.pay = p.pay || ''; tabSale(o4); changed = true; }
     } else if (e.type === 'rec' || e.type === 'recdel' || e.type === 'num'){
       if (applyState(e.type, p)) changed = true;
     } else if (e.type === 'audit'){
