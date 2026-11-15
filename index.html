@@ -3696,11 +3696,11 @@ function rgNums(){
   var man = 0, d = new Date(a); d.setHours(0, 0, 0, 0);
   for (var t = d.getTime(), n = 0; t <= b && n < 400; t += 86400000, n++){ man += cashManualNet(new Date(t).toLocaleDateString('en-CA')); }
   man = round2(man);
-  var open = parseFloat(g.open); if (isNaN(open)) open = 0;
+  var open = cashBal('drawer', addDays(da, -1));
   var cash = by('cash'), card = by('card'), credit = by('credit');
-  var expected = round2(open + cash + cpCash + man - expOut);
+  var expected = cashBal('drawer', db2), other = round2(expected - open - cash + expOut);
   var hasC = g.counted !== '' && !isNaN(parseFloat(g.counted)), hasK = g.card !== '' && !isNaN(parseFloat(g.card));
-  return {g:g, ok:ok, voids:voids, net:net, disc:disc, gross:net + disc, vat:sum(ok, function(s){ return s.vat; }), cash:cash, card:card, credit:credit, cat:cat, units:units, exps:exps, expOut:expOut, cpCash:cpCash, cpCard:cpCard, man:man, open:open, expected:expected,
+  return {g:g, ok:ok, voids:voids, net:net, disc:disc, gross:net + disc, vat:sum(ok, function(s){ return s.vat; }), cash:cash, card:card, credit:credit, cat:cat, units:units, exps:exps, expOut:expOut, cpCash:cpCash, cpCard:cpCard, man:man, open:open, other:other, expected:expected,
     diff:hasC ? round2(parseFloat(g.counted) - expected) : null, cardDiff:hasK ? round2(parseFloat(g.card) - (card + cpCard)) : null, voidTot:sum(voids, function(s){ return s.total; })};
 }
 function rgText(N){
@@ -3708,10 +3708,7 @@ function rgText(N){
   L.push('Bills: ' + N.ok.length + '   Items: ' + N.units, 'Gross sales: AED ' + money(N.gross), 'Discounts: AED ' + money(N.disc), 'Net sales: AED ' + money(N.net));
   if (N.vat > 0) L.push('VAT: AED ' + money(N.vat));
   L.push('Cash sales: AED ' + money(N.cash), 'Card sales: AED ' + money(N.card)); if (N.credit > 0) L.push('Credit sales: AED ' + money(N.credit));
-  L.push('', 'Opening cash: ' + money(N.open));
-  if (N.cpCash) L.push('Credit payments received in cash: ' + money(N.cpCash));
-  if (N.man) L.push('Other cash in / out (Cash tab, purchases): ' + money(N.man));
-  L.push('Cash paid out (expenses): ' + money(N.expOut), 'Cash that should be in the drawer: ' + money(N.expected));
+  L.push('', 'Cash in the drawer at the start: ' + money(N.open), 'Cash sales: ' + money(N.cash)); if (N.other) L.push('Other cash in / out: ' + money(N.other)); L.push('Cash expenses: ' + money(N.expOut), 'Cash that should be in the drawer: ' + money(N.expected));
   if (N.diff !== null) L.push('Cash counted: ' + money(parseFloat(N.g.counted)) + ' (' + diffText(N.diff) + ')');
   if (N.cardDiff !== null) L.push('Card machine total: ' + money(parseFloat(N.g.card)) + ' (' + diffText(N.cardDiff) + ')');
   L.push('', 'By category:'); Object.keys(N.cat).forEach(function(k){ L.push('  ' + k + ': ' + N.cat[k].qty + ' items, AED ' + money(N.cat[k].amt)); });
@@ -3719,6 +3716,40 @@ function rgText(N){
   if (N.exps.length){ L.push('', 'Cash expenses:'); N.exps.forEach(function(e){ L.push('  AED ' + money(e.amt) + ' - ' + xLabel(e)); }); }
   if (N.g.note) L.push('', 'Note: ' + N.g.note);
   return L.join('\n');
+}
+function rgPrintHtml(N){
+  var G = setg(), g = N.g, u = curUser(), P = '#d6338a', T = '#0f8b8d', INK = '#1c1a1f', MUT = '#6b6770';
+  var A = fdate(new Date(g.from).getTime()), B = fdate(new Date(g.to).getTime());
+  var avg = N.ok.length ? N.net / N.ok.length : 0;
+  function kpi(l, v, sub, c){ return '<div style="flex:1;border:1px solid #eadfe6;border-radius:10px;padding:10px 12px;border-top:4px solid ' + c + '"><div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:' + MUT + '">' + l + '</div><div style="font-size:20px;font-weight:800;margin-top:2px">' + v + '</div><div style="font-size:10px;color:' + MUT + '">' + sub + '</div></div>'; }
+  function sec(t, c){ return '<div style="font-size:13px;font-weight:800;margin:16px 0 6px;padding-bottom:4px;border-bottom:2px solid ' + (c || P) + ';color:' + INK + ';page-break-after:avoid;break-after:avoid">' + t + '</div>'; }
+  var td = 'padding:5px 8px;border-bottom:1px solid #eee;font-size:11.5px', tr = td + ';text-align:right;font-variant-numeric:tabular-nums';
+  function kv(rows){ return '<table style="width:100%;border-collapse:collapse">' + rows.filter(Boolean).map(function(r){ var b = r[2] ? ';font-weight:800;background:#faf3f7' : ''; return '<tr><td style="' + td + b + '">' + r[0] + '</td><td style="' + tr + b + '">' + r[1] + '</td></tr>'; }).join('') + '</table>'; }
+  var cats = Object.keys(N.cat).sort(function(a, b){ return N.cat[b].amt - N.cat[a].amt; }), top = cats.length ? N.cat[cats[0]].amt : 1, tot = cats.reduce(function(a, k){ return a + N.cat[k].amt; }, 0) || 1;
+  var catRows = cats.map(function(k){ var c = N.cat[k], w = Math.max(3, Math.round(c.amt / top * 100));
+    return '<tr><td style="' + td + '">' + esc(k) + '</td><td style="' + td + ';width:34%"><div style="height:8px;border-radius:4px;background:#f3e6ee"><div style="height:8px;border-radius:4px;background:' + P + ';width:' + w + '%"></div></div></td><td style="' + tr + '">' + c.qty + '</td><td style="' + tr + '">' + money(c.amt) + '</td><td style="' + tr + ';color:' + MUT + '">' + Math.round(c.amt / tot * 100) + '%</td></tr>'; }).join('');
+  var catTbl = cats.length ? '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="' + td + ';text-align:left;color:' + MUT + '">Category</th><th style="' + td + '"></th><th style="' + td + ';text-align:right;color:' + MUT + '">Items</th><th style="' + td + ';text-align:right;color:' + MUT + '">AED</th><th style="' + td + ';text-align:right;color:' + MUT + '">Share</th></tr></thead><tbody>' + catRows + '</tbody></table>' : '<div style="font-size:11.5px;color:' + MUT + '">No sales in this period.</div>';
+  var expRows = N.exps.map(function(e){ return '<tr><td style="' + td + '">' + esc(xLabel(e)) + '</td><td style="' + td + ';color:' + MUT + '">' + esc([e.who, e.note].filter(Boolean).join(' · ')) + '</td><td style="' + tr + '">' + money(e.amt) + '</td></tr>'; }).join('');
+  var expTbl = N.exps.length ? '<table style="width:100%;border-collapse:collapse"><tbody>' + expRows + '<tr><td style="' + td + ';font-weight:800" colspan="2">Total expenses</td><td style="' + tr + ';font-weight:800">' + money(N.expOut) + '</td></tr></tbody></table>' : '<div style="font-size:11.5px;color:' + MUT + '">No cash expenses in this period.</div>';
+  function mm(lbl, d){ var ok = d === 0, c = ok ? '#0b7a4b' : '#c0182f', bg = ok ? '#e6f6ee' : '#fdecef'; return '<div style="margin-top:8px;padding:8px 12px;border-radius:8px;font-weight:800;font-size:13px;background:' + bg + ';color:' + c + ';border:1.5px solid ' + c + '">' + lbl + ': ' + (ok ? 'Matches' : (d > 0 ? 'Over by AED ' + money(d) : 'SHORT by AED ' + money(-d))) + '</div>'; }
+  var drawer = kv([['Cash in the drawer at the start', 'AED ' + money(N.open)], ['+ Cash sales', 'AED ' + money(N.cash)], N.other ? ['+/&minus; Other cash in / out', 'AED ' + money(N.other)] : null, ['&minus; Cash expenses', 'AED ' + money(N.expOut)], ['Should be in the drawer', 'AED ' + money(N.expected), true], N.diff !== null ? ['Cash counted', 'AED ' + money(parseFloat(g.counted))] : null, N.cardDiff !== null ? ['Card sales (POS)', 'AED ' + money(N.card + N.cpCard)] : null, N.cardDiff !== null ? ['Card machine total', 'AED ' + money(parseFloat(g.card))] : null])
+    + (N.diff !== null ? mm('Cash', N.diff) : '<div style="margin-top:8px;font-size:11px;color:' + MUT + '">Cash was not counted for this report.</div>') + (N.cardDiff !== null ? mm('Card', N.cardDiff) : '');
+  return '<div style="color:' + INK + ';font-family:Arial,Helvetica,sans-serif;padding:4mm;-webkit-print-color-adjust:exact;print-color-adjust:exact">'
+    + '<div style="display:flex;align-items:center;gap:14px;padding-bottom:10px;border-bottom:4px solid ' + P + '"><img src="' + LOGO + '" alt="" style="height:58px"><div style="flex:1"><div style="font-size:22px;font-weight:800">' + esc(G.shop) + '</div><div style="font-size:12px;color:' + MUT + '">Sales and cash report</div></div>'
+    + '<div style="text-align:right;font-size:11px;color:' + MUT + '"><div style="font-size:13px;font-weight:700;color:' + INK + '">' + esc(A) + ' &rarr; ' + esc(B) + '</div>Printed ' + esc(fdate(Date.now())) + (u ? '<br>by ' + esc(u.name) : '') + '</div></div>'
+    + '<div style="display:flex;gap:10px;margin-top:14px">' + kpi('Net sales', 'AED ' + money(N.net), N.ok.length + ' bills · ' + N.units + ' items', P) + kpi('Average bill', 'AED ' + money(avg), 'per bill', T) + kpi('Expenses', 'AED ' + money(N.expOut), 'paid from the drawer', '#f2b01e') + kpi('Cancelled', N.voids.length ? N.voids.length + ' bills' : 'None', N.voids.length ? 'AED ' + money(N.voidTot) : '&nbsp;', N.voids.length ? '#c0182f' : '#0b7a4b') + '</div>'
+    + '<div style="display:flex;gap:18px;align-items:flex-start"><div style="flex:1">' + sec('Sales') + kv([['Gross sales', 'AED ' + money(N.gross)], N.disc ? ['Discounts', '&minus; AED ' + money(N.disc)] : null, ['Net sales', 'AED ' + money(N.net), true], N.vat > 0 ? ['VAT included', 'AED ' + money(N.vat)] : null])
+    + sec('Payments', T) + kv([['Cash', 'AED ' + money(N.cash)], ['Card', 'AED ' + money(N.card)], N.credit > 0 ? ['Credit', 'AED ' + money(N.credit)] : null, ['Total', 'AED ' + money(N.net), true]]) + '</div>'
+    + '<div style="flex:1">' + sec('Drawer check', '#c0182f') + drawer + '</div></div>'
+    + sec('Sales by category') + catTbl
+    + sec('Expenses', '#f2b01e') + expTbl
+    + (g.note ? sec('Note') + '<div style="font-size:12px">' + esc(g.note) + '</div>' : '')
+    + '<div style="display:flex;gap:30px;margin-top:34px;font-size:11px;color:' + MUT + '"><div style="flex:1;border-top:1px solid #999;padding-top:4px">Prepared by</div><div style="flex:1;border-top:1px solid #999;padding-top:4px">Checked by</div></div>'
+    + '</div>';
+}
+function mmBox(lbl, d){
+  var ok = d === 0, col = ok ? '#0b7a4b' : '#c0182f', bg = ok ? '#e6f6ee' : '#fdecef';
+  return '<div style="margin-top:10px;padding:10px 14px;border-radius:12px;font-weight:700;font-size:16px;background:' + bg + ';color:' + col + ';border:1.5px solid ' + col + '">' + lbl + ': ' + (ok ? 'Matches' : (d > 0 ? 'Over by AED ' + money(d) : 'Short by AED ' + money(-d))) + '</div>';
 }
 function vRange(){
   var N = rgNums(), g = N.g;
@@ -3732,11 +3763,11 @@ function vRange(){
     + '<div class="rgwrap">'
     + '<div class="card"><h3>Sales</h3><table class="tbl" style="width:100%">' + row('Bills', N.ok.length + ' · ' + N.units + ' items') + row('Gross sales', money(N.gross)) + (N.disc ? row('Discounts', money(N.disc)) : '') + row('<b>Net sales</b>', '<b>' + money(N.net) + '</b>') + (N.vat > 0 ? row('VAT included', money(N.vat)) : '')
     + row('Cash', money(N.cash)) + row('Card', money(N.card)) + (N.credit ? row('Credit', money(N.credit)) : '') + (N.voids.length ? row('Cancelled bills', N.voids.length + ' · ' + money(N.voidTot)) : '') + '</table></div>'
-    + '<div class="card"><h3>Drawer cash check</h3><div class="fgrid">' + fld('Cash in the drawer at the start (AED)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="open" value="' + esc(g.open) + '">') + fld('Cash counted now (AED)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="counted" value="' + esc(g.counted) + '">') + '</div>'
-    + '<table class="tbl" style="width:100%;margin-top:10px">' + row('Start cash', money(N.open)) + row('+ Cash sales', money(N.cash)) + (N.cpCash ? row('+ Credit payments in cash', money(N.cpCash)) : '') + (N.man ? row('+/− Other cash in / out', money(N.man)) : '') + row('− Cash expenses', money(N.expOut))
-    + row('<b>Should be in the drawer</b>', '<b>' + money(N.expected) + '</b>') + (N.diff !== null ? row('<b>Difference</b>', '<b>' + diffText(N.diff) + '</b>', diffStyle(N.diff)) : '') + '</table>'
-    + '<div class="fgrid" style="margin-top:10px">' + fld('Card machine total (optional)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="card" value="' + esc(g.card) + '">') + fld('Note', '<input class="inp" data-f="rg" data-k="note" value="' + esc(g.note) + '">') + '</div>'
-    + (N.cardDiff !== null ? '<p style="margin:8px 0 0;' + diffStyle(N.cardDiff) + '">Card: ' + diffText(N.cardDiff) + '</p>' : '') + '</div>'
+    + '<div class="card"><h3>Drawer cash check</h3><div class="fgrid">' + fld('Cash counted in the drawer now (AED)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="counted" value="' + esc(g.counted) + '">') + fld('Card machine total (optional)', '<input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="card" value="' + esc(g.card) + '">') + '</div>'
+    + '<table class="tbl" style="width:100%;margin-top:10px">' + row('Cash in the drawer at the start <span style="color:var(--muted)">(' + esc(fdate(new Date(g.from).getTime())) + ')</span>', money(N.open)) + row('+ Cash sales', money(N.cash)) + (N.other ? row('+/− Other cash in / out', money(N.other)) : '') + row('− Cash expenses', money(N.expOut)) + row('<b>Should be in the drawer now</b>', '<b>' + money(N.expected) + '</b>') + (N.diff !== null ? row('Counted', money(parseFloat(g.counted))) : '') + '</table>'
+    + (N.diff !== null ? mmBox('Cash', N.diff) : '<p style="margin:10px 0 0;color:var(--muted);font-size:13px">Type the cash you counted to see if it matches.</p>')
+    + (N.cardDiff !== null ? mmBox('Card', N.cardDiff) : '')
+    + '<div class="fgrid" style="margin-top:10px">' + fld('Note (printed on the report)', '<input class="inp" data-f="rg" data-k="note" value="' + esc(g.note) + '">') + '</div></div>'
     + '<div class="card"><h3>By category</h3><table class="tbl" style="width:100%">' + catRows + '</table></div>'
     + (expRows ? '<div class="card"><h3>Cash expenses in this period</h3><table class="tbl" style="width:100%">' + expRows + '</table></div>' : '')
     + '</div></div>';
@@ -3759,7 +3790,7 @@ document.addEventListener('click', function(ev){
   } else if (a === 'rgcopy'){
     var txt = rgText(rgNums()); try { navigator.clipboard.writeText(txt).then(function(){ toast('Report copied'); }, function(){ toast('Copy not allowed here'); }); } catch(e){ toast('Copy not allowed here'); }
   } else if (a === 'rgprint'){
-    printHtml('<pre style="font:14px/1.5 monospace;white-space:pre-wrap">' + esc(rgText(rgNums())) + '</pre>');
+    printHtml(rgPrintHtml(rgNums()));
   }
 });
 
