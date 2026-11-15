@@ -2479,6 +2479,10 @@ function dRange(kind){
   else if (kind === 'month'){
     var n = +t.slice(8, 10), pm = new Date(t.slice(0, 7) + '-01T12:00:00'); pm.setMonth(pm.getMonth() - 1);
     var pf = pm.toLocaleDateString('en-CA').slice(0, 7) + '-01'; r.from = t.slice(0, 7) + '-01'; r.pfrom = pf; r.pto = addDays(pf, n - 1); r.label = monthLabel(t.slice(0, 7)); r.vs = 'vs same days last month';
+  } else if (kind === 'last'){
+    var m1 = t.slice(0, 7) + '-01', lf = new Date(m1 + 'T12:00:00'); lf.setMonth(lf.getMonth() - 1); var lm = lf.toLocaleDateString('en-CA').slice(0, 7);
+    var l2 = new Date(lm + '-01T12:00:00'); l2.setMonth(l2.getMonth() - 1); var l2s = l2.toLocaleDateString('en-CA').slice(0, 7);
+    r.from = lm + '-01'; r.to = addDays(m1, -1); r.pfrom = l2s + '-01'; r.pto = addDays(lm + '-01', -1); r.label = monthLabel(lm); r.vs = 'vs the month before';
   } else { r.from = t; r.pfrom = r.pto = addDays(t, -1); r.label = 'Today'; r.vs = 'vs yesterday'; }
   return r;
 }
@@ -2530,8 +2534,8 @@ function vDash(){
   var pay = {cash:0, card:0, credit:0}; cur.forEach(function(s){ pay[s.pay] = (pay[s.pay] || 0) + s.total; });
   var ytd = dSales(t, t), todayVoids = db.sales.filter(function(s){ return s.void && !superseded(s) && (s.day || new Date(s.t).toLocaleDateString('en-CA')) === t; }).length;
   // trend bars
-  var tv = [], tl = [], hi = -1, days = kind === 'month' ? +t.slice(8, 10) : 7;
-  for (var k = days - 1; k >= 0; k--){ var d = addDays(t, -k); tv.push(dSum(dSales(d, d))); tl.push(kind === 'month' ? String(+d.slice(8, 10)) : new Date(d + 'T12:00:00').toLocaleDateString('en-GB', {weekday:'short'})); }
+  var tv = [], tl = [], hi = -1, days = kind === 'month' ? +t.slice(8, 10) : kind === 'last' ? +R.to.slice(8, 10) : 7;
+  for (var k = days - 1; k >= 0; k--){ var d = addDays(kind === 'last' ? R.to : t, -k); tv.push(dSum(dSales(d, d))); tl.push((kind === 'month' || kind === 'last') ? String(+d.slice(8, 10)) : new Date(d + 'T12:00:00').toLocaleDateString('en-GB', {weekday:'short'})); }
   hi = tv.length - 1;
   // hourly
   var hrs = []; for (var h0 = 0; h0 < 24; h0++) hrs.push(0);
@@ -2564,7 +2568,7 @@ function vDash(){
   if (flagsToday && can('audit')) a1('audit', flagsToday + ' flagged action' + (flagsToday > 1 ? 's' : '') + ' today', 'Discounts, price changes, cancels', 'goaudit', 'warn');
   var attHtml = att.length ? att.join('') : '<div class="at ok"><span class="dic">'+dIcon('audit')+'</span><span><b>All clear</b><small>Nothing needs your attention right now.</small></span></div>';
   var flags = db.audit.filter(function(r){ return r.flag; }).slice(-6).reverse();
-  var seg = '<div class="seg">' + [['today', 'Today'], ['week', '7 days'], ['month', 'This month']].map(function(x){ return '<button data-act="dashp" data-v="'+x[0]+'" aria-pressed="'+(kind === x[0])+'">'+x[1]+'</button>'; }).join('') + '</div>';
+  var seg = '<div class="seg">' + [['today', 'Today'], ['week', '7 days'], ['month', 'This month'], ['last', 'Last month']].map(function(x){ return '<button data-act="dashp" data-v="'+x[0]+'" aria-pressed="'+(kind === x[0])+'">'+x[1]+'</button>'; }).join('') + '</div>';
   var money1 = function(x){ return 'AED ' + money(x); };
   var kp = [
     dKpi('sales', 'Net sales', money1(tot), dDelta(tot, ptot), R.vs),
@@ -2582,7 +2586,7 @@ function vDash(){
   var legend = pays.map(function(p){ return '<div class="lg"><i style="background:'+p.c+'"></i><span>'+p.k+'</span><b>'+money(p.v)+'</b><em>'+(payTot ? Math.round(p.v / payTot * 100) : 0)+'%</em></div>'; }).join('');
   return '<div class="page dash"><div class="dhead"><span class="dper">'+R.label+'</span>'+seg+'</div>'
     + '<div class="kpis">'+kp.join('')+'</div>'
-    + '<div class="dgrid"><div class="dcard span2"><div class="dt"><h3>Sales'+(kind === 'month' ? ' by day' : ' · last 7 days')+'</h3><small>AED per day</small></div>'+dBars(tv, tl, hi, function(v){ return 'AED ' + money(v); })+'</div>'
+    + '<div class="dgrid"><div class="dcard span2"><div class="dt"><h3>Sales'+((kind === 'month' || kind === 'last') ? ' by day' : ' · last 7 days')+'</h3><small>AED per day</small></div>'+dBars(tv, tl, hi, function(v){ return 'AED ' + money(v); })+'</div>'
     + '<div class="dcard"><div class="dt"><h3>Needs attention</h3><small>'+att.length+' item'+(att.length === 1 ? '' : 's')+'</small></div><div class="atl">'+attHtml+'</div></div></div>'
     + '<div class="dcard" style="margin-bottom:12px"><div class="dt"><div><h3>Recent bills</h3><small>latest 8 · '+db.sales.filter(function(s){ return !s.void; }).length+' bills in total</small></div>'+(can('sales') ? '<button class="btn sm ghost" data-act="gobills">All bills</button>' : '')+'</div>'+recentBills()+'</div>'
     + '<div class="dgrid3"><div class="dcard"><div class="dt"><h3>Payment mix</h3><small>'+R.label+'</small></div><div class="pm">'+dDonut(pays, payTot)+'<div class="lgs">'+legend+'</div></div></div>'
