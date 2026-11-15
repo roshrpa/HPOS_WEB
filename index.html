@@ -1661,6 +1661,7 @@ function receiptText(s){
 
 function vSheets(){
   if (S.xopen && S.tab === 'exp') return xForm();
+  if (S.ropen && S.tab === 'exp') return recForm();
   if (S.closeAsk){
     var cd = S.closeDate || today(), cn2 = closeNums(cd), crow = function(a, b){ return '<tr><td>'+a+'</td><td class="n">'+b+'</td></tr>'; }, noCount = !(cn2.R.counted !== '' && !isNaN(parseFloat(cn2.R.counted)));
     return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Close the day"><h3>'+(cn2.R.closed ? 'Update the closing of ' : 'Close the day ')+esc(cd)+'?</h3>'
@@ -1899,7 +1900,7 @@ document.addEventListener('click', function(e){
     case 'dayuse': S.dayUse = d.v === '0' ? today() : shiftDate(S.dayUse || today(), +d.v); break;
     case 'invtab': S.inv = d.id; S.matDel = null; break;
     case 'whtab': S.wt = d.id; break;
-    case 'xtab': S.xt = d.id; S.xdel = null; S.xopen = false; break;
+    case 'xtab': S.xt = d.id; S.xdel = null; S.xopen = false; S.ropen = false; break;
     case 'xmonth': S.xm = d.v === '0' ? today().slice(0, 7) : shiftMonth(S.xm, +d.v); S.xdel = null; break;
     case 'xnew': S.xedit = null; S.xf = xNewForm(); S.xopen = true; break;
     case 'xsave': case 'xsave2':
@@ -3245,21 +3246,28 @@ function xRec(){
     var done = recPosted(r.id, m), amt = S.recAmt[r.id] !== undefined ? S.recAmt[r.id] : r.amt;
     return '<tr'+(r.active === false ? ' style="opacity:.55"' : '')+'><td><b>'+esc(r.name)+'</b><small style="display:block;color:var(--muted)">'+esc(xLabel({cat:r.cat, sub:r.sub}))+' · day '+esc(r.day)+' · '+xFromLabel(r.from)+'</small></td>'
       + '<td style="text-align:right"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="recamt" data-id="'+r.id+'" value="'+esc(amt)+'" style="width:110px;display:inline-block" aria-label="Amount for '+esc(r.name)+'"></td>'
-      + '<td style="white-space:nowrap;text-align:right">'+(done ? '<span class="pill cash">Posted</span>' : (r.active === false ? '' : '<button class="btn sm primary" data-act="recpost" data-id="'+r.id+'">Post</button>'))+' <button class="btn sm ghost" data-act="recsave" data-id="'+r.id+'">Save amount</button> <button class="btn sm ghost" data-act="rectoggle" data-id="'+r.id+'">'+(r.active === false ? 'Activate' : 'Pause')+'</button> <button class="btn sm ghost" data-act="recdel" data-id="'+r.id+'">Delete</button></td></tr>';
+      + '<td style="white-space:nowrap;text-align:right">'+(done ? '<span class="pill cash">Posted</span>' : (r.active === false ? '' : '<button class="btn sm primary" data-act="recpost" data-id="'+r.id+'">Post</button>'))+' <button class="btn sm ghost" data-act="recedit" data-id="'+r.id+'">Edit</button> <button class="btn sm ghost" data-act="rectoggle" data-id="'+r.id+'">'+(r.active === false ? 'Activate' : 'Pause')+'</button> <button class="btn sm ghost" data-act="recdel" data-id="'+r.id+'">Delete</button></td></tr>';
   }).join('');
   var pend = recPending(m).length;
-  return xMonthBar() + '<div class="card"><h3>Recurring expenses</h3><p style="margin:0 0 8px;color:var(--muted)">Monthly costs like rent, salary and internet. Press Post to add this month\'s expense. You can change the amount first (electricity changes every month). A month cannot be posted twice.</p>'
+  return '<div class="bar">'+xMonthBar()+'<span class="sp"></span><button class="btn primary sm" data-act="recnew">+ Add recurring expense</button></div><div class="card"><h3>Recurring expenses</h3><p style="margin:0 0 8px;color:var(--muted)">Monthly costs like rent, salary and internet. Press Post to add this month\'s expense. You can change the amount first (electricity changes every month). A month cannot be posted twice.</p>'
     + pinOpen('exp','max-width:240px;margin-bottom:8px')+'<input class="inp" type="password" inputmode="numeric" data-f="recpin" value="'+esc(S.recpin)+'" autocomplete="off"></label>'
     + '<div class="tblwrap"><table class="tbl"><thead><tr><th>Expense</th><th style="text-align:right">This month (AED)</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="3" class="empty">No recurring expenses yet.</td></tr>')+'</tbody></table></div>'
     + (pend ? '<div class="btns"><button class="btn primary" data-act="recpostall">Post all '+pend+' pending for '+esc(monthLabel(m))+'</button></div>' : '')+'</div>'
-    + '<div class="card"><h3>Add a recurring expense</h3><div class="fgrid"><label class="fld">Name<input class="inp" data-f="rf" data-k="name" value="'+esc(f.name)+'" autocomplete="off"></label>'
+}
+function recForm(){
+  var f = S.rf, c = xCat(f.cat) || db.exp.cats[0];
+  if (c){ f.cat = c.id; if (!xSub(c, f.sub)) f.sub = c.subs[0] ? c.subs[0].id : ''; }
+  var ed = !!S.recedit;
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="'+(ed ? 'Edit recurring expense' : 'Add recurring expense')+'"><h3>'+(ed ? 'Edit recurring expense' : 'Add recurring expense')+'</h3>'
+    + '<p>Monthly costs like rent, salary or internet. You post each month from the list.</p>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px"><label class="fld">Name<input class="inp" data-f="rf" data-k="name" value="'+esc(f.name)+'" autocomplete="off"></label>'
     + '<label class="fld">Category<select class="inp" data-f="rfs" data-k="cat">'+db.exp.cats.map(function(x){ return '<option value="'+x.id+'"'+(x.id === f.cat ? ' selected' : '')+'>'+esc(x.name)+'</option>'; }).join('')+'</select></label>'
     + '<label class="fld">Sub-category<select class="inp" data-f="rfs" data-k="sub">'+(c ? c.subs.map(function(x){ return '<option value="'+x.id+'"'+(x.id === f.sub ? ' selected' : '')+'>'+esc(x.name)+'</option>'; }).join('') : '')+'</select></label>'
     + '<label class="fld">Usual amount (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="rf" data-k="amt" value="'+esc(f.amt)+'"></label>'
     + '<label class="fld">Paid from<select class="inp" data-f="rfs" data-k="from"><option value="cash"'+(f.from === 'cash' ? ' selected' : '')+'>Counter cash</option><option value="bank"'+(f.from === 'bank' ? ' selected' : '')+'>Bank</option></select></label>'
     + '<label class="fld">Paid to (optional)<input class="inp" data-f="rf" data-k="who" value="'+esc(f.who)+'" autocomplete="off"></label>'
     + '<label class="fld">Day of month<input class="inp" type="number" min="1" max="31" inputmode="numeric" data-f="rf" data-k="day" value="'+esc(f.day)+'"></label></div>'
-    + '<div class="btns"><button class="btn plum" data-act="recadd">Add</button></div></div>';
+    + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="reccancel">Cancel</button><button class="btn primary" data-act="recadd">'+(ed ? 'Save changes' : 'Save')+'</button></div></div></div>';
 }
 function postRec(r, m, ap){
   var amt = parseFloat(S.recAmt[r.id] !== undefined ? S.recAmt[r.id] : r.amt);
@@ -3434,10 +3442,16 @@ document.addEventListener('click', function(e){
     case 'rtab': S.rt = d.id; break;
     case 'rmonth': S.rm = shiftMonth(S.rm, +d.v); break;
     case 'repprint': printHtml(repPrint(S.rt, S.rm)); return;
+    case 'recnew': S.recedit = null; S.rf = {name:'', cat:(db.exp.cats[0] || {}).id || '', sub:'', amt:'', from:'cash', who:'', day:'1'}; S.ropen = true; break;
+    case 'recedit': var re0 = byId(db.rec, d.id); if (re0){ S.recedit = re0.id; S.rf = {name:re0.name, cat:re0.cat, sub:re0.sub, amt:String(re0.amt), from:re0.from, who:re0.who || '', day:String(re0.day)}; S.ropen = true; } break;
+    case 'reccancel': S.ropen = false; S.recedit = null; break;
     case 'recadd':
       var f = S.rf; if (!f.name.trim()){ toast('Enter the name'); return; } if (!(parseFloat(f.amt) > 0)){ toast('Enter the usual amount'); return; }
-      var nr = {id:uid('q'), name:f.name.trim(), cat:f.cat, sub:f.sub, amt:round2(parseFloat(f.amt)), from:f.from, who:f.who.trim(), day:String(Math.min(31, Math.max(1, parseInt(f.day, 10) || 1))), active:true};
-      db.rec.push(nr); audit('Expenses', 'Recurring expense added', nr.name + ' · AED ' + money(nr.amt) + ' · day ' + nr.day); S.rf = {name:'', cat:f.cat, sub:f.sub, amt:'', from:f.from, who:'', day:'1'}; toast('Added'); break;
+      var rv = {name:f.name.trim(), cat:f.cat, sub:f.sub, amt:round2(parseFloat(f.amt)), from:f.from, who:f.who.trim(), day:String(Math.min(31, Math.max(1, parseInt(f.day, 10) || 1)))};
+      var rold = S.recedit && byId(db.rec, S.recedit);
+      if (rold){ var rbef = rold.name + ' · AED ' + money(rold.amt) + ' · day ' + rold.day; Object.assign(rold, rv); delete S.recAmt[rold.id]; audit('Expenses', 'Recurring expense edited', rbef + '  →  ' + rv.name + ' · AED ' + money(rv.amt) + ' · day ' + rv.day, {flag:1}); toast('Saved'); }
+      else { rv.id = uid('q'); rv.active = true; db.rec.push(rv); audit('Expenses', 'Recurring expense added', rv.name + ' · AED ' + money(rv.amt) + ' · day ' + rv.day); toast('Added'); }
+      S.ropen = false; S.recedit = null; break;
     case 'recpost': case 'recpostall':
       var ap = can('exp') ? curUser() : pinUser(S.recpin, 'exp'); if (!ap){ toast(can('exp') ? 'Sign in again' : 'Enter the approver PIN above'); return; }
       var list = a === 'recpost' ? [byId(db.rec, d.id)] : recPending(S.xm), n = 0;
