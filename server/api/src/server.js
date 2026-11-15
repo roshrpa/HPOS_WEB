@@ -6,6 +6,7 @@ const fs = require('fs');
 const nodePath = require('path');
 const { Pool } = require('pg');
 const users = require('./users');
+const tenancy = require('./tenancy');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
@@ -46,6 +47,14 @@ function readJson(req) {
 }
 async function one(sql, params) { const r = await pool.query(sql, params); return r.rows[0] ? r.rows[0].r : null; }
 function bearer(req) { const h = req.headers.authorization || ''; return h.startsWith('Bearer ') ? h.slice(7).trim() : ''; }
+// The branch (id) the calling device belongs to; a switched-off branch is refused.
+async function branch(req) {
+  const dev = await device(req);
+  const b = await tenancy.branchOfDevice(pool, dev);
+  if (!b) throw Object.assign(new Error('unknown device token'), { status: 401 });
+  if (!b.active) throw Object.assign(new Error('This branch is switched off.'), { status: 403 });
+  return b.id;
+}
 async function device(req) {
   const id = await one('select auth_device($1) as r', [bearer(req)]);
   if (!id) throw Object.assign(new Error('unknown device token'), { status: 401 });
@@ -89,7 +98,12 @@ async function route(req, res) {
   if (path.startsWith('/auth/') || path === '/users' || path.startsWith('/users/') || path === '/admin/users') {
     const done = await users.handle(req, res, path, m, pool, {
       send: send, readJson: readJson, device: device, isAdmin: isAdmin,
-      registerDevice: function (name, kind) { return one('select register_device($1, $2) as r', [name, kind.slice(0, 20)]); },
+      branch: branch,
+      registerDevice: async function (name, kind, branchId) {
+        const r = await one('select register_device($1, $2) as r', [name, kind.slice(0, 20)]);
+        if (branchId) await pool.query('update devices set branch_id = $1 where id = $2', [branchId, r.id]);
+        return r;
+      },
       bearerDevice: function (token) { return token ? one('select auth_device($1) as r', [String(token)]) : Promise.resolve(null); }
     });
     if (done !== false) return;
@@ -118,17 +132,17 @@ async function route(req, res) {
   }
   if (path === '/test/reset' && m === 'POST') {
     // Testing period only: wipes sales, tablet orders and stock movements for every device. Owner name + PIN are checked here.
-    const dev = await device(req);
+    const dev = await device(req), br = await branch(req);
     const b = await readJson(req);
     let u;
-    try { u = await users.verify(pool, b.name, b.pin); } catch (e) { return send(res, e.status || 401, { error: e.message }); }
+    try { u = await users.verify(pool, br, b.name, b.pin); } catch (e) { return send(res, e.status || 401, { error: e.message }); }
     if (u.role !== 'Owner') return send(res, 403, { error: 'Only the Owner can reset test data.' });
     const id = require('crypto').randomUUID();
     const c = await pool.connect();
     try {
       await c.query('begin');
-      await c.query("delete from events where type in ('sale','sale_cancel','order','order_update','order_pay','order_cancel','order_done','num','wh_move')");
-      await c.query('delete from sales');
+      await c.query("delete from events where branch_id = $1 and type in ('sale','sale_cancel','order','order_update','order_pay','order_cancel','order_done','num','wh_move')", [br]);
+      await c.query('delete from sales where branch_id = $1', [br]);
       await c.query("insert into events(id, device_id, type, payload, client_time) values ($1, $2, 'test_reset', $3::jsonb, now())", [id, dev, JSON.stringify({ id: id, by: u.name, t: Date.now() })]);
       await c.query('commit');
     } catch (e) { await c.query('rollback').catch(function () {}); throw e; } finally { c.release(); }
@@ -142,24 +156,24 @@ async function route(req, res) {
   }
 
   if (path === '/sync/push' && m === 'POST') {
-    const dev = await device(req);
+    const dev = await device(req); await branch(req);
     const b = await readJson(req);
     checkEvents(b.events);
     return send(res, 200, await one('select sync_push($1::uuid, $2::jsonb) as r', [dev, JSON.stringify(b.events)]));
   }
   if (path === '/sync/pull' && m === 'GET') {
-    const dev = await device(req);
+    const dev = await device(req); await branch(req);
     const after = Math.max(0, parseInt(url.searchParams.get('after') || '0', 10) || 0);
     const limit = Math.min(1000, Math.max(1, parseInt(url.searchParams.get('limit') || '500', 10) || 500));
-    return send(res, 200, await one('select sync_pull($1::uuid, $2::bigint, $3::int) as r', [dev, after, limit]));
+    return send(res, 200, await one('select sync_pull_b($1::uuid, $2::bigint, $3::int) as r', [dev, after, limit]));
   }
   const cm = path.match(/^\/config\/([a-z0-9_-]{1,40})$/);
-  if (cm && m === 'GET') { await device(req); return send(res, 200, await one('select config_get($1) as r', [cm[1]])); }
+  if (cm && m === 'GET') { const br = await branch(req); return send(res, 200, await one('select config_get_b($1, $2) as r', [br, cm[1]])); }
   if (cm && m === 'PUT') {
-    const dev = await device(req);
+    const dev = await device(req), br = await branch(req);
     const b = await readJson(req);
     if (b.value === undefined) return send(res, 400, { error: 'value is required' });
-    const out = await one('select config_put($1::uuid, $2, $3::jsonb, $4::int) as r', [dev, cm[1], JSON.stringify(b.value), parseInt(b.version || 0, 10) || 0]);
+    const out = await one('select config_put_b($1::uuid, $2, $3, $4::jsonb, $5::int) as r', [dev, br, cm[1], JSON.stringify(b.value), parseInt(b.version || 0, 10) || 0]);
     return send(res, out.ok ? 200 : 409, out);
   }
   if (serveStatic(req, res, url.pathname)) return;
@@ -175,7 +189,7 @@ const server = http.createServer(function (req, res) {
     if (!res.headersSent) send(res, status, { error: status >= 500 ? 'server error' : e.message });
   });
 });
-users.ensureSchema(pool).then(function () {
+users.ensureSchema(pool).then(function () { return tenancy.ensureSchema(pool); }).then(function () {
   server.listen(PORT, function () { console.log('Hollywood POS API listening on ' + PORT); });
 }).catch(function (e) { console.error('Could not prepare the users table', e); process.exit(1); });
 process.on('SIGTERM', function () { server.close(function () { pool.end().then(function () { process.exit(0); }); }); });

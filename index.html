@@ -2016,7 +2016,7 @@ if (!db.perms) db.perms = {};
 if (!db.audit) db.audit = [];
 S.su = {name:'', pin:'', pin2:''}; S.lu = null; S.lpin = ''; S.lerr = ''; S.upc = ''; S.uadd = {name:'', role:'Cashier', pin:''}; S.urs = null; S.urspin = '';
 S.priceForm = null; S.af = {cat:'', user:'', from:'', to:'', q:'', flag:false};
-S.srv = {st:'', busy:false}; S.sl = {name:'', pin:''};
+S.srv = {st:'', busy:false}; S.sl = {name:'', pin:'', shop:null};
 S.uid = null; try { S.uid = sessionStorage.getItem('hp_uid') || null; } catch(e){}
 
 function hashPin(p){ var s = 'hp|' + String(p), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return 'h' + (h >>> 0).toString(36); }
@@ -2080,7 +2080,7 @@ async function srvCall(path, o){
 function deviceInfo(){ return {name: window.HP_DESKTOP ? 'Windows counter' : 'Web POS', kind: 'pos'}; }
 async function checkServer(){
   S.srv.st = 'check'; S.lerr = '';
-  try { var r = await srvCall('/auth/status'); S.srv.st = r.ok && r.json && Number(r.json.users) > 0 ? 'login' : r.ok ? 'setup' : 'down'; }
+  try { var r = await srvCall('/auth/status?shop=' + encodeURIComponent(sync.shop || '')); S.srv.st = r.ok && r.json && (Number(r.json.users) > 0 || r.json.unknown) ? 'login' : r.ok ? 'setup' : 'down'; }
   catch(e){ S.srv.st = 'down'; }
   render();
 }
@@ -2090,17 +2090,18 @@ function applyServerUsers(list, ver){
   sync.uver = ver; saveSync(); save();
 }
 async function serverSignIn(path, body){
-  body.device = deviceInfo(); body.token = sync.token || '';
+  body.device = deviceInfo(); body.token = sync.token || ''; body.shop = sync.shop || '';
   var r = await srvCall(path, {method: 'POST', body: body});
   if (!r.ok){ var er = new Error((r.json && r.json.error) || ('Server answered ' + r.status)); er.status = r.status; throw er; }
   if (r.json.token){ sync.url = srvUrl(); sync.token = r.json.token; sync.err = ''; saveSync(); }
   else if (!sync.url){ sync.url = srvUrl(); saveSync(); }
+  if (r.json.shop && r.json.shop.code){ sync.shop = r.json.shop.code; sync.shopInfo = r.json.shop; saveSync(); }
   applyServerUsers(r.json.users, r.json.ver);
   return r.json.user;
 }
 function finishSignIn(u, auditAct){
   S.uid = u.id; try { sessionStorage.setItem('hp_uid', u.id); } catch(er){}
-  S.lpin = ''; S.lerr = ''; S.tab = homeTab(); S.sl = {name:'', pin:''}; S.su = {name:'', pin:'', pin2:''}; S.srv.busy = false;
+  S.lpin = ''; S.lerr = ''; S.tab = homeTab(); S.sl = {name:'', pin:'', shop:null}; S.su = {name:'', pin:'', pin2:''}; S.srv.busy = false;
   audit('Users and Security', auditAct, ''); kickSync(); render();
 }
 function srvFail(e){ S.srv.busy = false; S.lpin = ''; S.lerr = e.net ? 'Cannot reach the server. Check the internet and try again.' : (e.message || 'Could not sign in'); render(); }
@@ -2155,6 +2156,7 @@ function vServerDown(){
 }
 function vServerLogin(){
   return vServerBox('<h3 style="font-size:20px;margin:8px 0 4px;text-align:center">Sign in</h3><p style="color:var(--muted);margin:0 0 12px;text-align:center">Enter your user name and PIN.</p>'
+    + '<label class="fld">Shop code<input id="slshop" class="inp" data-f="slshop" value="'+esc(S.sl.shop !== null && S.sl.shop !== undefined ? S.sl.shop : (sync.shop || ''))+'" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Given by your system provider"></label>'
     + '<label class="fld">User name<input id="slname" class="inp" data-f="slname" value="'+esc(S.sl.name)+'" autocomplete="off" autocapitalize="off" spellcheck="false"></label>'
     + '<label class="fld" style="margin-top:10px">PIN<input id="slpin" class="inp" type="password" inputmode="numeric" data-f="slpin" value="'+esc(S.sl.pin)+'" autocomplete="off"></label>'
     + (S.lerr ? '<p style="color:var(--pink-dk);margin:10px 0 0">'+esc(S.lerr)+'</p>' : '')
@@ -2284,7 +2286,7 @@ document.addEventListener('input', function(e){
   var t = e.target, f = t.dataset && t.dataset.f;
   if (t.id === 'lpin'){ S.lpin = t.value; return; }
   if (!f) return;
-  if (f === 'sun') S.su.name = t.value; else if (f === 'spin') S.su.pin = t.value; else if (f === 'spin2') S.su.pin2 = t.value; else if (f === 'slname') S.sl.name = t.value; else if (f === 'slpin') S.sl.pin = t.value;
+  if (f === 'slshop') S.sl.shop = t.value; else if (f === 'sun') S.su.name = t.value; else if (f === 'spin') S.su.pin = t.value; else if (f === 'spin2') S.su.pin2 = t.value; else if (f === 'slname') S.sl.name = t.value; else if (f === 'slpin') S.sl.pin = t.value;
   else if (f === 'upc') S.upc = t.value; else if (f === 'uan') S.uadd.name = t.value; else if (f === 'uap') S.uadd.pin = t.value; else if (f === 'urspin') S.urspin = t.value;
   else if (f === 'afq'){ S.af.q = t.value; clearTimeout(S._aft); S._aft = setTimeout(function(){ var p = t.selectionStart; render(); var n = document.querySelector('[data-f=afq]'); if (n){ n.focus(); try { n.setSelectionRange(p, p); } catch(er){} } }, 350); }
   else if (S.priceForm && (f === 'pval' || f === 'pnote' || f === 'ppin')){ S.priceForm[f === 'pval' ? 'val' : f === 'pnote' ? 'note' : 'pin'] = t.value; var pb = document.querySelector('[data-act=priceok]'); if (pb) pb.disabled = !priceFormOk(); }
@@ -2318,6 +2320,7 @@ document.addEventListener('click', function(e){
     case 'srvlogin':
       if (S.srv.busy) return;
       if (!S.sl.name.trim() || !S.sl.pin){ S.lerr = 'Enter your user name and PIN.'; break; }
+      if (S.sl.shop !== null && S.sl.shop !== undefined){ var sc = String(S.sl.shop).trim(); if (sc !== (sync.shop || '')){ sync.shop = sc; sync.token = ''; saveSync(); } }
       S.srv.busy = true; S.lerr = ''; render();
       serverSignIn('/auth/login', {name: S.sl.name.trim(), pin: S.sl.pin}).then(function(u){ finishSignIn(u, 'Login'); }).catch(function(e){ S.sl.pin = ''; srvFail(e); });
       return;
