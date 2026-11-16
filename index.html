@@ -2939,7 +2939,7 @@ function vDash(){
     dKpi('cash', 'Counter drawer', money1(cashBal('drawer')), '', 'cash in the drawer', can('cash') ? 'gocash' : ''),
     dKpi('range', 'Bank', money1(cashBal('bank')), '', '&nbsp;', can('cash') ? 'gocash' : ''),
     dKpi('credit', 'Card to receive', money1(cardToReceive()), '', 'from the card machine', can('cash') ? 'gocash' : '')
-  ].concat((db.channels || []).filter(function(x){ return aggToReceive(x.id) > 0.005; }).map(function(x){ return dKpi('credit', x.name + ' to receive', money1(aggToReceive(x.id)), '', 'not yet paid out', can('cash') ? 'gocash' : ''); })).concat(st ? [dKpi('credit', 'Credit outstanding', money1(st.out), '', st.n + ' customer' + (st.n === 1 ? '' : 's'), 'gocredit')] : []).concat(can('purch') ? [dKpi('purch', 'Supplier payables', money1(pb), '', 'we owe suppliers', 'gopurch')] : []);
+  ].concat(chans().map(function(x){ return dKpi('credit', x.name + ' to receive', money1(aggToReceive(x.id)), '', aggToReceive(x.id) > 0.005 ? 'not yet paid out' : 'no pending sales', can('cash') ? 'gocash' : ''); })).concat(st ? [dKpi('credit', 'Credit outstanding', money1(st.out), '', st.n + ' customer' + (st.n === 1 ? '' : 's'), 'gocredit')] : []).concat(can('purch') ? [dKpi('purch', 'Supplier payables', money1(pb), '', 'we owe suppliers', 'gopurch')] : []);
   var pays = [{k:'Cash', v:pay.cash, c:'#00838f'}, {k:'Card', v:pay.card, c:'#df3d8a'}, {k:'Credit', v:pay.credit, c:'#ffc300'}];
   onlineSplit(cur).forEach(function(o, ix){ pays.push({k:o.name, v:o.amt, c:['#d6501a', '#8a3d00', '#a0527c', '#555'][ix % 4]}); });
   var payTot = pay.cash + pay.card + pay.credit; pays.forEach(function(x, ix){ if (ix > 2) payTot += x.v; });
