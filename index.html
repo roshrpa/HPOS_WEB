@@ -460,18 +460,18 @@ function num(n){ return Math.round(n * 100) / 100; }
 if (db.inv && db.inv.base && db.invBaseFix !== 1){ db.invBaseFix = 1; var cts = (db.inv.counts || []).map(function(c){ return c.t; }); Object.keys(db.inv.base).forEach(function(k){ var b = db.inv.base[k]; if (b && b.t && cts.indexOf(b.t) < 0) b.t = 0; }); save(); }
 function rkey(cat, size){ return ((cat === 'Mini Melts Ice Cream' || cat === 'Minimals Ice Cream') ? 'Minimelts Ice Cream' : cat) + '|' + (size || ''); }
 function mat(id){ return byId(db.inv.materials, id); }
-function usageMap(asOf){
-  var u = {};
+function usageMap(asOf, B){
+  var u = {}; B = B || db.inv.base;
   db.sales.forEach(function(s){ if (s.void || (asOf && s.t > asOf)) return; s.lines.forEach(function(l){
     var r = db.inv.recipes[rkey(l.cat, l.size)]; if (!r) return;
-    r.forEach(function(x){ var b = db.inv.base[x.m] || {t:0}; if (s.t > b.t) u[x.m] = (u[x.m] || 0) + x.q * l.qty; });
+    r.forEach(function(x){ var b = B[x.m] || {t:0}; if (s.t > b.t) u[x.m] = (u[x.m] || 0) + x.q * l.qty; });
   }); });
   return u;
 }
-function expectedMap(asOf){
-  var u = usageMap(asOf), e = {};
+function expectedMap(asOf, B){
+  B = B || db.inv.base; var u = usageMap(asOf, B), e = {};
   db.inv.materials.forEach(function(m){
-    var b = db.inv.base[m.id] || {t:0, q:0}, q = b.q;
+    var b = B[m.id] || {t:0, q:0}, q = b.q;
     db.inv.purchases.forEach(function(p){ if (p.m === m.id && p.t > b.t && !(asOf && p.t > asOf)) q += p.q; });
     db.inv.waste.forEach(function(w){ if (w.m === m.id && w.t > b.t && !(asOf && w.t > asOf)) q -= w.q; });
     e[m.id] = {exp:q - (u[m.id] || 0), used:u[m.id] || 0};
@@ -1134,13 +1134,18 @@ function closeText(date){
 
 /* ---------- Daily cup and plate count (closing count and next morning check) ---------- */
 function dailyMats(){ return db.inv.materials.filter(function(m){ return m.cup; }); }
+/* Cup counts only verify the shelf. They never change the stock the system holds (db.inv.base); this map is the reference the next cup count is compared against. */
+function vBaseMap(){
+  var m = {}; db.inv.materials.forEach(function(x){ m[x.id] = db.inv.base[x.id] || {t:0, q:0}; });
+  (db.inv.counts || []).forEach(function(r){ if (!r.kind) return; r.lines.forEach(function(l){ var b = m[l.m]; if (!b || r.t >= b.t) m[l.m] = {t:r.t, q:l.counted}; }); });
+  return m;
+}
 function recordCount(kind, by, day, vals, fill){
-  var now = S.cstart || Date.now(), E = expectedMap(now), lines = [];
+  var now = S.cstart || Date.now(), E = expectedMap(now, vBaseMap()), lines = [];
   dailyMats().forEach(function(m){
     var v = vals[m.id], cnt;
     if (v === undefined || v === ''){ if (!fill) return; cnt = E[m.id].exp; } else { cnt = parseFloat(v); if (isNaN(cnt)) return; }
     lines.push({m:m.id, expected:E[m.id].exp, counted:cnt, diff:cnt - E[m.id].exp, cost:m.cost, cup:m.cup, avg:m.cup ? avgPriceForCup(m.id) : 0});
-    db.inv.base[m.id] = {t:now, q:cnt};
   });
   if (!lines.length) return null;
   var rec = {id:now, t:now, kind:kind, by:by, day:day, lines:lines};
@@ -1181,7 +1186,7 @@ function countWaText(rec, title, date){
 }
 function countWaBtn(k){ return '<button class="btn ghost sm" data-act="ccwa" data-k="'+k+'" style="color:#128c4a;border-color:#25d366">View and share</button>'; }
 function vCloseCount(date){
-  var R = dayRec(date), rec = countRec(R.closeCount && R.closeCount.id), E = expectedMap(S.cstart || 0);
+  var R = dayRec(date), rec = countRec(R.closeCount && R.closeCount.id), E = expectedMap(S.cstart || 0, vBaseMap());
   if (!dailyMats().length) return '';
   if (rec && !S.ccRedo) return '<div class="tbl"><h3>Stock count at closing</h3><div>'+countSummary(rec)+'</div>'+countTable(rec)+'<div class="btns" style="align-items:center"><button class="btn ghost sm" data-act="ccredo">Count again</button> '+countWaBtn('close')+' '+cwaStatus('close')+'</div></div>';
   var rows = dailyMats().map(function(m){
@@ -1219,7 +1224,7 @@ function vOpenCheck(date){
   var R = (db.days || {})[date], done = R && R.openCheck ? countRec(R.openCheck.id) : null;
   if (done) return '<div class="tbl"><h3>Opening stock check</h3><div>'+countSummary(done)+'</div>'+(countShort(done) ? countTable(done) : '')+'<div class="btns" style="margin-top:8px;align-items:center">'+countWaBtn('open')+' '+cwaStatus('open')+'</div></div>';
   var lc = lastCloseCount(); if (!lc || !lc.rec) return '';
-  var E = expectedMap(S.cstart || 0);
+  var E = expectedMap(S.cstart || 0, vBaseMap());
   var rows = dailyMats().map(function(m){
     var cl = lc.rec.lines.filter(function(l){ return l.m === m.id; })[0];
     return '<tr><td>'+esc(m.name)+'</td><td class="n">'+(cl ? num(cl.counted) : '-')+'</td><td class="n">'+num(E[m.id].exp)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="oc" data-m="'+m.id+'" placeholder="'+num(E[m.id].exp)+'" value="'+esc(S.ocnt[m.id] === undefined ? '' : S.ocnt[m.id])+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
