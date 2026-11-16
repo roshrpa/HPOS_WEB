@@ -3800,6 +3800,35 @@ function chTrend(m){
   P.forEach(function(p, i){ h += '<text x="' + X(i) + '" y="' + (H + 12) + '" text-anchor="middle">' + esc(monthLabel(p.k).split(' ')[0].slice(0, 3)) + '</text>'; });
   return h + '</g></svg><div style="font-size:12px;color:#6b6770;display:flex;gap:14px;margin-top:2px"><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#d6338a;margin-right:5px"></span>Sales</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#f2b01e;margin-right:5px"></span>Costs</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#0b7a4b;margin-right:5px"></span>Profit</span></div>';
 }
+function chBars(title, rows, unit){
+  var mx = rows.reduce(function(a, r){ return Math.max(a, r.v); }, 0);
+  if (!(mx > 0)) return '<div class="mgcard"><div class="mgh">' + title + '</div><div style="color:#6b6770;font-size:13px;padding:10px 0">Nothing recorded for this month.</div></div>';
+  return '<div class="mgcard"><div class="mgh">' + title + '</div>' + rows.map(function(r){
+    return '<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12.5px"><div style="width:30%;min-width:84px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(r.n) + '</div><div style="flex:1;background:#f3eef1;border-radius:5px;height:14px"><div style="height:14px;border-radius:5px;background:' + (r.c || '#d6338a') + ';width:' + Math.max(r.v > 0 ? 2 : 0, Math.round(r.v / mx * 100)) + '%"></div></div><div style="width:26%;text-align:right;font-variant-numeric:tabular-nums">' + (unit === 'qty' ? r.v : money(r.v)) + '</div></div>'; }).join('') + '</div>';
+}
+function monthVisHtml(m){
+  var D = monthData(m), Q = monthData(shiftMonth(m, -1)), ok = db.sales.filter(function(x){ return !x.void && (x.day || '').slice(0, 7) === m; });
+  var avg = D.bills ? D.net / D.bills : 0, qavg = Q.bills ? Q.net / Q.bills : 0;
+  function dl(a, b){ if (!(b > 0)) return ''; var p = Math.round((a - b) / b * 100); return '<span style="font-size:12px;font-weight:700;color:' + (p >= 0 ? '#0b7a4b' : '#c0182f') + '">' + (p >= 0 ? '▲ ' : '▼ ') + Math.abs(p) + '% vs last month</span>'; }
+  var days = {}, wd = [0, 0, 0, 0, 0, 0, 0], wn = [0, 0, 0, 0, 0, 0, 0], items = {};
+  ok.forEach(function(x){ days[x.day] = (days[x.day] || 0) + x.total; var w = new Date(x.day + 'T12:00:00').getDay(); wd[w] += x.total; x.lines.forEach(function(l){ var k = l.name + (l.size ? ' (' + l.size + ')' : ''); items[k] = items[k] || {q:0, a:0}; items[k].q += l.qty; items[k].a += l.qty * l.price; }); });
+  var dk = Object.keys(days).sort(function(a, b){ return days[b] - days[a]; }), best = dk[0], worst = dk.length > 1 ? dk[dk.length - 1] : null;
+  var kpi = function(l, v, sub, c){ return '<div style="min-width:130px;flex:1;border-left:4px solid ' + c + ';padding:4px 0 4px 10px;background:#fff;border-radius:6px"><div style="font-size:11px;color:#6b6770;text-transform:uppercase;letter-spacing:.06em">' + l + '</div><div style="font-size:20px;font-weight:800">' + v + '</div><div style="font-size:12px;color:#6b6770">' + (sub || '&nbsp;') + '</div></div>'; };
+  var head = '<div style="display:flex;gap:10px;flex-wrap:wrap">' + kpi('Net sales', 'AED ' + money(D.net), dl(D.net, Q.net), '#d6338a') + kpi('Bills', D.bills, dl(D.bills, Q.bills), '#0f8b8d') + kpi('Average bill', 'AED ' + money(avg), dl(avg, qavg), '#6a4c93')
+    + kpi('Best day', best ? 'AED ' + money(days[best]) : '-', best ? esc(fdate(new Date(best + 'T12:00:00').getTime()).slice(0, 6)) : '', '#0b7a4b') + kpi('Slowest day', worst ? 'AED ' + money(days[worst]) : '-', worst ? esc(fdate(new Date(worst + 'T12:00:00').getTime()).slice(0, 6)) : '', '#f2b01e') + '</div>';
+  var pay = [{n:'Cash', v:D.pay.cash || 0, c:'#0b7a4b'}, {n:'Card', v:D.pay.card || 0, c:'#3a7bd5'}, {n:'Credit', v:D.pay.credit || 0, c:'#f2b01e'}]; Object.keys(D.chan).forEach(function(k, ix){ pay.push({n:chName(k), v:D.chan[k], c:['#d6501a', '#8a3d00', '#a0527c', '#555'][ix % 4]}); });
+  var cats = Object.keys(D.cat).sort(function(a, b){ return D.cat[b] - D.cat[a]; }).map(function(k, j){ return {n:k, v:D.cat[k], c:CH_COL[j % 9]}; });
+  var names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], wrows = [1, 2, 3, 4, 5, 6, 0].map(function(i){ return {n:names[i], v:round2(wd[i]), c:'#d6338a'}; });
+  var ik = Object.keys(items).sort(function(a, b){ return items[b].q - items[a].q; }).slice(0, 8), irows = ik.map(function(k){ return {n:k, v:items[k].q, c:'#0f8b8d'}; });
+  var oc = D.exp.cat, ex = Object.keys(oc).sort(function(a, b){ return oc[b] - oc[a]; }).map(function(k, j){ return {n:catName(k), v:oc[k], c:CH_COL[(j + 3) % 9]}; });
+  var d = ledgerView('drawer', m), b = ledgerView('bank', m), recv = chans().reduce(function(a, x){ return a + aggToReceive(x.id, D.end); }, 0);
+  var pos = '<div class="mgcard"><div class="mgh">Money at the end of the month</div><div style="display:flex;gap:10px;flex-wrap:wrap">' + kpi('Counter drawer', 'AED ' + money(d.end), '', '#0b7a4b') + kpi('Bank', 'AED ' + money(b.end), '', '#3a7bd5') + kpi('Customers owe us', 'AED ' + money(D.recv), '', '#f2b01e') + (chans().length ? kpi('Channels owe us', 'AED ' + money(recv), '', '#d6501a') : '') + kpi('We owe suppliers', 'AED ' + money(D.payb), '', '#c0182f') + '</div></div>';
+  return '<div class="mgwrap" style="margin-bottom:14px">' + head
+    + '<div class="mggrid">' + chPie('How sales were paid', pay, money(D.net), 'total') + chPie('Sales by category', cats, money(D.net), 'sales') + '</div>'
+    + '<div class="mgcard"><div class="mgh">Daily sales and expenses</div>' + chDaily(m) + '</div>'
+    + '<div class="mggrid">' + chBars('Sales by weekday (AED)', wrows) + chBars('Best selling items (pieces)', irows, 'qty') + '</div>'
+    + '<div class="mggrid">' + chPie('Expenses by category', ex, money(D.exp.total), 'spent') + pos + '</div></div>';
+}
 function mgmtHtml(m){
   var P = pnlOf(m), D = P.D, Q = pnlOf(shiftMonth(m, -1)), win = P.np >= 0, col = win ? '#0b7a4b' : '#c0182f', bg = win ? '#e6f6ee' : '#fdecef';
   var diff = round2(P.np - Q.np), hasQ = Q.rev > 0 || Q.cogs > 0 || Q.opex > 0;
@@ -3832,7 +3861,7 @@ function repPrint(kind, m){
   var R = rb(true, kind === 'pnl'), body;
   if (kind === 'pnl'){ var x = pnlRows(m, true); body = R.wrap(x.html) + (x.P.warn.length ? '<p style="font-size:11px;margin-top:10px">Note: ' + esc(x.P.warn.join(' ')) + '</p>' : ''); return '<div style="color:#000;padding:4mm;-webkit-print-color-adjust:exact;print-color-adjust:exact">' + repHead('Profit and loss', m) + mgmtHtml(m) + '<div style="page-break-before:always;break-before:page;margin-top:12px">' + body + '</div></div>'; }
   if (kind === 'vat') return '<div style="color:#000;padding:4mm">' + repHead('VAT report', m) + R.wrap(vatRows(m, true)) + '</div>';
-  return '<div style="color:#000;padding:4mm">' + repHead('Monthly report', m) + R.wrap(monthlyRows(m, true)) + '<div style="display:flex;justify-content:space-between;margin-top:30px;font-size:12px"><span>Prepared by: '+esc(curName())+'</span><span>Approved by: ______________________</span></div></div>';
+  return '<div style="color:#000;padding:4mm">' + repHead('Monthly report', m) + monthVisHtml(m) + R.wrap(monthlyRows(m, true)) + '<div style="display:flex;justify-content:space-between;margin-top:30px;font-size:12px"><span>Prepared by: '+esc(curName())+'</span><span>Approved by: ______________________</span></div></div>';
 }
 function chanReportHtml(m){
   var D = monthData(m), end = D.end, ok = db.sales.filter(function(s){ return !s.void && (s.day || '').slice(0, 7) === m; }), tot = D.net || 0;
@@ -3871,7 +3900,7 @@ function vReports(){
     body = '<div class="card"><h3>Lock months</h3><p style="margin:0 0 8px;color:var(--muted)">After you have checked a month and given the reports to your partners, lock it. Nothing dated in a locked month can be added, changed, cancelled or deleted. Only the Owner can unlock it, and it is recorded.</p>'
       + pinOpen('lock','max-width:240px;margin-bottom:8px')+'<input class="inp" type="password" inputmode="numeric" data-f="rpin" value="'+esc(S.rpin)+'" autocomplete="off"></label>'
       + '<table class="tbl"><tbody>' + ms.map(function(k){ var L = db.locks[k]; return '<tr><td><b>'+esc(monthLabel(k))+'</b>'+(L ? '<small style="display:block;color:var(--muted)">locked by '+esc(L.by)+' · '+auditTime(L.t)+'</small>' : '')+'</td><td style="text-align:right">'+(L ? '<span class="pill cash">Locked</span> <button class="btn sm ghost" data-act="mlock" data-m="'+k+'" data-v="0">Unlock</button>' : '<button class="btn sm primary" data-act="mlock" data-m="'+k+'" data-v="1">Lock</button>')+'</td></tr>'; }).join('') + '</tbody></table></div>';
-  } else body = '<div class="card"><h3 style="margin:0 0 4px">Monthly report</h3>' + R.wrap(monthlyRows(m, false)) + '</div>';
+  } else body = monthVisHtml(m) + '<div class="card"><h3 style="margin:0 0 4px">Monthly report</h3>' + R.wrap(monthlyRows(m, false)) + '</div>';
   return '<div class="page"><div class="bar">'+seg+'</div>' + bar + body + '</div>';
 }
 
