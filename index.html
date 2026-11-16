@@ -1315,6 +1315,8 @@ function dayReportHtml(date){
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px"><div>'+sec('Sales summary')+left+'</div><div>'+sec('Cash drawer')+right+'</div></div>'
     + sec('Sales by category') + tbl(['Category','>Items','>AED'], catRows, 'No sales.')
     + sec('Items sold') + tbl(['Item','>Qty','>AED'], itemRows, 'No sales.')
+    + (D.online || []).map(function(o){ var it = {}; D.ok.filter(function(s){ return s.pay === 'agg' && s.ch === o.ch; }).forEach(function(s){ s.lines.forEach(function(l){ var k = l.name + (l.size ? ' (' + l.size + ')' : ''); it[k] = it[k] || {q:0, a:0}; it[k].q += l.qty; it[k].a += l.qty * l.price; }); });
+        return sec(esc(o.name) + ' orders (' + o.n + ', AED ' + money(o.amt) + ', paid later)') + tbl(['Item','>Qty','>AED'], Object.keys(it).map(function(k){ return '<tr><td style="'+td+'">'+esc(k)+'</td><td style="'+tr+'">'+it[k].q+'</td><td style="'+tr+'">'+money(it[k].a)+'</td></tr>'; }).join(''), 'None.'); }).join('')
     + sec('Cancelled bills ('+D.voids.length+')') + tbl(['No.','Time','Reason','Items','>AED'], voidRows, 'No cancelled bills.')
     + sec('Discounts given') + tbl(['No.','Reason','>Before','>Discount'], discRows, 'No discounts.')
     + sec('Cash paid out (Day close)') + tbl(['Time','Reason','>AED'], outRows, 'None.')
@@ -3684,7 +3686,8 @@ function monthlyRows(m, print){
   h += R.row('Paid from counter cash', money(D.exp.cash), {i:1}) + R.row('Paid from bank', money(D.exp.bank), {i:1}) + (D.fees ? R.row('Card and bank fees (from settlements)', money(D.fees), {i:1}) : '');
   h += R.sec('Money in and out') + R.row('Counter drawer: start', money(d.start)) + R.row('In', money(d.inn), {i:1}) + R.row('Out', money(d.outt), {i:1}) + R.row('Counter drawer: end', money(d.end), {b:1})
     + R.row('Bank: start', money(b.start)) + R.row('In', money(b.inn), {i:1}) + R.row('Out', money(b.outt), {i:1}) + R.row('Bank: end', money(b.end), {b:1});
-  h += R.sec('At the end of the month') + R.row('Customers owe us (credit)', money(D.recv)) + R.row('We owe suppliers', money(D.payb));
+  if (Object.keys(D.agg).length) { h += R.sec('Online channels'); Object.keys(D.agg).forEach(function(k){ var a = D.agg[k]; h += R.row(esc(a.name) + ' sales', money(a.sales), {i:1}) + R.row(esc(a.name) + ' commission and charges', money(a.fee), {i:2}); }); }
+  h += R.sec('At the end of the month') + R.row('Customers owe us (credit)', money(D.recv)) + chans().map(function(x){ return R.row(esc(x.name) + ' to receive', money(aggToReceive(x.id, D.end))); }).join('') + R.row('We owe suppliers', money(D.payb));
   h += R.sec('Quick view') + R.row('Net sales without VAT − purchases − expenses', money(D.rev - D.pur.sub - D.exp.total), {b:1}) + R.row('This is not the profit. See Profit and loss.', '', {});
   return h;
 }
@@ -3791,8 +3794,25 @@ function repPrint(kind, m){
   if (kind === 'vat') return '<div style="color:#000;padding:4mm">' + repHead('VAT report', m) + R.wrap(vatRows(m, true)) + '</div>';
   return '<div style="color:#000;padding:4mm">' + repHead('Monthly report', m) + R.wrap(monthlyRows(m, true)) + '<div style="display:flex;justify-content:space-between;margin-top:30px;font-size:12px"><span>Prepared by: '+esc(curName())+'</span><span>Approved by: ______________________</span></div></div>';
 }
+function chanReportHtml(m){
+  var D = monthData(m), end = D.end, ok = db.sales.filter(function(s){ return !s.void && (s.day || '').slice(0, 7) === m; }), tot = D.net || 0;
+  var R = rb(false, false), head = '<th>Channel</th><th class="n">Bills</th><th class="n">Sales</th><th class="n">Avg bill</th><th class="n">Share</th><th class="n">Commission</th><th class="n">You keep</th><th class="n">To receive</th>';
+  var rows = chans().map(function(x){
+    var l = ok.filter(function(s){ return s.pay === 'agg' && s.ch === x.id; }), sales = round2(l.reduce(function(a, s){ return a + s.total; }, 0)), a = D.agg[x.id] || {fee:0}, fee = a.fee || 0;
+    return '<tr><td><b>' + esc(x.name) + '</b><small style="display:block;color:var(--muted)">' + (+x.pct || 0) + '% expected</small></td><td class="n">' + l.length + '</td><td class="n">' + money(sales) + '</td><td class="n">' + (l.length ? money(sales / l.length) : '0.00') + '</td><td class="n">' + (tot ? Math.round(sales / tot * 100) : 0) + '%</td><td class="n">' + money(fee) + '</td><td class="n">' + money(sales - fee) + '</td><td class="n">' + money(aggToReceive(x.id, end)) + '</td></tr>';
+  }).join('');
+  var out = '<div class="card"><h3 style="margin:0 0 4px">Online channels · ' + esc(monthLabel(m)) + '</h3><p style="margin:0 0 8px;color:var(--muted);font-size:13px">Sales made through each channel, the commission and charges, and the money the channel still has to pay us (at the end of the month). Channels with no sales show 0.</p><div style="overflow-x:auto"><table class="tbl"><thead><tr>' + head + '</tr></thead><tbody>' + (rows || '<tr><td colspan="8">No channels. Add them in Settings.</td></tr>') + '</tbody></table></div></div>';
+  chans().forEach(function(x){
+    var l = ok.filter(function(s){ return s.pay === 'agg' && s.ch === x.id; }), it = {};
+    l.forEach(function(s){ s.lines.forEach(function(g){ var k = g.name + (g.size ? ' (' + g.size + ')' : ''); it[k] = it[k] || {q:0, a:0}; it[k].q += g.qty; it[k].a += g.qty * g.price; }); });
+    var ir = Object.keys(it).sort(function(p, q){ return it[q].a - it[p].a; }).slice(0, 10).map(function(k){ return '<tr><td>' + esc(k) + '</td><td class="n">' + it[k].q + '</td><td class="n">' + money(it[k].a) + '</td></tr>'; }).join('');
+    var po = db.cash.entries.filter(function(e){ return e.kind === 'agg' && e.ch === x.id && e.date.slice(0, 7) === m; }).map(function(e){ return '<tr><td>' + esc(e.date) + '</td><td class="n">' + money(e.amt) + '</td><td class="n">' + money(e.fee || 0) + '</td><td class="n">' + money(e.amt - (e.fee || 0)) + '</td></tr>'; }).join('');
+    out += '<div class="card"><h3 style="margin:0 0 6px">' + esc(x.name) + '</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px"><div><b style="font-size:13px">Best selling items</b><table class="tbl"><tbody>' + (ir || '<tr><td>No sales this month: 0</td></tr>') + '</tbody></table></div><div><b style="font-size:13px">Payouts received this month</b><table class="tbl"><thead><tr><th>Date</th><th class="n">Sales covered</th><th class="n">Charges</th><th class="n">Received</th></tr></thead><tbody>' + (po || '<tr><td colspan="4">No payout this month: 0</td></tr>') + '</tbody></table></div></div></div>';
+  });
+  return out;
+}
 function vReports(){
-  var tabs = [['month', 'Monthly report'], ['pnl', 'Profit and loss'], ['vat', 'VAT'], ['lock', 'Lock months']], m = S.rm, R = rb(false, S.rt === 'pnl');
+  var tabs = [['month', 'Monthly report'], ['pnl', 'Profit and loss'], ['chan', 'Online channels'], ['vat', 'VAT'], ['lock', 'Lock months']], m = S.rm, R = rb(false, S.rt === 'pnl');
   var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="rtab" data-id="'+t[0]+'" aria-pressed="'+(S.rt === t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
   var bar = '<div class="bar" style="margin:10px 0"><button class="btn sm ghost" data-act="rmonth" data-v="-1">‹</button><b>'+monthLabel(m)+'</b><button class="btn sm ghost" data-act="rmonth" data-v="1">›</button>'+(db.locks[m] ? ' <span class="pill cash">Locked</span>' : '')+'<span class="sp"></span>'+(S.rt !== 'lock' ? '<button class="btn sm ghost" data-act="repprint">Print / PDF</button>' : '')+'</div>';
   var body = '';
@@ -3801,6 +3821,8 @@ function vReports(){
     body = mgmtHtml(m) + '<div class="card"><h3 style="margin:0 0 4px">Profit and loss</h3><p style="margin:0;color:var(--muted);font-size:13px">Sales without VAT − cost of goods sold = gross profit. Gross profit − operating expenses = net profit. Cost of goods = opening stock + purchases + cost-of-goods expenses − closing stock.</p>'
       + R.wrap(x.html) + (P.warn.length ? '<div style="margin-top:12px;padding:10px;border-radius:10px;background:#fff6dd;font-size:13px">'+P.warn.map(esc).join('<br>')+'</div>' : '')
       + '<div style="margin-top:14px"><h3 style="font-size:15px;margin:0 0 6px">Opening stock value for '+esc(monthLabel(m))+'</h3><div class="fgrid"><label class="fld">Type it if there is no Day close before this month (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="osv" value="'+esc(S.osv)+'" placeholder="'+(db.openStock[m] !== undefined ? db.openStock[m] : '')+'"></label>'+pinOpen('reports')+'<input class="inp" type="password" inputmode="numeric" data-f="rpin" value="'+esc(S.rpin)+'" autocomplete="off"></label></div><div class="btns"><button class="btn sm plum" data-act="osvsave">Save opening stock value</button>'+(db.openStock[m] !== undefined ? ' <button class="btn sm ghost" data-act="osvclear">Use the Day close value</button>' : '')+'</div></div></div>';
+  } else if (S.rt === 'chan'){
+    body = chanReportHtml(m);
   } else if (S.rt === 'vat'){
     body = setg().vat ? '<div class="card"><h3 style="margin:0 0 6px">VAT report</h3>' + R.wrap(vatRows(m, false)) + '<p style="color:var(--muted);font-size:13px;margin:10px 0 0">Input VAT comes from the VAT amount typed on purchases and expenses. Prices in the POS include VAT.</p></div>' : '<div class="card"><div class="empty">VAT is off. Turn it on in Settings to use this report.</div></div>';
   } else if (S.rt === 'lock'){
