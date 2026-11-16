@@ -177,7 +177,16 @@ const server = http.createServer(function (req, res) {
     if (!res.headersSent) send(res, status, { error: status >= 500 ? 'server error' : e.message });
   });
 });
-users.ensureSchema(pool).then(function () { return tenancy.ensureSchema(pool); }).then(function () { return superadmin.ensureSchema(pool); }).then(function () {
+function allowAggPay() {   // online channel sales are stored with pay = 'agg'; older databases only allow cash, card and credit
+  return pool.query(`
+    do $$ declare r record; begin
+      for r in select conname from pg_constraint where conrelid = 'sales'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%pay%' and pg_get_constraintdef(oid) not like '%status%' loop
+        execute 'alter table sales drop constraint ' || quote_ident(r.conname);
+      end loop;
+      alter table sales add constraint sales_pay_check check (pay in ('cash','card','credit','agg'));
+    end $$;`);
+}
+users.ensureSchema(pool).then(allowAggPay).then(function () { return tenancy.ensureSchema(pool); }).then(function () { return superadmin.ensureSchema(pool); }).then(function () {
   server.listen(PORT, function () { console.log('Hollywood POS API listening on ' + PORT); });
 }).catch(function (e) { console.error('Could not prepare the users table', e); process.exit(1); });
 process.on('SIGTERM', function () { server.close(function () { pool.end().then(function () { process.exit(0); }); }); });

@@ -31,7 +31,7 @@ create table if not exists sales (
   bill_no          text not null,
   day              date not null,
   sold_at          timestamptz not null,
-  pay              text not null check (pay in ('cash','card','credit')),
+  pay              text not null check (pay in ('cash','card','credit','agg')),
   subtotal         numeric(12,2) not null,
   discount         numeric(12,2) not null default 0,
   discount_reason  text,
