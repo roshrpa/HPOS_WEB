@@ -174,6 +174,10 @@ td .inp{width:90px;text-align:right}
 .cntpg .tbl table{width:100%}
 .cntpg .tbl table .inp{width:80px;text-align:right}
 .cntpg .tbl .fld .inp{width:100%;text-align:left;height:30px!important;min-height:30px!important}
+.mgwrap{display:flex;flex-direction:column;gap:12px;margin-bottom:14px;color:var(--ink,#1c1a1f)}
+.mggrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.mgcard{background:#fff;border:1px solid #eadfe6;border-radius:14px;padding:12px 14px}
+.mgh{font-size:13px;font-weight:800;margin-bottom:8px}
 .card{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(28,26,31,.1)}
 .card h3{margin:0 0 12px;font-size:17px}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
@@ -3543,6 +3547,73 @@ function pnlRows(m, print){
   h += R.sec('Result') + R.row('Net profit', money(P.np), {b:1}, money(Q.np)) + R.row('Net margin', pc(P.npPct), {i:1}, pc(Q.npPct));
   return {html:h, P:P};
 }
+
+/* ----- management summary (charts drawn as inline SVG, so they print and work offline) ----- */
+var CH_COL = ['#d6338a', '#0f8b8d', '#f2b01e', '#6a4c93', '#3a7bd5', '#e8743b', '#7a9e3f', '#9c6b4e', '#8a8591'];
+function chDonut(segs, size, ctrTop, ctrSub){
+  var tot = segs.reduce(function(a, x){ return a + x.v; }, 0), off = 0, r = 15.9155, h = '<svg viewBox="0 0 42 42" width="' + size + '" height="' + size + '" style="flex:none"><circle cx="21" cy="21" r="' + r + '" fill="none" stroke="#efe9ee" stroke-width="6"/>';
+  if (tot > 0) segs.forEach(function(x){ var p = x.v / tot * 100; if (p <= 0) return; h += '<circle cx="21" cy="21" r="' + r + '" fill="none" stroke="' + x.c + '" stroke-width="6" stroke-dasharray="' + p.toFixed(3) + ' ' + (100 - p).toFixed(3) + '" stroke-dashoffset="' + (25 - off).toFixed(3) + '"/>'; off += p; });
+  h += '<text x="21" y="' + (ctrSub ? 20.5 : 22.5) + '" text-anchor="middle" font-size="3.7" font-weight="800" fill="currentColor">' + esc(ctrTop) + '</text>' + (ctrSub ? '<text x="21" y="26" text-anchor="middle" font-size="2.8" fill="#6b6770" font-size="2.6">' + esc(ctrSub) + '</text>' : '') + '</svg>';
+  return h;
+}
+function chLegend(segs){
+  var tot = segs.reduce(function(a, x){ return a + x.v; }, 0) || 1;
+  return '<div style="flex:1;min-width:150px">' + segs.filter(function(x){ return x.v > 0; }).map(function(x){ return '<div style="display:flex;align-items:center;gap:7px;padding:3px 0;font-size:12.5px"><span style="width:10px;height:10px;border-radius:3px;background:' + x.c + ';flex:none"></span><span style="flex:1">' + esc(x.n) + '</span><b style="font-variant-numeric:tabular-nums">' + money(x.v) + '</b><span style="width:36px;text-align:right;color:#6b6770">' + Math.round(x.v / tot * 100) + '%</span></div>'; }).join('') + '</div>';
+}
+function chPie(title, segs, ctrTop, ctrSub){
+  var has = segs.some(function(x){ return x.v > 0; });
+  return '<div class="mgcard"><div class="mgh">' + title + '</div>' + (has ? '<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">' + chDonut(segs, 150, ctrTop, ctrSub) + chLegend(segs) + '</div>' : '<div style="color:#6b6770;font-size:13px;padding:10px 0">Nothing recorded for this month.</div>') + '</div>';
+}
+function chDaily(m){
+  var n = parseInt(monthEnd(m).slice(8), 10), S1 = [], E1 = [], i, mx = 1;
+  for (i = 0; i < n; i++){ S1.push(0); E1.push(0); }
+  db.sales.forEach(function(x){ if (!x.void && (x.day || '').slice(0, 7) === m) S1[parseInt(x.day.slice(8), 10) - 1] += x.total; });
+  db.exp.items.forEach(function(e){ if (e.date.slice(0, 7) === m) E1[parseInt(e.date.slice(8), 10) - 1] += e.amt; });
+  S1.concat(E1).forEach(function(v){ if (v > mx) mx = v; });
+  var W = 620, H = 150, pl = 34, pb = 16, bw = (W - pl) / n, h = '<svg viewBox="0 0 ' + W + ' ' + (H + pb) + '" width="100%" style="display:block"><g font-size="9" fill="#6b6770">';
+  [0, .5, 1].forEach(function(f){ var y = H - f * (H - 8); h += '<line x1="' + pl + '" x2="' + W + '" y1="' + y + '" y2="' + y + '" stroke="#eee"/><text x="' + (pl - 4) + '" y="' + (y + 3) + '" text-anchor="end">' + Math.round(mx * f) + '</text>'; });
+  for (i = 0; i < n; i++){
+    var x0 = pl + i * bw, hs = S1[i] / mx * (H - 8), he = E1[i] / mx * (H - 8);
+    if (hs > 0) h += '<rect x="' + (x0 + bw * .12) + '" y="' + (H - hs) + '" width="' + (bw * .4) + '" height="' + hs + '" rx="1.5" fill="#d6338a"/>';
+    if (he > 0) h += '<rect x="' + (x0 + bw * .54) + '" y="' + (H - he) + '" width="' + (bw * .34) + '" height="' + he + '" rx="1.5" fill="#f2b01e"/>';
+    if (i % 2 === 0 || n < 16) h += '<text x="' + (x0 + bw / 2) + '" y="' + (H + 11) + '" text-anchor="middle">' + (i + 1) + '</text>';
+  }
+  return h + '</g></svg><div style="font-size:12px;color:#6b6770;display:flex;gap:14px;margin-top:2px"><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#d6338a;margin-right:5px"></span>Sales</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#f2b01e;margin-right:5px"></span>Expenses paid</span></div>';
+}
+function chTrend(m){
+  var ms = [], i, P = [], mx = 1, mn = 0;
+  for (i = 5; i >= 0; i--) ms.push(shiftMonth(m, -i));
+  ms.forEach(function(k){ var p = pnlOf(k); P.push({k:k, s:p.rev, c:round2(p.cogs + p.opex), n:p.np}); });
+  P.forEach(function(p){ [p.s, p.c, p.n].forEach(function(v){ if (v > mx) mx = v; if (v < mn) mn = v; }); });
+  var W = 620, H = 150, pl = 40, pb = 18, rg = mx - mn || 1, X = function(i){ return pl + 20 + i * ((W - pl - 40) / 5); }, Y = function(v){ return 6 + (mx - v) / rg * (H - 12); };
+  var h = '<svg viewBox="0 0 ' + W + ' ' + (H + pb) + '" width="100%" style="display:block;max-width:720px"><g font-size="9" fill="#6b6770">';
+  [mx, (mx + mn) / 2, mn].forEach(function(v){ h += '<line x1="' + pl + '" x2="' + W + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="#eee"/><text x="' + (pl - 4) + '" y="' + (Y(v) + 3) + '" text-anchor="end">' + Math.round(v) + '</text>'; });
+  if (mn < 0) h += '<line x1="' + pl + '" x2="' + W + '" y1="' + Y(0) + '" y2="' + Y(0) + '" stroke="#bbb" stroke-dasharray="3 3"/>';
+  [['s', '#d6338a'], ['c', '#f2b01e'], ['n', '#0b7a4b']].forEach(function(L){
+    h += '<polyline fill="none" stroke="' + L[1] + '" stroke-width="2.4" stroke-linejoin="round" points="' + P.map(function(p, i){ return X(i) + ',' + Y(p[L[0]]); }).join(' ') + '"/>' + P.map(function(p, i){ return '<circle cx="' + X(i) + '" cy="' + Y(p[L[0]]) + '" r="3" fill="' + L[1] + '"/>'; }).join('');
+  });
+  P.forEach(function(p, i){ h += '<text x="' + X(i) + '" y="' + (H + 12) + '" text-anchor="middle">' + esc(monthLabel(p.k).split(' ')[0].slice(0, 3)) + '</text>'; });
+  return h + '</g></svg><div style="font-size:12px;color:#6b6770;display:flex;gap:14px;margin-top:2px"><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#d6338a;margin-right:5px"></span>Sales</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#f2b01e;margin-right:5px"></span>Costs</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#0b7a4b;margin-right:5px"></span>Profit</span></div>';
+}
+function mgmtHtml(m){
+  var P = pnlOf(m), D = P.D, Q = pnlOf(shiftMonth(m, -1)), win = P.np >= 0, col = win ? '#0b7a4b' : '#c0182f', bg = win ? '#e6f6ee' : '#fdecef';
+  var diff = round2(P.np - Q.np), hasQ = Q.rev > 0 || Q.cogs > 0 || Q.opex > 0;
+  var head = '<div style="padding:16px 18px;border-radius:16px;background:' + bg + ';border:1.5px solid ' + col + ';display:flex;gap:18px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:200px"><div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:' + col + ';font-weight:700">' + esc(monthLabel(m)) + ' · ' + (win ? 'Profit' : 'Loss') + '</div><div style="font-size:34px;font-weight:800;color:' + col + '">AED ' + money(Math.abs(P.np)) + '</div><div style="font-size:12.5px;color:#4a4650">' + (D.bills ? 'Net margin ' + (Math.round(P.npPct * 10) / 10) + '% of sales' : 'No sales recorded yet') + (hasQ ? ' · ' + (diff >= 0 ? 'up ' : 'down ') + 'AED ' + money(Math.abs(diff)) + ' vs last month' : '') + '</div></div>'
+    + [['Sales', P.rev, '#d6338a'], ['Cost of goods', P.cogs, '#f2b01e'], ['Expenses', P.opex, '#6a4c93'], ['Gross profit', P.gp, '#0f8b8d']].map(function(k){ return '<div style="min-width:112px;border-left:4px solid ' + k[2] + ';padding:2px 0 2px 10px;background:#fff;border-radius:6px"><div style="font-size:11px;color:#6b6770;text-transform:uppercase;letter-spacing:.06em">' + k[0] + '</div><div style="font-size:18px;font-weight:800">' + money(k[1]) + '</div></div>'; }).join('') + '</div>';
+  var out = [{n:'Cost of goods', v:Math.max(P.cogs, 0), c:CH_COL[2]}], oc = D.exp.opexCat, ks = Object.keys(oc).sort(function(a, b){ return oc[b] - oc[a]; });
+  ks.forEach(function(k, ix){ out.push({n:catName(k), v:oc[k], c:CH_COL[3 + (ix % 5)]}); });
+  if (D.fees) out.push({n:'Card and bank fees', v:D.fees, c:CH_COL[8]});
+  if (P.np > 0) out.push({n:'Profit', v:P.np, c:'#0b7a4b'});
+  var spent = out.filter(function(x){ return x.n !== 'Profit'; }).reduce(function(a, x){ return a + x.v; }, 0);
+  var cats = Object.keys(D.cat).sort(function(a, b){ return D.cat[b] - D.cat[a]; }).map(function(k, j){ return {n:k, v:D.cat[k], c:CH_COL[j % 9]}; });
+  var pay = [{n:'Cash', v:D.pay.cash || 0, c:'#0b7a4b'}, {n:'Card', v:D.pay.card || 0, c:'#3a7bd5'}, {n:'Credit', v:D.pay.credit || 0, c:'#f2b01e'}];
+  var topx = ks.length ? catName(ks[0]) + ' (AED ' + money(oc[ks[0]]) + ')' : '';
+  return '<div class="mgwrap">' + head
+    + '<div class="mggrid">' + chPie('Where the money went', out, money(spent), 'spent') + chPie('Sales by category', cats, money(D.net), 'sales') + '</div>'
+    + (topx ? '<div style="margin:2px 0 0;font-size:13px;color:#4a4650">Biggest expense: <b>' + esc(topx) + '</b></div>' : '')
+    + '<div class="mggrid"><div class="mgcard"><div class="mgh">Daily sales and expenses</div>' + chDaily(m) + '</div>' + chPie('How customers paid', pay, money(D.net), 'total') + '</div>'
+    + '<div class="mgcard"><div class="mgh">Last 6 months</div>' + chTrend(m) + '</div></div>';
+}
 function vatRows(m, print){
   var R = rb(print, false), D = monthData(m), out = D.vat, inP = D.pur.vat, inE = D.exp.vat, net = round2(out - inP - inE), h = '';
   h += R.sec('Output VAT (collected on sales)') + R.row('Net sales without VAT', money(D.rev)) + R.row('VAT on sales', money(out), {b:1});
@@ -3553,7 +3624,7 @@ function vatRows(m, print){
 function repHead(title, m){ var G = setg(); return '<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><img src="'+LOGO+'" alt="" style="height:54px"><div><div style="font-size:22px;font-weight:700">'+esc(G.shop)+'</div><div style="font-size:15px">'+esc(title)+' · '+esc(monthLabel(m))+'</div>'+(G.trn ? '<div style="font-size:12px">TRN '+esc(G.trn)+'</div>' : '')+'</div></div>'; }
 function repPrint(kind, m){
   var R = rb(true, kind === 'pnl'), body;
-  if (kind === 'pnl'){ var x = pnlRows(m, true); body = R.wrap(x.html) + (x.P.warn.length ? '<p style="font-size:11px;margin-top:10px">Note: ' + esc(x.P.warn.join(' ')) + '</p>' : ''); return '<div style="color:#000;padding:4mm">' + repHead('Profit and loss', m) + body + '</div>'; }
+  if (kind === 'pnl'){ var x = pnlRows(m, true); body = R.wrap(x.html) + (x.P.warn.length ? '<p style="font-size:11px;margin-top:10px">Note: ' + esc(x.P.warn.join(' ')) + '</p>' : ''); return '<div style="color:#000;padding:4mm;-webkit-print-color-adjust:exact;print-color-adjust:exact">' + repHead('Profit and loss', m) + mgmtHtml(m) + '<div style="page-break-before:always;break-before:page;margin-top:12px">' + body + '</div></div>'; }
   if (kind === 'vat') return '<div style="color:#000;padding:4mm">' + repHead('VAT report', m) + R.wrap(vatRows(m, true)) + '</div>';
   return '<div style="color:#000;padding:4mm">' + repHead('Monthly report', m) + R.wrap(monthlyRows(m, true)) + '<div style="display:flex;justify-content:space-between;margin-top:30px;font-size:12px"><span>Prepared by: '+esc(curName())+'</span><span>Approved by: ______________________</span></div></div>';
 }
@@ -3564,7 +3635,7 @@ function vReports(){
   var body = '';
   if (S.rt === 'pnl'){
     var x = pnlRows(m, false), P = x.P;
-    body = '<div class="card"><h3 style="margin:0 0 4px">Profit and loss</h3><p style="margin:0;color:var(--muted);font-size:13px">Sales without VAT − cost of goods sold = gross profit. Gross profit − operating expenses = net profit. Cost of goods = opening stock + purchases + cost-of-goods expenses − closing stock.</p>'
+    body = mgmtHtml(m) + '<div class="card"><h3 style="margin:0 0 4px">Profit and loss</h3><p style="margin:0;color:var(--muted);font-size:13px">Sales without VAT − cost of goods sold = gross profit. Gross profit − operating expenses = net profit. Cost of goods = opening stock + purchases + cost-of-goods expenses − closing stock.</p>'
       + R.wrap(x.html) + (P.warn.length ? '<div style="margin-top:12px;padding:10px;border-radius:10px;background:#fff6dd;font-size:13px">'+P.warn.map(esc).join('<br>')+'</div>' : '')
       + '<div style="margin-top:14px"><h3 style="font-size:15px;margin:0 0 6px">Opening stock value for '+esc(monthLabel(m))+'</h3><div class="fgrid"><label class="fld">Type it if there is no Day close before this month (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="osv" value="'+esc(S.osv)+'" placeholder="'+(db.openStock[m] !== undefined ? db.openStock[m] : '')+'"></label><label class="fld">'+pinLabel('reports')+'<input class="inp" type="password" inputmode="numeric" data-f="rpin" value="'+esc(S.rpin)+'" autocomplete="off"></label></div><div class="btns"><button class="btn sm plum" data-act="osvsave">Save opening stock value</button>'+(db.openStock[m] !== undefined ? ' <button class="btn sm ghost" data-act="osvclear">Use the Day close value</button>' : '')+'</div></div></div>';
   } else if (S.rt === 'vat'){
