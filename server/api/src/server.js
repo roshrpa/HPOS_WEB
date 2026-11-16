@@ -177,12 +177,7 @@ const server = http.createServer(function (req, res) {
     if (!res.headersSent) send(res, status, { error: status >= 500 ? 'server error' : e.message });
   });
 });
-function allowAggPay() {   // online channel sales are stored with pay = 'agg'; older databases only allow cash, card and credit. Never stops the server from starting.
-  return pool.query('alter table sales drop constraint if exists sales_pay_check')
-    .then(function () { return pool.query("alter table sales add constraint sales_pay_check check (pay in ('cash','card','credit','agg'))"); })
-    .catch(function (e) { console.error('Could not allow pay = agg on the sales table:', e.message); });
-}
-users.ensureSchema(pool).then(allowAggPay).then(function () { return tenancy.ensureSchema(pool); }).then(function () { return superadmin.ensureSchema(pool); }).then(function () {
+users.ensureSchema(pool).then(function () { return tenancy.ensureSchema(pool); }).then(function () { return superadmin.ensureSchema(pool); }).then(function () {
   server.listen(PORT, function () { console.log('Hollywood POS API listening on ' + PORT); });
 }).catch(function (e) { console.error('Could not prepare the users table', e); process.exit(1); });
 process.on('SIGTERM', function () { server.close(function () { pool.end().then(function () { process.exit(0); }); }); });

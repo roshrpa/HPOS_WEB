@@ -41,8 +41,11 @@ async function ensureSchema(pool) {
                  and pg_get_constraintdef(oid) like '%cash%' and pg_get_constraintdef(oid) like '%card%' and pg_get_constraintdef(oid) not like '%credit%' loop
         execute format('alter table sales drop constraint %I', c);
       end loop;
+      if exists (select 1 from pg_constraint where conrelid = 'sales'::regclass and conname = 'sales_pay_allowed' and pg_get_constraintdef(oid) not like '%agg%') then
+        alter table sales drop constraint sales_pay_allowed;
+      end if;
       if not exists (select 1 from pg_constraint where conrelid = 'sales'::regclass and conname = 'sales_pay_allowed') then
-        alter table sales add constraint sales_pay_allowed check (pay in ('cash','card','credit'));
+        alter table sales add constraint sales_pay_allowed check (pay in ('cash','card','credit','agg'));
       end if;
     end $mig$;
   `);
