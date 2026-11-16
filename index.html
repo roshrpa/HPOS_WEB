@@ -2989,7 +2989,7 @@ document.addEventListener('click', function(e){
       S.cdel = null; S.cdelpin = ''; break;
     case 'cashadd':
       var f = S.cf, amt = parseFloat(f.amt), ap2 = pinUser(f.pin, 'cash'), needNote = ['dep', 'wd', 'settle', 'agg'].indexOf(f.kind) < 0, fee = parseFloat(f.fee) || 0, recv = parseFloat(f.recv);
-      if (f.kind === 'agg'){ if (!f.ch){ toast('Choose the channel'); return; } if (!(recv > 0)){ toast('Type the money received in bank'); return; } if (recv > amt + 0.001){ toast('Received is more than the sales covered'); return; } fee = round2(amt - recv); }
+      if (f.kind === 'agg'){ if (!f.ch){ toast('Choose the channel'); return; } if (!(recv > 0)){ toast('Type the money received in bank'); return; } if (recv > amt + 0.001){ toast('Received is more than the sales covered'); return; } fee = round2(amt - recv); var wait = aggToReceive(f.ch); if (amt > wait + 0.01 && f.okOver !== amt){ f.okOver = amt; toast('More than the AED ' + money(Math.max(wait, 0)) + ' waiting for ' + chName(f.ch) + '. Press Save entry again to confirm.'); return; } }
       if (!f.date){ toast('Choose the date'); return; }
       if (!(amt > 0)){ toast('Enter the amount'); return; }
       if (needNote && !f.note.trim()){ toast('Write the reason'); return; }
