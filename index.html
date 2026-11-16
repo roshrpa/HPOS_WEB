@@ -473,7 +473,7 @@ function expectedMap(asOf, B){
   db.inv.materials.forEach(function(m){
     var b = B[m.id] || {t:0, q:0}, q = b.q;
     db.inv.purchases.forEach(function(p){ if (p.m === m.id && p.t > b.t && !(asOf && p.t > asOf)) q += p.q; });
-    db.inv.waste.forEach(function(w){ if (w.m === m.id && w.t > b.t && !(asOf && w.t > asOf)) q -= w.q; });
+    db.inv.waste.forEach(function(w){ if (w.m === m.id && w.t > b.t && !(asOf && w.t > asOf)) q -= (B !== db.inv.base && w.vq !== undefined ? w.vq : w.q); });
     e[m.id] = {exp:q - (u[m.id] || 0), used:u[m.id] || 0};
   });
   return e;
@@ -1139,6 +1139,15 @@ function vBaseMap(){
   var m = {}; db.inv.materials.forEach(function(x){ m[x.id] = db.inv.base[x.id] || {t:0, q:0}; });
   (db.inv.counts || []).forEach(function(r){ if (!r.kind) return; r.lines.forEach(function(l){ var b = m[l.m]; if (!b || r.t >= b.t) m[l.m] = {t:r.t, q:l.counted}; }); });
   return m;
+}
+/* A damage entered after a cup count that already found those cups missing must not be taken off the next count's reference a second time. */
+function wasteVq(w){
+  var last = null;
+  (db.inv.counts || []).forEach(function(r){ if (!r.kind || r.t > w.t) return; r.lines.forEach(function(l){ if (l.m === w.m && (!last || r.t >= last.t)) last = {t:r.t, diff:num(l.diff)}; }); });
+  if (!last || last.diff >= 0) return w.q;
+  var covered = 0; (db.inv.waste || []).forEach(function(x){ if (x.m === w.m && x.t > last.t && x.t < w.t) covered += (x.q - (x.vq !== undefined ? x.vq : x.q)); });
+  var room = Math.max(0, -last.diff - covered), cov = Math.min(w.q, room);
+  return w.q - cov;
 }
 function recordCount(kind, by, day, vals, fill){
   var now = S.cstart || Date.now(), E = expectedMap(now, vBaseMap()), lines = [];
@@ -2129,7 +2138,7 @@ document.addEventListener('click', function(e){
     case 'addwaste':
       var wq = parseFloat(document.getElementById('wq').value);
       if (!(wq > 0)){ toast('Enter the quantity'); return; }
-      var wob = {id:Date.now(), t:Date.now(), m:document.getElementById('wm').value, q:wq, reason:document.getElementById('wr').value}; db.inv.waste.push(wob); queueEvent('waste', wob);
+      var wob = {id:Date.now(), t:Date.now(), m:document.getElementById('wm').value, q:wq, reason:document.getElementById('wr').value}; wob.vq = wasteVq(wob); db.inv.waste.push(wob); queueEvent('waste', wob);
       save(); toast('Recorded'); break;
     case 'delwaste': db.inv.waste = db.inv.waste.filter(function(w){ return String(w.id) !== d.id; }); save(); break;
     case 'savecount':
