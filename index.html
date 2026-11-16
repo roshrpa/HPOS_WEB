@@ -968,7 +968,7 @@ function applyRemote(events){
 function tabletOrders(){ return (db.tOrders || []).filter(function(o){ return o.status === 'new'; }).sort(function(a, b){ return b.t - a.t; }); }
 function tOrderLabel(o){ return (o.dev || '') + o.no; }
 
-var S = {ch:'', ref:'', chedit:'', chpct:'', ccnt:{}, ocnt:{}, cname:'', ccRedo:false, xt:'list', xm:today().slice(0, 7), xc:'', xf:null, xedit:null, xdel:null, wt:'over', wf:{key:'', qty:'', unit:'pcs', to:'wh', loc:'wh', dir:'-', reason:'Damaged', note:'', cost:''}, fromOrder:null, tabOpen:false, closeDate:null, unlocked:false, gateErr:false, gateTry:'', disc:null, discForm:null, voidForm:null, inv:'daily', cnt:{}, lastCount:null, recCat:null, matDel:null, edCat:null, del:null, resetAsk:false, imgTarget:null, tab:'sale', cat:menu[0].id, cart:[], sheet:null, pay:null, tendered:'', receipt:null, range:'today', voidAsk:null};
+var S = {ch:'', ref:'', chedit:'', chpct:'', ccnt:{}, ocnt:{}, ecnt:{}, cedit:false, cname:'', ccRedo:false, xt:'list', xm:today().slice(0, 7), xc:'', xf:null, xedit:null, xdel:null, wt:'over', wf:{key:'', qty:'', unit:'pcs', to:'wh', loc:'wh', dir:'-', reason:'Damaged', note:'', cost:''}, fromOrder:null, tabOpen:false, closeDate:null, unlocked:false, gateErr:false, gateTry:'', disc:null, discForm:null, voidForm:null, inv:'daily', cnt:{}, lastCount:null, recCat:null, matDel:null, edCat:null, del:null, resetAsk:false, imgTarget:null, tab:'sale', cat:menu[0].id, cart:[], sheet:null, pay:null, tendered:'', receipt:null, range:'today', voidAsk:null};
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function byId(a, id){ return a.filter(function(x){ return x.id === id; })[0]; }
 function src(x){ return x ? (IMGS[x] || x) : ''; }
@@ -1206,7 +1206,7 @@ function lastCloseCount(){
 function openCheckPending(){
   if (!dailyMats().length) return false;
   var t = (db.days || {})[today()]; if (t && t.openCheck) return false;
-  var lc = lastCloseCount(); return !!(lc && lc.rec);
+  return true;
 }
 function countTable(rec){
   if (!rec) return '';
@@ -1221,6 +1221,7 @@ function countSummary(rec){
 function countWaText(rec, title, date){
   var sh = rec.lines.filter(function(l){ return num(l.diff) !== 0; }), loss = countLoss(rec);
   var t = '*Hollywood Ice Creams* - ' + title + '\n' + date + ' · counted by ' + (rec.by || '-') + ' at ' + fdate(rec.t) + '\n\n';
+  if (rec.edits && rec.edits.length){ var le = rec.edits[rec.edits.length - 1]; t += '✏️ *EDITED* by ' + le.by + ' at ' + fdate(le.t) + ': ' + le.ch.join(', ') + '\n\n'; }
   if (!sh.length) t += 'Everything matches (' + rec.lines.length + ' items).';
   else {
     t += sh.map(function(l){ var m = mat(l.m), d = num(l.diff); return (d < 0 ? '🔴 ' : '🟢 ') + (m ? m.name : l.m) + ': should be ' + num(l.expected) + ', counted ' + num(l.counted) + ' (' + (d > 0 ? '+' : '') + d + ')'; }).join('\n');
@@ -1248,27 +1249,33 @@ function countHistHtml(){
 function histSheet(){
   var all = (db.inv.counts || []).slice().sort(function(a, b){ return b.t - a.t; }).slice(0, 14);
   var rows = all.map(function(r){ var sh = countShort(r), loss = countLoss(r);
-    return '<tr><td><b>' + esc(r.day || '') + '</b><small style="display:block;color:var(--muted)">' + (r.kind === 'open' ? 'Morning check' : 'Closing count') + ' · ' + esc(r.by || '-') + '</small></td><td>' + (sh ? '<span style="color:var(--pink-dk);font-weight:800">' + sh + ' short' + (loss > 0 ? '<small style="display:block">AED ' + money(loss) + '</small>' : '') + '</span>' : '<span style="color:var(--done);font-weight:700">All correct</span>') + '</td><td class="n"><button class="btn ghost sm" data-act="ccwa" data-k="h' + r.id + '">View</button></td></tr>'; }).join('');
+    return '<tr><td><b>' + esc(r.day || '') + '</b><small style="display:block;color:var(--muted)">' + (r.kind === 'open' ? 'Morning count' : 'Closing count') + ' · ' + esc(r.by || '-') + (r.edits && r.edits.length ? ' · edited' : '') + '</small></td><td>' + (sh ? '<span style="color:var(--pink-dk);font-weight:800">' + sh + ' short' + (loss > 0 ? '<small style="display:block">AED ' + money(loss) + '</small>' : '') + '</span>' : '<span style="color:var(--done);font-weight:700">All correct</span>') + '</td><td class="n"><button class="btn ghost sm" data-act="ccwa" data-k="h' + r.id + '">View</button></td></tr>'; }).join('');
   return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Past counts" style="max-width:520px;max-height:94vh;overflow:auto"><h3>Past counts</h3><p style="margin:0 0 8px;color:var(--muted)">Red means some cups or plates were missing. Press View to see which ones.</p><table><tbody>' + (rows || '<tr><td>No counts yet.</td></tr>') + '</tbody></table><div class="btns" style="margin-top:12px"><button class="btn primary" data-act="chistx">Close</button></div></div></div>';
 }
 function vCount(){
   var date = today(); S.closeDate = date;
   if (!dailyMats().length) return '<div class="page"><div class="card"><h3>Cup and plate count</h3><p style="color:var(--muted)">No counted materials yet. Mark cups and plates as counted in Usage and count first.</p></div></div>';
-  var oc = vOpenCheck(date), cc = vCloseCount(date);
-  return '<div class="page cntpg"><p style="color:var(--muted);margin:0 0 10px">Two jobs a day: in the morning check the cups and plates, in the evening count them.</p>'+oc+cc+countHistHtml()+'</div>';
+  return '<div class="page cntpg"><p style="color:var(--muted);margin:0 0 10px">One count a day, in the morning. If you made a mistake, press Edit count and fix it.</p>'+vOpenCheck(date)+countHistHtml()+'</div>';
+}
+function countInputRows(rec){
+  var E = expectedMap(S.cstart || 0, vBaseMap());
+  return dailyMats().map(function(m){
+    var l = rec ? rec.lines.filter(function(x){ return x.m === m.id; })[0] : null, exp = l ? l.expected : E[m.id].exp, st = rec ? S.ecnt : S.ocnt, cur = st[m.id];
+    return '<tr><td>'+esc(m.name)+'</td><td class="n">'+num(exp)+' '+esc(m.unit)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="'+(rec ? 'ec' : 'oc')+'" data-m="'+m.id+'" placeholder="'+num(exp)+'" value="'+esc(cur === undefined ? (rec && l ? num(l.counted) : '') : cur)+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
 }
 function vOpenCheck(date){
   if (date !== today() || !dailyMats().length) return '';
   var R = (db.days || {})[date], done = R && R.openCheck ? countRec(R.openCheck.id) : null;
-  if (done) return '<div class="tbl"><h3>Opening stock check</h3><div>'+countSummary(done)+'</div>'+(countShort(done) ? countTable(done) : '')+'<div class="btns" style="margin-top:8px;align-items:center">'+countWaBtn('open')+' '+cwaStatus('open')+'</div></div>';
-  var lc = lastCloseCount(); if (!lc || !lc.rec) return '';
-  var E = expectedMap(S.cstart || 0, vBaseMap());
-  var rows = dailyMats().map(function(m){
-    var cl = lc.rec.lines.filter(function(l){ return l.m === m.id; })[0];
-    return '<tr><td>'+esc(m.name)+'</td><td class="n">'+(cl ? num(cl.counted) : '-')+'</td><td class="n">'+num(E[m.id].exp)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="oc" data-m="'+m.id+'" placeholder="'+num(E[m.id].exp)+'" value="'+esc(S.ocnt[m.id] === undefined ? '' : S.ocnt[m.id])+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
-  return '<div class="tbl" style="border:2px solid var(--pink)"><h3>Opening stock check</h3><p style="color:var(--muted);margin:0 0 8px">Check the cups and plates in the shop against the count at closing ('+esc(lc.day)+', counted by '+esc(lc.rec.by || '-')+'). If a number is right, leave it empty. If it is different, type what you really see. Do this when you are free.</p>'
-    + '<table><thead><tr><th>Material</th><th class="n">Closing count</th><th class="n">In the system now</th><th class="n">Counted now</th></tr></thead><tbody>'+rows+'</tbody></table>'
-    + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap"><label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(S.cname || db.lastStaff || '')+'" autocomplete="off"></label><button class="btn primary sm" data-act="ocsave">Confirm check</button></div></div>';
+  var nameBox = '<label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(S.cname || db.lastStaff || '')+'" autocomplete="off"></label>';
+  if (done && S.cedit){
+    return '<div class="tbl" style="border:2px solid var(--pink)"><h3>Edit today\'s count</h3><p style="color:var(--muted);margin:0 0 8px">Change only the numbers that were wrong. The change is recorded with your name and the partners are told it was edited.</p>'
+      + '<table><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+countInputRows(done)+'</tbody></table>'
+      + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap">'+nameBox+'<button class="btn ghost sm" data-act="cecancel">Cancel</button><button class="btn primary sm" data-act="cesave">Save changes</button></div></div>';
+  }
+  if (done) return '<div class="tbl"><h3>Morning cup count</h3><div>'+countSummary(done)+(done.edits && done.edits.length ? ' · <span style="background:#fff2cc;color:#7a5200;font-weight:800;padding:2px 10px;border-radius:99px">Edited by '+esc(done.edits[done.edits.length - 1].by)+' at '+fdate(done.edits[done.edits.length - 1].t)+'</span>' : '')+'</div>'+(countShort(done) ? countTable(done) : '')+'<div class="btns" style="margin-top:8px;align-items:center"><button class="btn ghost sm" data-act="cedit">Edit count</button> '+countWaBtn('open')+' '+cwaStatus('open')+'</div></div>';
+  return '<div class="tbl" style="border:2px solid var(--pink)"><h3>Morning cup count</h3><p style="color:var(--muted);margin:0 0 8px">Count the cups and plates on the shelf. If the number in the box is right, leave it empty. If it is different, type what you really see.</p>'
+    + '<table><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+countInputRows(null)+'</tbody></table>'
+    + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap">'+nameBox+'<button class="btn primary sm" data-act="ocsave">Save count</button></div></div>';
 }
 function printHtml(h){
   var w = document.getElementById('xprint'); if (!w){ w = document.createElement('div'); w.id = 'xprint'; document.body.appendChild(w); }
@@ -1320,7 +1327,7 @@ function dayReportHtml(date){
         function ct(rec){ return tbl(['Material','>Should be','>Counted','>Difference'], rec.lines.map(function(l){ var m = mat(l.m), d = num(l.diff); return '<tr><td style="'+td+'">'+esc(m ? m.name : l.m)+'</td><td style="'+tr+'">'+num(l.expected)+'</td><td style="'+tr+'">'+num(l.counted)+'</td><td style="'+tr+(d < 0 ? ';font-weight:700' : '')+'">'+(d > 0 ? '+' : '')+d+'</td></tr>'; }).join(''), ''); }
         function cl(rec){ return '<div style="font-size:11px;margin-bottom:3px">Counted by '+esc(rec.by || '-')+' at '+esc(fdate(rec.t))+' \u00b7 '+(countShort(rec) ? countShort(rec)+' items short' : 'everything matches')+(countLoss(rec) > 0 ? ' \u00b7 possible unbilled sales about AED '+money(countLoss(rec)) : '')+'</div>'; }
         if (cr) h += sec('Cups and plates count at closing') + cl(cr) + ct(cr);
-        if (orr) h += sec('Opening check this morning') + cl(orr) + ct(orr);
+        if (orr) h += sec('Morning cup count') + cl(orr) + ct(orr);
         return h; })()
     + sec('All bills') + tbl(['No.','Time','>Items','Payment','>AED'], billRows, 'No bills.')
     + (R.note ? sec('Note') + '<div style="font-size:12px">'+esc(R.note)+'</div>' : '')
@@ -1812,12 +1819,12 @@ function receiptText(s){
 }
 
 function cwaMeta(k){ var R = (db.days || {})[today()] || {}; return k === 'open' ? R.openCheck : R.closeCount; }
-function cwaUnshared(){ var o = []; ['open','close'].forEach(function(k){ var m = cwaMeta(k); if (m && !m.shared) o.push(k); }); return o; }
-function cwaMark(k){ var m = cwaMeta(k); if (m && !m.shared){ m.shared = {t:Date.now(), by:curName ? curName() : ''}; audit('Stock', (k === 'open' ? 'Opening stock check' : 'Closing stock count') + ' shared on WhatsApp', today() + ' · by ' + (m.by || '-')); save(); } }
+function cwaUnshared(){ var o = []; ['open'].forEach(function(k){ var m = cwaMeta(k); if (m && !m.shared) o.push(k); }); return o; }
+function cwaMark(k){ var m = cwaMeta(k); if (m && !m.shared){ m.shared = {t:Date.now(), by:curName ? curName() : ''}; audit('Stock', (k === 'open' ? 'Morning cup count' : 'Closing stock count') + ' shared on WhatsApp', today() + ' · by ' + (m.by || '-')); save(); } }
 function cwaStatus(k){ var m = cwaMeta(k); if (!m) return ''; return m.shared ? '<span style="color:var(--done);font-weight:700">Shared on WhatsApp at '+fdate(m.shared.t)+'</span>' : '<span style="background:#b3261e;color:#fff;font-weight:800;padding:2px 10px;border-radius:99px">Not shared yet. Please share it</span>'; }
 function cwaRec(k){ if (String(k).charAt(0) === 'h'){ var id = +String(k).slice(1); return (db.inv.counts || []).filter(function(x){ return x.id === id; })[0] || null; } var R = (db.days || {})[today()] || {}; return countRec(k === 'open' ? R.openCheck && R.openCheck.id : R.closeCount && R.closeCount.id); }
 function cwaSheet(){
-  var k = S.cwa, rec = cwaRec(k), title = rec && rec.kind === 'open' ? 'Opening stock check' : 'Stock count at closing';
+  var k = S.cwa, rec = cwaRec(k), title = rec && rec.kind === 'open' ? 'Morning cup count' : 'Stock count at closing';
   if (!rec) return '';
   var bad = rec.lines.filter(function(l){ return num(l.diff) !== 0; }), sh = countShort(rec), loss = countLoss(rec);
   var banner = !bad.length ? '<div style="background:#e6f5ec;color:var(--done);border-radius:12px;padding:12px 14px;font-weight:800;font-size:16px">Everything matches</div>'
@@ -1851,7 +1858,7 @@ function vSheets(){
       + '<table><tbody>'+crow('Net sales', 'AED '+money(cn2.D.net))+crow('Cash that should be in the drawer', money(cn2.expected))+crow('Cash counted', noCount ? '<span style="color:var(--pink-dk)">not entered</span>' : money(parseFloat(cn2.R.counted)))
       + (!noCount ? crow('Difference', '<span style="'+diffStyle(cn2.cashDiff)+'">'+diffText(cn2.cashDiff)+'</span>') : '')
       + (setg().carryOpen ? (cn2.taken > 0 ? crow('Taken out → ' + takenToLabel(cn2.R, true), money(cn2.taken)) : '') + crow('Left in the counter for tomorrow', money(cn2.kept)) : '')
-      + (dailyMats().length ? crow('Cups and plates count', cn2.R.closeCount ? 'done by '+esc(cn2.R.closeCount.by) : '<span style="color:var(--pink-dk)">not done</span>') : '')+'</tbody></table>'
+      + (dailyMats().length ? crow('Morning cup count', cn2.R.openCheck ? 'done by '+esc(cn2.R.openCheck.by) : '<span style="color:var(--pink-dk)">not done</span>') : '')+'</tbody></table>'
       + (noCount ? '<p style="color:var(--pink-dk);margin:10px 0 0">You have not entered the cash counted. The drawer cash will not be checked.</p>' : '')
       + '<div class="btns"><button class="btn ghost" data-act="closeno">Not yet</button><button class="btn primary" data-act="closeyes">Yes, '+(cn2.R.closed ? 'update' : 'close the day')+'</button></div></div></div>';
   }
@@ -1957,8 +1964,9 @@ document.addEventListener('input', function(e){
   if (f === 'sync'){ sync[t.dataset.k] = t.value.trim(); saveSync(); paintSync(); return; }
   if (f === 'set'){ var kk = t.dataset.k; db.settings[kk] = (kk === 'rate' || kk === 'lowAt') ? (parseFloat(t.value) || 0) : t.value; save(); return; }
   if (t.id === 'whq'){ var wq0 = t.value.trim().toLowerCase(); document.querySelectorAll('tr[data-n]').forEach(function(r){ r.style.display = (!wq0 || r.dataset.n.indexOf(wq0) >= 0) ? '' : 'none'; }); return; }
-  if ((f === 'cc' || f === 'oc') && (!S.cstart || Date.now() - S.cstart > 3600000)) S.cstart = Date.now();
+  if ((f === 'cc' || f === 'oc' || f === 'ec') && (!S.cstart || Date.now() - S.cstart > 3600000)) S.cstart = Date.now();
   if (f === 'cc'){ if (t.value === '') delete S.ccnt[t.dataset.m]; else S.ccnt[t.dataset.m] = t.value; return; }
+  if (f === 'ec'){ if (t.value === '') delete S.ecnt[t.dataset.m]; else S.ecnt[t.dataset.m] = t.value; return; }
   if (f === 'oc'){ if (t.value === '') delete S.ocnt[t.dataset.m]; else S.ocnt[t.dataset.m] = t.value; return; }
   if (f === 'ccname'){ S.cname = t.value; return; }
   if (f === 'xf'){ S.xf[t.dataset.k] = t.value; return; }
@@ -2075,16 +2083,28 @@ document.addEventListener('click', function(e){
     case 'saveclose': S.closeAsk = true; break;
     case 'closeno': S.closeAsk = false; break;
     case 'ccredo': S.ccRedo = true; break;
+    case 'cedit': S.cedit = true; S.ecnt = {}; break;
+    case 'cecancel': S.cedit = false; S.ecnt = {}; break;
+    case 'cesave':
+      var ern = (S.cname || db.lastStaff || '').trim(); if (!ern){ toast('Type your name'); return; }
+      var er = (db.days || {})[today()], erc = er && er.openCheck ? countRec(er.openCheck.id) : null; if (!erc) return;
+      var ech = [];
+      erc.lines.forEach(function(l){ var v = S.ecnt[l.m]; if (v === undefined || v === '') return; var c = parseFloat(v); if (isNaN(c) || c === l.counted) return; var m = mat(l.m); ech.push((m ? m.name : l.m) + ' ' + num(l.counted) + ' to ' + num(c)); l.counted = c; l.diff = c - l.expected; });
+      if (!ech.length){ toast('Nothing was changed'); S.cedit = false; S.ecnt = {}; break; }
+      erc.edits = erc.edits || []; erc.edits.push({t:Date.now(), by:ern, ch:ech}); queueEvent('stock_count_edit', {id:erc.id, by:ern, t:Date.now(), lines:erc.lines});
+      er.openCheck.shared = null; er.openCheck.edited = {t:Date.now(), by:ern};
+      audit('Stock', 'Morning cup count edited', today() + ' · edited by ' + ern + ' · ' + ech.join(', '), {flag:1});
+      db.lastStaff = ern; S.cname = ern; S.cedit = false; S.ecnt = {}; S.cwa = 'open'; save(); toast('Count updated. Please share the correction'); break;
     case 'ccwa': S.cwa = d.k; break;
     case 'ccwaclose': S.cwa = null; break;
     case 'chist': S.chist = true; break;
     case 'chistx': S.chist = null; break;
     case 'ccwasend':
       var wr = cwaRec(d.k); if (!wr){ toast('No count yet'); return; }
-      cwaMark(d.k); window.open('https://wa.me/?text=' + encodeURIComponent(countWaText(wr, wr.kind === 'open' ? 'Opening stock check' : 'Stock count at closing', wr.day || today())), '_blank'); S.cwa = null; render(); return;
+      cwaMark(d.k); window.open('https://wa.me/?text=' + encodeURIComponent(countWaText(wr, wr.kind === 'open' ? 'Morning cup count' : 'Stock count at closing', wr.day || today())), '_blank'); S.cwa = null; render(); return;
     case 'ccshare':
       var wr2 = cwaRec(d.k); if (!wr2) return;
-      try { navigator.share({text: countWaText(wr2, wr2.kind === 'open' ? 'Opening stock check' : 'Stock count at closing', wr2.day || today())}).then(function(){ cwaMark(d.k); S.cwa = null; render(); }, function(){}); } catch(err){ toast('Sharing not available here'); }
+      try { navigator.share({text: countWaText(wr2, wr2.kind === 'open' ? 'Morning cup count' : 'Stock count at closing', wr2.day || today())}).then(function(){ cwaMark(d.k); S.cwa = null; render(); }, function(){}); } catch(err){ toast('Sharing not available here'); }
       return;
     case 'ccsave':
       var ccd = S.closeDate || today(), ccn = (S.cname || db.lastStaff || '').trim();
@@ -2095,7 +2115,7 @@ document.addEventListener('click', function(e){
       var ocn = (S.cname || db.lastStaff || '').trim();
       if (!ocn){ toast('Type your name'); return; }
       var ocr = recordCount('open', ocn, today(), S.ocnt, true); if (!ocr){ toast('Nothing to check'); return; }
-      dayRec(today()).openCheck = {id:ocr.id, t:ocr.t, by:ocn}; audit('Stock', 'Opening stock check', today() + ' · checked by ' + ocn + ' · ' + (countShort(ocr) ? countShort(ocr) + ' item(s) short' : 'everything matches'), {flag: countShort(ocr) ? 1 : 0}); S.ocnt = {}; S.cstart = 0; S.cname = ocn; S.cwa = 'open'; save(); toast(countShort(ocr) ? 'Check saved. ' + countShort(ocr) + ' items are short' : 'Check saved. Everything matches'); break;
+      dayRec(today()).openCheck = {id:ocr.id, t:ocr.t, by:ocn}; audit('Stock', 'Morning cup count', today() + ' · counted by ' + ocn + ' · ' + (countShort(ocr) ? countShort(ocr) + ' item(s) short' : 'everything matches'), {flag: countShort(ocr) ? 1 : 0}); S.ocnt = {}; S.cstart = 0; S.cname = ocn; S.cwa = 'open'; save(); toast(countShort(ocr) ? 'Count saved. ' + countShort(ocr) + ' items are short' : 'Count saved. Everything matches'); break;
     case 'opencheck': S.tab = 'count'; S.closeDate = today(); break;
     case 'dayprint': printHtml(dayReportHtml(S.closeDate || today())); return;
     case 'closeyes':
@@ -2911,8 +2931,8 @@ function vDash(){
   var att = [], ls = lowStockCount(), st = can('credit') ? creditStats() : null, pb = can('purch') ? payablesTotal() : 0;
   var flagsToday = db.audit.filter(function(r){ return isFlag(r) && new Date(r.t).toLocaleDateString('en-CA') === t; }).length;
   function a1(ic, ti, su, act, tone){ att.push('<'+(act ? 'button data-act="'+act+'"' : 'div')+' class="at '+(tone || '')+'"><span class="dic">'+dIcon(ic)+'</span><span><b>'+ti+'</b><small>'+su+'</small></span></'+(act ? 'button' : 'div')+'>'); }
-  if (openCheckPending()) a1('inv', 'Opening stock check', 'Count cups and plates for today', 'opencheck', 'warn');
-  if (cwaUnshared().length) a1('inv', 'Share the cup count on WhatsApp', 'Today\'s count is saved but not shared with the partners yet', 'opencheck', 'bad');
+  if (openCheckPending()) a1('inv', 'Morning cup count', 'Count cups and plates for today', 'opencheck', 'warn');
+  if (cwaUnshared().length) a1('inv', ((db.days[today()] || {}).openCheck || {}).edited ? 'Cup count was edited. Share the correction' : 'Share the cup count on WhatsApp', ((db.days[today()] || {}).openCheck || {}).edited ? 'Partners must see the edited count' : 'Today\'s count is saved but not shared with the partners yet', 'opencheck', 'bad');
   var unb = (db.tOrders || []).filter(function(o){ return o.status === 'new' && !o.legacy && !db.sales.some(function(x){ return x.tord === o.id && !x.void; }); }).length, orph = Object.keys(db.tOrphans || {}).length;
   if (unb) a1('sales', unb + ' tablet order' + (unb > 1 ? 's' : '') + ' without a bill', 'No payment chosen on the tablet yet', '', 'bad');
   if (orph) a1('sales', orph + ' tablet order' + (orph > 1 ? 's' : '') + ' never reached this counter', 'Changed on a tablet but never received here. Tap to clear after checking', 'tordclear', 'bad');
