@@ -1903,7 +1903,7 @@ function vSheets(){
   if (S.receipt){
     var s = byId(db.sales, S.receipt);
     if (s) return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Receipt"><h3>Bill #'+s.no+'</h3><p>'+(s.void?'This bill is void.':'Paid. Hand the receipt to the customer.')+'</p><div class="receipt"><img class="rlogo" src="'+LOGO+'" alt="">'+esc(receiptText(s))+'</div>'
-      + '<div class="btns"><button class="btn ghost" data-act="print">Print</button><button class="btn primary" data-act="closerec">New sale</button></div></div></div>';
+      + '<div class="btns"><button class="btn ghost" data-act="print">Print</button><button class="btn primary" data-act="closerec">Close</button></div></div></div>';
   }
   return '';
 }
