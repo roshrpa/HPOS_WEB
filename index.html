@@ -1243,26 +1243,19 @@ function vCloseCount(date){
 function countHistHtml(){
   var all = (db.inv.counts || []).slice().sort(function(a, b){ return b.t - a.t; });
   if (!all.length) return '';
-  var mats = dailyMats(), byDay = {};
-  all.forEach(function(r){ if (r.kind === 'close' && !byDay[r.day]) byDay[r.day] = r; });
-  var days = Object.keys(byDay).sort().reverse().slice(0, 7);
-  var mx = '';
-  if (days.length){
-    mx = '<div style="overflow:auto"><table style="margin-top:6px"><thead><tr><th>Material</th>'+days.map(function(k){ return '<th class="n">'+esc(k.slice(5))+'</th>'; }).join('')+'</tr></thead><tbody>'
-      + mats.map(function(m){ return '<tr><td>'+esc(m.name)+'</td>'+days.map(function(k){ var l = byDay[k].lines.filter(function(x){ return x.m === m.id; })[0]; if (!l) return '<td class="n">-</td>'; var d = num(l.diff);
-          return '<td class="n" style="'+(d < 0 ? 'background:#fde8ee;color:var(--pink-dk);font-weight:800' : '')+'">'+num(l.counted)+(d < 0 ? ' <small>('+d+')</small>' : '')+'</td>'; }).join('')+'</tr>'; }).join('')
-      + '</tbody></table></div>';
-  }
-  var rows = all.slice(0, 40).map(function(r){ var sh = countShort(r), loss = countLoss(r);
-    return '<tr><td>'+esc(r.day || '')+'</td><td>'+(r.kind === 'open' ? 'Opening check' : 'Closing count')+'</td><td>'+esc(r.by || '-')+'</td><td>'+fdate(r.t)+'</td><td>'+(sh ? '<span style="color:var(--pink-dk);font-weight:800">'+sh+' short'+(loss > 0 ? ' · AED '+money(loss) : '')+'</span>' : '<span style="color:var(--done)">Matches</span>')+'</td><td class="n"><button class="btn ghost sm" data-act="ccwa" data-k="h'+r.id+'">View</button></td></tr>'; }).join('');
-  return '<div class="tbl"><h3>Closing counts, last '+days.length+' days</h3><p style="color:var(--muted);margin:0 0 4px">What was on the shelf at closing. Red = fewer than the system expected.</p>'+mx+'</div>'
-    + '<div class="tbl"><h3>Count history</h3><div style="overflow:auto"><table><thead><tr><th>Day</th><th>Type</th><th>By</th><th>Time</th><th>Result</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  return '<div class="btns" style="justify-content:flex-start;margin-top:12px"><button class="btn ghost" data-act="chist">Past counts (last ' + Math.min(all.length, 14) + ')</button></div>';
+}
+function histSheet(){
+  var all = (db.inv.counts || []).slice().sort(function(a, b){ return b.t - a.t; }).slice(0, 14);
+  var rows = all.map(function(r){ var sh = countShort(r), loss = countLoss(r);
+    return '<tr><td><b>' + esc(r.day || '') + '</b><small style="display:block;color:var(--muted)">' + (r.kind === 'open' ? 'Morning check' : 'Closing count') + ' · ' + esc(r.by || '-') + '</small></td><td>' + (sh ? '<span style="color:var(--pink-dk);font-weight:800">' + sh + ' short' + (loss > 0 ? '<small style="display:block">AED ' + money(loss) + '</small>' : '') + '</span>' : '<span style="color:var(--done);font-weight:700">All correct</span>') + '</td><td class="n"><button class="btn ghost sm" data-act="ccwa" data-k="h' + r.id + '">View</button></td></tr>'; }).join('');
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Past counts" style="max-width:520px;max-height:94vh;overflow:auto"><h3>Past counts</h3><p style="margin:0 0 8px;color:var(--muted)">Red means some cups or plates were missing. Press View to see which ones.</p><table><tbody>' + (rows || '<tr><td>No counts yet.</td></tr>') + '</tbody></table><div class="btns" style="margin-top:12px"><button class="btn primary" data-act="chistx">Close</button></div></div></div>';
 }
 function vCount(){
   var date = today(); S.closeDate = date;
   if (!dailyMats().length) return '<div class="page"><div class="card"><h3>Cup and plate count</h3><p style="color:var(--muted)">No counted materials yet. Mark cups and plates as counted in Usage and count first.</p></div></div>';
   var oc = vOpenCheck(date), cc = vCloseCount(date);
-  return '<div class="page cntpg"><p style="color:var(--muted);margin:0 0 10px">Morning: check the cups and plates against last night\'s count. Closing: count what is on the shelf.</p>'+oc+cc+countHistHtml()+'</div>';
+  return '<div class="page cntpg"><p style="color:var(--muted);margin:0 0 10px">Two jobs a day: in the morning check the cups and plates, in the evening count them.</p>'+oc+cc+countHistHtml()+'</div>';
 }
 function vOpenCheck(date){
   if (date !== today() || !dailyMats().length) return '';
@@ -1839,6 +1832,7 @@ function cwaSheet(){
 }
 function vSheets(){
   if (S.cwa && S.tab === 'count') return cwaSheet();
+  if (S.chist && S.tab === 'count') return histSheet();
   if (S.xview && S.tab === 'exp') return xVoucher();
   if (S.supopen && S.tab === 'purch') return supForm();
   if (S.spopen && S.tab === 'purch' && S.psup) return supPayForm();
@@ -2083,6 +2077,8 @@ document.addEventListener('click', function(e){
     case 'ccredo': S.ccRedo = true; break;
     case 'ccwa': S.cwa = d.k; break;
     case 'ccwaclose': S.cwa = null; break;
+    case 'chist': S.chist = true; break;
+    case 'chistx': S.chist = null; break;
     case 'ccwasend':
       var wr = cwaRec(d.k); if (!wr){ toast('No count yet'); return; }
       cwaMark(d.k); window.open('https://wa.me/?text=' + encodeURIComponent(countWaText(wr, wr.kind === 'open' ? 'Opening stock check' : 'Stock count at closing', wr.day || today())), '_blank'); S.cwa = null; render(); return;
