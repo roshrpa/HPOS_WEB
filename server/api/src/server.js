@@ -177,14 +177,10 @@ const server = http.createServer(function (req, res) {
     if (!res.headersSent) send(res, status, { error: status >= 500 ? 'server error' : e.message });
   });
 });
-function allowAggPay() {   // online channel sales are stored with pay = 'agg'; older databases only allow cash, card and credit
-  return pool.query(`
-    do $$ declare r record; begin
-      for r in select conname from pg_constraint where conrelid = 'sales'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%pay%' and pg_get_constraintdef(oid) not like '%status%' loop
-        execute 'alter table sales drop constraint ' || quote_ident(r.conname);
-      end loop;
-      alter table sales add constraint sales_pay_check check (pay in ('cash','card','credit','agg'));
-    end $$;`);
+function allowAggPay() {   // online channel sales are stored with pay = 'agg'; older databases only allow cash, card and credit. Never stops the server from starting.
+  return pool.query('alter table sales drop constraint if exists sales_pay_check')
+    .then(function () { return pool.query("alter table sales add constraint sales_pay_check check (pay in ('cash','card','credit','agg'))"); })
+    .catch(function (e) { console.error('Could not allow pay = agg on the sales table:', e.message); });
 }
 users.ensureSchema(pool).then(allowAggPay).then(function () { return tenancy.ensureSchema(pool); }).then(function () { return superadmin.ensureSchema(pool); }).then(function () {
   server.listen(PORT, function () { console.log('Hollywood POS API listening on ' + PORT); });
