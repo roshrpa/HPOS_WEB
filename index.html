@@ -2419,7 +2419,7 @@ async function doLogin(){
   }
 }
 async function userOp(op, user){
-  var au = pinUser(S.upc, 'users'); if (!au){ toast('Enter your PIN above to confirm'); return false; }
+  var au = pinUser(S.upc, 'users'); if (!au){ toast('Type your own PIN in the last box to confirm'); return false; }
   if (!sync.token){   /* this device is not connected to a server: the user list lives on the device only */
     var tu = user.id ? byId(db.users, user.id) : null;
     if (op === 'create') db.users.push({id: uid('u'), name: user.name, role: user.role, pin: hashPin(user.pin), active: true, t: Date.now()});
@@ -2484,14 +2484,14 @@ function vPriceSheet(){
 function priceFormOk(){ var pf = S.priceForm; if (!pf) return false; var v = parseFloat(pf.val); return v >= 0 && pf.val !== '' && reasonOk(pf) && pinOk(pf); }
 
 /* ----- Users tab ----- */
-function userPinCheck(){ var u = pinUser(S.upc, 'users'); if (!u){ toast('Enter your PIN above to confirm'); return null; } return u; }
+function userPinCheck(){ var u = pinUser(S.upc, 'users'); if (!u){ toast('Type your own PIN in the last box to confirm'); return null; } return u; }
 function userForm(){
   var a = S.uadd;
   return '<div class="scrim"><div class="sheet" role="dialog" style="max-height:92vh;overflow:auto"><h3>Add user</h3><p>Each person gets their own PIN (6 digits or more).</p>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px"><label class="fld">Name<input class="inp" data-f="uan" value="'+esc(a.name)+'" autocomplete="off" style="text-align:left"></label>'
     + '<label class="fld">Role<select class="inp" data-f="uar">'+ROLES.map(function(r){ return '<option'+(r === a.role ? ' selected' : '')+'>'+r+'</option>'; }).join('')+'</select></label>'
     + '<label class="fld">PIN (6 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="uap" value="'+esc(a.pin)+'" autocomplete="off" style="text-align:left"></label>'
-    + '<label class="fld">Your PIN (to confirm)<input class="inp" type="password" inputmode="numeric" data-f="upc" value="'+esc(S.upc)+'" autocomplete="off" style="text-align:left"></label></div>'
+    + '</div><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line,#eee)"><label class="fld" style="max-width:300px">Confirm it is you: type YOUR OWN PIN<input class="inp" type="password" inputmode="numeric" data-f="upc" value="'+esc(S.upc)+'" autocomplete="off" style="text-align:left"></label></div>'
     + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="ucancel">Cancel</button><button class="btn primary" data-act="uadd">Add user</button></div></div></div>';
 }
 function userEditForm(){
@@ -2501,7 +2501,7 @@ function userEditForm(){
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label class="fld">Role<select class="inp" data-f="uedr">'+ROLES.map(function(r){ return '<option'+(r === e.role ? ' selected' : '')+'>'+r+'</option>'; }).join('')+'</select></label>'
     + '<label class="fld">Status<select class="inp" data-f="ueda"><option value="1"'+(e.active ? ' selected' : '')+'>Active</option><option value="0"'+(e.active ? '' : ' selected')+'>Inactive</option></select></label></div>'
     + '<label class="fld">New PIN <small style="color:var(--muted)">(leave empty to keep the current PIN)</small><input class="inp" type="password" inputmode="numeric" data-f="uedp" value="'+esc(e.pin)+'" autocomplete="new-password" style="text-align:left"></label>'
-    + '<label class="fld">Your PIN to confirm<input class="inp" type="password" inputmode="numeric" data-f="upc" value="'+esc(S.upc)+'" autocomplete="off" style="text-align:left"></label></div>'
+    + '</div><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line,#eee)"><label class="fld" style="max-width:300px">Confirm it is you: type YOUR OWN PIN<input class="inp" type="password" inputmode="numeric" data-f="upc" value="'+esc(S.upc)+'" autocomplete="off" style="text-align:left"></label></div>'
     + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="uedx">Cancel</button><button class="btn primary" data-act="uedsave">Save</button></div></div></div>';
 }
 function permForm(){
