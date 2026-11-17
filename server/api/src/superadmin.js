@@ -156,6 +156,28 @@ async function handle(req, res, path, m, pool, h) {
       else await pool.query("insert into users(id, name, role, pin_hash, pin_local, branch_id) values ($1,$2,'Owner',$3,$4,$5)", ['u' + crypto.randomBytes(6).toString('hex'), name, scryptHash(b.pin), hashPinLocal(b.pin), br.id]);
       return h.send(res, 200, await overview(pool)), true;
     }
+    if (sub === '/users' && m === 'GET') {
+      const r = await pool.query("select id, name, role, active, created_at from users where branch_id = $1 order by active desc, (role = 'Owner') desc, lower(name)", [br.id]);
+      return h.send(res, 200, { users: r.rows.map(function (u) { return { id: u.id, name: u.name, role: u.role, active: u.active, created: u.created_at }; }), max_users: br.max_users }), true;
+    }
+    if (sub === '/user' && m === 'POST') {      // reset a user's PIN and/or switch the user on or off
+      const b = await h.readJson(req);
+      const u = (await pool.query('select id, active from users where id = $1 and branch_id = $2', [String(b.user_id || ''), br.id])).rows[0];
+      if (!u) throw err(404, 'User not found.');
+      if (b.pin !== undefined && b.pin !== '') {
+        if (!PIN_RE.test(String(b.pin))) throw err(400, 'PIN must be 6 digits or more (numbers only).');
+        if ((await pool.query('select 1 from users where branch_id = $1 and pin_local = $2 and active and id <> $3', [br.id, hashPinLocal(b.pin), u.id])).rowCount) throw err(409, 'That PIN is already used in this branch.');
+        await pool.query("update users set pin_hash = $2, pin_local = $3, ver = nextval('users_ver_seq') where id = $1", [u.id, scryptHash(b.pin), hashPinLocal(b.pin)]);
+      }
+      if (b.active !== undefined && !!b.active !== u.active) {
+        if (b.active) {
+          const used = (await pool.query('select count(*)::int n from users where branch_id = $1 and active', [br.id])).rows[0].n;
+          if (used + 1 > br.max_users) throw err(409, 'The user limit (' + br.max_users + ') is reached. Raise the limit first.');
+        }
+        await pool.query("update users set active = $2, ver = nextval('users_ver_seq') where id = $1", [u.id, !!b.active]);
+      }
+      return h.send(res, 200, await overview(pool)), true;
+    }
     if (sub === '/reset-test' && m === 'POST') {
       const b = await h.readJson(req);
       if (String(b.confirm || '').trim().toLowerCase() !== br.code.toLowerCase()) throw err(400, 'Type the shop code to confirm.');
