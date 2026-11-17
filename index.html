@@ -2301,7 +2301,7 @@ function curName(){ var u = curUser(); return u ? u.name : 'System'; }
 function defPerm(role, p){ if (role === 'Owner') return true; if (p === 'creditgive') return true; if (role === 'Manager') return p !== 'users' && p !== 'lock'; return p === 'sales' || p === 'reprint' || p === 'count'; }
 function roleCan(role, p){ if (role === 'Owner') return true; var r = db.perms[role]; if (r && r[p] !== undefined) return !!r[p]; return defPerm(role, p); }
 function can(p, u){ u = u || curUser(); return !!u && roleCan(u.role, p); }
-var PIN_STRICT = {lock:1, users:1};   /* these always ask for the PIN, even from the Owner */
+var PIN_STRICT = {};   /* a signed-in person is responsible for his own device. Nobody is asked to type the PIN again. */
 function pinNeeded(perm){ return !!PIN_STRICT[perm] || !(perm && curUser() && can(perm)); }
 function pinOpen(perm, style){ var n = pinNeeded(perm); return '<label class="fld" style="' + (style || '') + (n ? '' : ';display:none') + '">' + (n ? pinLabel(perm) : ''); }
 function pinUser(pin, perm){
@@ -2333,7 +2333,7 @@ async function signOutDevice(){
   try { localStorage.clear(); sessionStorage.clear(); localStorage.setItem(SYNC_KEY, JSON.stringify({url: url || '', shop: shop || ''})); } catch(e){}
   location.reload();
 }
-function lockNow(){ if (curUser()) audit('Users and Security', 'Locked', ''); S.uid = null; try { sessionStorage.removeItem('hp_uid'); } catch(e){} S.lu = null; S.lpin = ''; S.lerr = ''; S.tab = homeTab(); }
+function lockNow(){ if (curUser()) audit('Users and Security', 'Locked', ''); sessPin = ''; S.uid = null; try { sessionStorage.removeItem('hp_uid'); } catch(e){} S.lu = null; S.lpin = ''; S.lerr = ''; S.tab = homeTab(); }
 
 /* ----- login and first-run setup ----- */
 function vSetup(){
@@ -2392,7 +2392,9 @@ async function serverSignIn(path, body){
   applyServerUsers(r.json.users, r.json.ver);
   return r.json.user;
 }
+var sessPin = '';   /* the PIN typed at sign in, kept in memory only (never saved), so the server can check an Owner without asking again */
 function finishSignIn(u, auditAct){
+  sessPin = S.lpin || '';
   S.uid = u.id; try { sessionStorage.setItem('hp_uid', u.id); } catch(er){}
   S.lpin = ''; S.lerr = ''; S.tab = homeTab(); S.sl = {name:'', pin:'', shop:null}; S.su = {name:'', pin:'', pin2:''}; S.srv.busy = false;
   audit('Users and Security', auditAct, ''); kickSync(); render();
@@ -2419,7 +2421,8 @@ async function doLogin(){
   }
 }
 async function userOp(op, user){
-  var au = pinUser(S.upc, 'users'); if (!au){ toast('Type your own PIN in the last box to confirm'); return false; }
+  var au = userPinCheck(); if (!au) return false;
+  if (sync.token && !sessPin){ toast('Lock the POS and sign in again, then repeat this'); return false; }
   if (!sync.token){   /* this device is not connected to a server: the user list lives on the device only */
     var tu = user.id ? byId(db.users, user.id) : null;
     if (op === 'create') db.users.push({id: uid('u'), name: user.name, role: user.role, pin: hashPin(user.pin), active: true, t: Date.now()});
@@ -2429,7 +2432,7 @@ async function userOp(op, user){
     save(); return true;
   }
   try {
-    var r = await srvCall('/users/manage', {method: 'POST', bearer: true, body: {actor: {id: au.id, pin: S.upc}, op: op, user: user}});
+    var r = await srvCall('/users/manage', {method: 'POST', bearer: true, body: {actor: {id: au.id, pin: sessPin}, op: op, user: user}});
     if (!r.ok){ toast((r.json && r.json.error) || 'The server refused'); return false; }
     applyServerUsers(r.json.users, r.json.ver); return true;
   } catch(e){ toast(e.net ? 'Connect to the server to change users' : e.message); return false; }
@@ -2484,14 +2487,14 @@ function vPriceSheet(){
 function priceFormOk(){ var pf = S.priceForm; if (!pf) return false; var v = parseFloat(pf.val); return v >= 0 && pf.val !== '' && reasonOk(pf) && pinOk(pf); }
 
 /* ----- Users tab ----- */
-function userPinCheck(){ var u = pinUser(S.upc, 'users'); if (!u){ toast('Type your own PIN in the last box to confirm'); return null; } return u; }
+function userPinCheck(){ var u = curUser(); if (!u || u.role !== 'Owner'){ toast('Only an Owner can change users'); return null; } return u; }
 function userForm(){
   var a = S.uadd;
   return '<div class="scrim"><div class="sheet" role="dialog" style="max-height:92vh;overflow:auto"><h3>Add user</h3><p>Each person gets their own PIN (6 digits or more).</p>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px"><label class="fld">Name<input class="inp" data-f="uan" value="'+esc(a.name)+'" autocomplete="off" style="text-align:left"></label>'
     + '<label class="fld">Role<select class="inp" data-f="uar">'+ROLES.map(function(r){ return '<option'+(r === a.role ? ' selected' : '')+'>'+r+'</option>'; }).join('')+'</select></label>'
-    + '<label class="fld">PIN (6 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="uap" value="'+esc(a.pin)+'" autocomplete="off" style="text-align:left"></label>'
-    + '</div><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line,#eee)"><label class="fld" style="max-width:300px">Confirm it is you: type YOUR OWN PIN<input class="inp" type="password" inputmode="numeric" data-f="upc" value="'+esc(S.upc)+'" autocomplete="off" style="text-align:left"></label></div>'
+    + '<label class="fld">PIN (6 digits or more)<input class="inp" type="password" inputmode="numeric" data-f="uap" value="'+esc(a.pin)+'" autocomplete="new-password" style="text-align:left"></label>'
+    + '</div>'
     + '<div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="ucancel">Cancel</button><button class="btn primary" data-act="uadd">Add user</button></div></div></div>';
 }
 function userEditForm(){
@@ -2501,7 +2504,7 @@ function userEditForm(){
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label class="fld">Role<select class="inp" data-f="uedr">'+ROLES.map(function(r){ return '<option'+(r === e.role ? ' selected' : '')+'>'+r+'</option>'; }).join('')+'</select></label>'
     + '<label class="fld">Status<select class="inp" data-f="ueda"><option value="1"'+(e.active ? ' selected' : '')+'>Active</option><option value="0"'+(e.active ? '' : ' selected')+'>Inactive</option></select></label></div>'
     + '<label class="fld">New PIN <small style="color:var(--muted)">(leave empty to keep the current PIN)</small><input class="inp" type="password" inputmode="numeric" data-f="uedp" value="'+esc(e.pin)+'" autocomplete="new-password" style="text-align:left"></label>'
-    + '</div><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line,#eee)"><label class="fld" style="max-width:300px">Confirm it is you: type YOUR OWN PIN<input class="inp" type="password" inputmode="numeric" data-f="upc" value="'+esc(S.upc)+'" autocomplete="off" style="text-align:left"></label></div>'
+    + '</div>'
     + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="uedx">Cancel</button><button class="btn primary" data-act="uedsave">Save</button></div></div></div>';
 }
 function permForm(){
@@ -2509,7 +2512,6 @@ function permForm(){
     return '<tr><td>'+p[1]+'</td>'+['Manager', 'Cashier'].map(function(r){ return '<td style="text-align:center"><input type="checkbox" data-f="permck" data-role="'+r+'" data-p="'+p[0]+'"'+(roleCan(r, p[0]) ? ' checked' : '')+' style="width:22px;height:22px"></td>'; }).join('') + '</tr>';
   }).join('');
   return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Role permissions" style="max-width:560px;max-height:92vh;overflow:auto"><h3>What each role can do</h3><p style="margin:0 0 8px;color:var(--muted)">The Owner can do everything. For "approve" rows, a person without the permission asks someone who has it to enter their PIN. Each change is saved at once.</p>'
-    + '<label class="fld" style="max-width:240px;margin-bottom:8px">Your PIN to confirm<input class="inp" type="password" inputmode="numeric" data-f="upc" value="'+esc(S.upc)+'" autocomplete="off" style="text-align:left"></label>'
     + '<table class="tbl"><thead><tr><th style="text-align:left">Permission</th><th>Manager</th><th>Cashier</th></tr></thead><tbody>'+mx+'</tbody></table>'
     + '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="permx">Done</button></div></div></div>';
 }
@@ -2625,7 +2627,7 @@ document.addEventListener('click', function(e){
       if (!/^\d{6,}$/.test(f.pin)){ S.lerr = 'PIN must be 6 digits or more (numbers only).'; break; }
       if (f.pin !== f.pin2){ S.lerr = 'The two PINs do not match.'; break; }
       var ou = {id:uid('u'), name:nm, role:'Owner', pin:hashPin(f.pin), active:true, t:Date.now()};
-      db.users.push(ou); S.uid = ou.id; try { sessionStorage.setItem('hp_uid', ou.id); } catch(er){}
+      db.users.push(ou); sessPin = (S.su && S.su.pin) || ''; S.uid = ou.id; try { sessionStorage.setItem('hp_uid', ou.id); } catch(er){}
       S.su = {name:'', pin:'', pin2:''}; S.lerr = ''; audit('Users and Security', 'Owner created', nm); toast('Welcome, ' + nm); break;
     case 'srvlogin':
       if (S.srv.busy) return;
@@ -3382,7 +3384,7 @@ function creditCheck(total){
   r.over = r.bal + total > r.lim + 0.001;
   var g = byId(db.users, c.given);
   if (!g){ r.msg = 'Choose who is giving the credit'; return r; }
-  if (!(g.pin === hashPin(c.pin))){ r.msg = 'Enter the PIN of ' + g.name; return r; }
+  if (g.id !== S.uid && !(g.pin === hashPin(c.pin))){ r.msg = 'Enter the PIN of ' + g.name; return r; }
   if (r.over){ var ap = pinUser(c.opin, 'creditover'); if (!ap){ r.msg = 'Over the limit. A manager PIN is needed'; return r; } r.appr = ap; }
   r.ok = true; return r;
 }
@@ -3395,7 +3397,7 @@ function vCreditSheet(total){
     + (c.cust === '__new' ? '<div class="fgrid" style="margin-top:8px"><label class="fld">Name<input class="inp" data-f="cr" data-k="name" value="'+esc(c.name)+'" autocomplete="off"></label><label class="fld">Phone<input class="inp" type="tel" inputmode="tel" data-f="cr" data-k="phone" value="'+esc(c.phone)+'" autocomplete="off"></label><label class="fld">Credit limit (AED, optional)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cr" data-k="limit" placeholder="'+creditLimitDef()+'" value="'+esc(c.limit)+'"></label></div>' : '')
     + (cu ? '<p style="margin:8px 0 0;font-size:14px">Owes AED <b>'+money(r.bal)+'</b> · limit AED '+money(r.lim)+' · available AED '+money(Math.max(0, r.lim - r.bal))+(custOverdue(cu.id).amt ? ' · <b style="color:var(--pink-dk)">overdue AED '+money(custOverdue(cu.id).amt)+'</b>' : '')+'</p>' : '')
     + '<label class="fld" style="margin-top:10px">Credit given by<select class="inp" data-f="crs" data-k="given">'+creditStaff().map(function(u){ return '<option value="'+u.id+'"'+(u.id === c.given ? ' selected' : '')+'>'+esc(u.name)+'</option>'; }).join('')+'</select></label>'
-    + '<label class="fld" style="margin-top:10px">PIN of the person giving credit<input id="crpin" class="inp" type="password" inputmode="numeric" data-f="cr" data-k="pin" value="'+esc(c.pin)+'" autocomplete="off"></label>'
+    + (c.given && c.given !== S.uid ? '<label class="fld" style="margin-top:10px">PIN of the person giving credit<input id="crpin" class="inp" type="password" inputmode="numeric" data-f="cr" data-k="pin" value="'+esc(c.pin)+'" autocomplete="off"></label>' : '')
     + (r.over ? '<p style="color:var(--pink-dk);margin:10px 0 0;font-size:14px">This bill goes over the credit limit (limit AED '+money(r.lim)+'). A manager must approve.</p><label class="fld" style="margin-top:6px;'+(pinNeeded('creditover') ? '' : 'display:none')+'">Manager PIN<input class="inp" type="password" inputmode="numeric" data-f="cr" data-k="opin" value="'+esc(c.opin)+'" autocomplete="off"></label>' : '')
     + '<p id="crmsg" style="color:var(--pink-dk);margin:10px 0 0;font-size:14px">'+esc(r.ok ? '' : r.msg)+'</p>'
     + '<div class="btns"><button class="btn ghost" data-act="paycancel">Back</button><button class="btn primary" data-act="creditok"'+(r.ok ? '' : ' disabled')+'>Give on credit</button></div></div></div>';
@@ -3897,7 +3899,7 @@ function vReports(){
     var cur = today().slice(0, 7), ms = [], i; for (i = 1; i <= 12; i++) ms.push(shiftMonth(cur, -i));
     bar = '';
     body = '<div class="card"><h3>Lock months</h3><p style="margin:0 0 8px;color:var(--muted)">After you have checked a month and given the reports to your partners, lock it. Nothing dated in a locked month can be added, changed, cancelled or deleted. Only the Owner can unlock it, and it is recorded.</p>'
-      + pinOpen('lock','max-width:240px;margin-bottom:8px')+'<input class="inp" type="password" inputmode="numeric" data-f="rpin" value="'+esc(S.rpin)+'" autocomplete="off"></label>'
+      
       + '<table class="tbl"><tbody>' + ms.map(function(k){ var L = db.locks[k]; return '<tr><td><b>'+esc(monthLabel(k))+'</b>'+(L ? '<small style="display:block;color:var(--muted)">locked by '+esc(L.by)+' · '+auditTime(L.t)+'</small>' : '')+'</td><td style="text-align:right">'+(L ? '<span class="pill cash">Locked</span> <button class="btn sm ghost" data-act="mlock" data-m="'+k+'" data-v="0">Unlock</button>' : '<button class="btn sm primary" data-act="mlock" data-m="'+k+'" data-v="1">Lock</button>')+'</td></tr>'; }).join('') + '</tbody></table></div>';
   } else body = monthVisHtml(m) + '<div class="card"><h3 style="margin:0 0 4px">Monthly report</h3>' + R.wrap(monthlyRows(m, false)) + '</div>';
   return '<div class="page"><div class="bar">'+seg+'</div>' + bar + body + '</div>';
@@ -3911,7 +3913,7 @@ function backupCard(){
     + '<div class="btns" style="justify-content:flex-start"><button class="btn primary" data-act="bkdl">Download backup</button></div>'
     + '<h3 style="font-size:15px;margin:16px 0 6px">Restore from a backup file</h3><p style="margin:0 0 8px;color:var(--muted);font-size:13px">This replaces everything in this browser with the backup. Only the Owner can do it.</p>'
     + '<input id="bkfile" type="file" accept=".json,application/json" class="inp">'
-    + (b ? '<p style="margin:8px 0 0;font-size:14px">Backup from <b>'+auditTime(b.t)+'</b>: '+b.sales+' bills, '+b.users+' users, '+b.exp+' expenses.</p><label class="fld" style="margin-top:8px;max-width:260px">Owner PIN<input class="inp" type="password" inputmode="numeric" data-f="bkpin" value="'+esc(S.bkpin)+'" autocomplete="off"></label><div class="btns" style="justify-content:flex-start"><button class="btn danger" data-act="bkrestore">Replace everything with this backup</button></div>' : '')+'</div>';
+    + (b ? '<p style="margin:8px 0 0;font-size:14px">Backup from <b>'+auditTime(b.t)+'</b>: '+b.sales+' bills, '+b.users+' users, '+b.exp+' expenses.</p><div class="btns" style="justify-content:flex-start"><button class="btn danger" data-act="bkrestore">Replace everything with this backup</button></div>' : '')+'</div>';
 }
 function backupAgeTile(tile){
   if (!can('settings')) return '';
@@ -3971,7 +3973,7 @@ document.addEventListener('click', function(e){
     case 'rectoggle': var r3 = byId(db.rec, d.id); r3.active = r3.active === false; audit('Expenses', r3.active ? 'Recurring expense resumed' : 'Recurring expense paused', r3.name); break;
     case 'recdel': var r4 = byId(db.rec, d.id); db.rec = db.rec.filter(function(x){ return x.id !== d.id; }); audit('Expenses', 'Recurring expense deleted', r4.name, {flag:1}); break;
     case 'mlock':
-      var lp = pinUser(S.rpin, 'lock'); if (!lp){ toast('Owner PIN needed'); return; }
+      var lp = curUser(); if (!lp || !can('lock')){ toast('Only an Owner can lock months'); return; }
       if (d.v === '1'){ db.locks[d.m] = {by:lp.name, t:Date.now()}; audit('Day close', 'Month locked', monthLabel(d.m), {ap:lp.name, flag:1}); toast('Locked'); }
       else { delete db.locks[d.m]; audit('Day close', 'Month unlocked', monthLabel(d.m), {ap:lp.name, flag:1}); toast('Unlocked'); } break;
     case 'osvsave':
@@ -3986,7 +3988,7 @@ document.addEventListener('click', function(e){
         db.lastBackup = Date.now(); audit('Settings', 'Backup downloaded', ''); toast('Backup downloaded');
       } catch(er){ toast('Download is not available here'); } break;
     case 'bkrestore':
-      var rp = pinUser(S.bkpin, 'users'); if (!rp){ toast('Owner PIN needed'); return; }
+      var rp = curUser(); if (!rp || !can('users')){ toast('Only an Owner can restore a backup'); return; }
       if (!S.bkp) return;
       try {
         var dd = S.bkp.data, k; for (k in db) delete db[k]; for (k in dd.db) db[k] = dd.db[k];
