@@ -1580,7 +1580,7 @@ function whLog(o){
 function whPrev(){
   var q = parseFloat(S.wf.qty); if (!(q > 0)) return '';
   if (S.wf.unit === 'kg' || S.wf.unit === 'tub') return '= ' + gmQty(toPcs(S.wf.key, q, S.wf.unit));
-  if (S.wf.unit === 'ctn'){ var c = whCtn(S.wf.key); return c ? '= ' + num(q * c) + ' pcs' : 'Set pieces per carton in Overview first'; }
+  if (S.wf.unit === 'ctn'){ var c = whCtn(S.wf.key); return c ? '= ' + num(q * c) + ' pcs' : 'Enter pieces per carton first'; }
   return '';
 }
 function vStock(){
@@ -1601,11 +1601,10 @@ function whOver(){
       return '<tr data-n="'+esc((it.name + ' ' + g).toLowerCase())+'"><td class="nm">'+esc(it.name)+'</td>'
         + '<td class="n">'+((whDirect(it.key) && !w) ? dash : fv(w))+(ct ? ' <small>'+ct+'</small>' : '')+'</td>'
         + '<td class="n">'+(pill ? pill + ' ' : '')+(s === null ? dash : fv(s))+'</td>'
-        + '<td class="n tt">'+fv(w + (s || 0))+'</td>'
-        + '<td class="c">'+(it.g ? dash : '<input class="inp" type="number" min="0" inputmode="numeric" data-f="ctn" data-k="'+esc(it.key)+'" placeholder="-" value="'+(whCtn(it.key) || '')+'" aria-label="Pieces per carton for '+esc(it.name)+'">')+'</td></tr>';
+        + '<td class="n tt">'+fv(w + (s || 0))+'</td></tr>';
     }).join('');
     var anyW = setg().whAll !== false && groups[g].some(function(it){ return whQty(it.key) > 0; });
-    return '<div class="tbl"><h3 style="display:flex;align-items:center;gap:8px"><span style="flex:1">'+esc(g)+' <small>'+groups[g].length+' items</small></span>'+(anyW ? '<button class="btn ghost sm" data-act="whall" data-g="'+esc(g)+'" style="height:28px;min-height:0;padding:0 12px;font-size:12.5px">Move all to shop</button>' : '')+'</h3><table class="whtbl"><thead><tr><th>Item</th><th class="n">Warehouse</th><th class="n">Shop</th><th class="n">Total</th><th class="c">Pcs / ctn</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    return '<div class="tbl"><h3 style="display:flex;align-items:center;gap:8px"><span style="flex:1">'+esc(g)+' <small>'+groups[g].length+' items</small></span>'+(anyW ? '<button class="btn ghost sm" data-act="whall" data-g="'+esc(g)+'" style="height:28px;min-height:0;padding:0 12px;font-size:12.5px">Move all to shop</button>' : '')+'</h3><table class="whtbl"><thead><tr><th>Item</th><th class="n">Warehouse</th><th class="n">Shop</th><th class="n">Total</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   }).join('');
   return '<input id="whq" class="inp" style="width:100%;text-align:left;margin-bottom:10px" placeholder="Search an item" aria-label="Search an item">'
     + '<p style="color:var(--muted);margin:0 0 12px;font-size:13.5px">Cups and other items are counted in pieces; ice cream flavours in grams (shown in kg and tubs). New stock goes to the Warehouse first (Stock in), then to the Shop (Transfer). Sales reduce the Shop. <b>Direct</b>: tick for items that never go to the warehouse. <b>Pcs / ctn</b>: type the pieces in one carton so you can enter by carton.</p><div class="whgrid">' + html + '</div>';
@@ -1624,25 +1623,26 @@ function whMove(kind){
   var item = '<label class="fld">Item<select class="inp" data-f="wfs" data-k="key">'+opts+'</select></label>';
   var qty = '<label class="fld">Quantity<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="wf" data-k="qty" value="'+esc(f.qty)+'"></label>';
   var unit = '<label class="fld">Unit'+sel('unit', it.g ? [['tub','Tub (' + num(gmTub() / 1000) + ' kg)'],['kg','Kilograms'],['g','Grams']] : [['pcs','Pieces'],['ctn','Carton' + (c ? ' (' + c + ' pcs)' : '')]], f.unit)+'</label>';
+  var ctnf = (!it.g && f.unit === 'ctn') ? '<label class="fld">Pieces per carton<input class="inp" type="number" min="1" inputmode="numeric" data-f="ctn" data-k="'+esc(it.key)+'" placeholder="e.g. 1000" value="'+(whCtn(it.key) || '')+'"></label>' : '';
   var note = function(lab){ return '<label class="fld">'+lab+'<input class="inp" data-f="wf" data-k="note" value="'+esc(f.note)+'"></label>'; };
   var title, fields, btn;
   if (kind === 'in'){
     title = 'Stock in';
-    fields = item + '<label class="fld">Goes to'+sel('to', [['wh','Warehouse'],['shop','Shop (direct)']], f.to)+'</label>' + qty + unit + (it.kind === 'm' ? '<label class="fld">Total cost (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="wf" data-k="cost" value="'+esc(f.cost)+'"></label>' : '') + note('Supplier or note');
+    fields = item + '<label class="fld">Goes to'+sel('to', [['wh','Warehouse'],['shop','Shop (direct)']], f.to)+'</label>' + qty + unit + ctnf + (it.kind === 'm' ? '<label class="fld">Total cost (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="wf" data-k="cost" value="'+esc(f.cost)+'"></label>' : '') + note('Supplier or note');
     btn = '<button class="btn primary sm" data-act="whgo">Add stock</button>';
   } else if (kind === 'tr'){
     var back = f.way === 'wh';
     title = back ? 'Transfer (Shop → Warehouse)' : 'Transfer (Warehouse → Shop)';
-    fields = '<label class="fld">Direction'+sel('way', [['shop','Warehouse → Shop'],['wh','Shop → Warehouse']], back ? 'wh' : 'shop')+'</label>' + item + qty + unit; btn = '<button class="btn primary sm" data-act="whgo">'+(back ? 'Move to warehouse' : 'Move to shop')+'</button>';
+    fields = '<label class="fld">Direction'+sel('way', [['shop','Warehouse → Shop'],['wh','Shop → Warehouse']], back ? 'wh' : 'shop')+'</label>' + item + qty + unit + ctnf; btn = '<button class="btn primary sm" data-act="whgo">'+(back ? 'Move to warehouse' : 'Move to shop')+'</button>';
   } else {
     title = 'Adjust (damaged, spoiled, count difference)';
     fields = '<label class="fld">Where'+sel('loc', [['wh','Warehouse'],['shop','Shop']], f.loc)+'</label>' + item
-      + '<label class="fld">Change'+sel('dir', [['-','Remove'],['+','Add']], f.dir)+'</label>' + qty + unit
+      + '<label class="fld">Change'+sel('dir', [['-','Remove'],['+','Add']], f.dir)+'</label>' + qty + unit + ctnf
       + '<label class="fld">Reason'+sel('reason', ['Damaged','Spoiled','Count difference','Staff use','Sample or free','Other'].map(function(r){ return [r, r]; }), f.reason)+'</label>' + note('Note (optional)');
     btn = '<button class="btn plum sm" data-act="whgo">Save adjustment</button>';
   }
   var info = '<div style="color:var(--muted);margin-bottom:10px">Warehouse <b style="color:var(--ink)">'+(it.g ? gmQty(w) : num(w))+'</b>'+(it.g ? '' : ' pcs')+(ctnText(w, f.key) ? ' ('+ctnText(w, f.key)+')' : '')+' &nbsp;·&nbsp; Shop <b style="color:var(--ink)">'+(s === null ? '-' : (it.g ? gmQty(s) : num(s)))+'</b>'
-    + (c || it.g ? '' : ' &nbsp;·&nbsp; No carton size set (Overview)')+'</div>';
+    + (c || it.g ? '' : ' &nbsp;·&nbsp; No carton size set')+'</div>';
   return '<div class="tbl"><h3>'+title+'</h3><div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;align-items:end">'+fields+'</div>'
     + '<div style="padding:0 16px 16px">'+info+'<div style="display:flex;gap:14px;align-items:center"><span id="whprev" style="font-weight:700;color:var(--pink-dk)">'+whPrev()+'</span>'+btn+'</div></div></div>';
 }
@@ -2254,7 +2254,7 @@ document.addEventListener('click', function(e){
       var whf = S.wf, whk = S.wt, whit = whFind(whf.key), whq = parseFloat(whf.qty);
       if (!whit){ toast('Choose an item'); return; }
       if (!(whq > 0)){ toast('Enter the quantity'); return; }
-      if (whf.unit === 'ctn' && !whCtn(whf.key)){ toast('Set pieces per carton in Overview first'); return; }
+      if (whf.unit === 'ctn' && !whCtn(whf.key)){ toast('Enter pieces per carton first'); return; }
       var whp = num(toPcs(whf.key, whq, whf.unit)), whb = {key:whf.key, name:whit.name, q:whp, unit:whf.unit, entered:whq};
       if (whk === 'in'){
         if (whf.to === 'shop') shopAdd(whit, whp, (whf.note || '').trim() || 'Direct to shop'); else db.wh.qty[whf.key] = num(whQty(whf.key) + whp);
