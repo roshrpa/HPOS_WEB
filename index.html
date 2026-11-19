@@ -270,6 +270,7 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 .whtbl{table-layout:auto} .whtbl th{font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;border-bottom:1px solid var(--line);white-space:nowrap} .whtbl th.n,.whtbl td.n{text-align:right} .whtbl th.c,.whtbl td.c{text-align:center;width:1%}
 .whtbl td{padding:7px 10px!important;border-bottom:1px solid #f1eee9;vertical-align:middle;line-height:1.25} .whtbl tr:last-child td{border-bottom:0} .whtbl tbody tr:hover{background:#faf8f5}
 .whtbl td.nm{font-weight:500;width:34%} .whtbl td.n{white-space:nowrap;font-variant-numeric:tabular-nums} .whtbl td.n small{color:var(--muted);font-size:11.5px;margin-left:5px;font-weight:400} .whtbl td.n b{font-weight:600} .whtbl td.tt{color:#55524d} .whtbl td.st,.whtbl th.st{min-width:52px;white-space:nowrap} .whtbl .mut{color:#bdb8b0}
+.pot{max-width:520px} .pot th.c,.pot td.c{width:auto;text-align:center} .pot td.nm{width:auto} .gi{display:inline-flex;align-items:center;gap:4px} .gi i{font-style:normal;color:var(--muted);font-size:12px} .pot .inp,.pot-tub .inp{width:84px!important;min-height:26px!important;height:26px!important;padding:0 8px!important;font-size:13px!important} .pot-tub{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #f1eee9;font-size:13px} .pot-tub small{color:var(--muted)}
 .mvt td.tm{color:var(--muted);width:78px;white-space:nowrap;font-variant-numeric:tabular-nums} .mvt td.nm{width:auto} .mvt td.nt{color:var(--muted)} .mvt tr.dh td{background:#faf8f5;font-weight:600;font-size:12px;padding:5px 10px!important;border-bottom:1px solid #eee9e2} .mvt tr.dh small{color:var(--muted);font-weight:400;margin-left:6px}
 .mv{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap} .mv.in{background:#e6f4ea;color:#1e6b34} .mv.tr{background:#e8f0fb;color:#2257a8} .mv.ad{background:#fdf0dc;color:#9a5b00}
 .whtbl .inp{width:58px!important;text-align:center}
@@ -1609,7 +1610,7 @@ function whOver(){
     return '<div class="tbl"><h3 style="display:flex;align-items:center;gap:8px"><span style="flex:1">'+esc(g)+' <small>'+groups[g].length+' items</small></span>'+(anyW ? '<button class="btn ghost sm" data-act="whall" data-g="'+esc(g)+'" style="height:28px;min-height:0;padding:0 12px;font-size:12.5px">Move all to shop</button>' : '')+'</h3><table class="whtbl"><thead><tr><th>Item</th><th class="n">Warehouse</th><th class="n">Shop</th><th class="n">Total</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   }).join('');
   return '<input id="whq" class="inp" style="width:100%;text-align:left;margin-bottom:10px" placeholder="Search an item" aria-label="Search an item">'
-    + '<p style="color:var(--muted);margin:0 0 12px;font-size:13.5px">Cups and other items are counted in pieces; ice cream flavours in grams (shown in kg and tubs). New stock goes to the Warehouse first (Stock in), then to the Shop (Transfer). Sales reduce the Shop. <b>Direct</b>: tick for items that never go to the warehouse. <b>Pcs / ctn</b>: type the pieces in one carton so you can enter by carton.</p><div class="whgrid">' + html + '</div>';
+    + '<p style="color:var(--muted);margin:0 0 12px;font-size:13.5px">Cups and other items are counted in pieces; ice cream flavours in grams (shown in kg and tubs). New stock goes to the Warehouse first (Stock in), then to the Shop (Transfer). Sales reduce the Shop.</p><div class="whgrid">' + html + '</div>';
 }
 function whMove(kind){
   var f = S.wf, its = whItems(), E = expectedMap();
@@ -1649,12 +1650,18 @@ function whMove(kind){
     + '<div style="padding:0 16px 16px">'+info+'<div style="display:flex;gap:14px;align-items:center"><span id="whprev" style="font-weight:700;color:var(--pink-dk)">'+whPrev()+'</span>'+btn+'</div></div></div>';
 }
 function whPortions(){
-  var rows = menu.filter(function(c){ return gmOn(c.name); }).map(function(c){
-    return '<tr><td>'+esc(c.name)+'</td>'+c.sizes.map(function(sz){ return '<td class="n"><small style="color:var(--muted)">'+esc(sz.label)+'</small><br><input class="inp" type="number" min="0" step="any" inputmode="decimal" style="width:84px" data-f="gmuse" data-k="'+esc(c.name+'|'+sz.label)+'" value="'+(gmCup(c.name, sz.label) || '')+'"></td>'; }).join('')+'</tr>';
+  var cats = menu.filter(function(c){ return gmOn(c.name); }), labs = [];
+  cats.forEach(function(c){ c.sizes.forEach(function(sz){ if (labs.indexOf(sz.label) < 0) labs.push(sz.label); }); });
+  var rows = cats.map(function(c){
+    return '<tr><td class="nm">'+esc(c.name)+'</td>'+labs.map(function(lb){
+      var has = c.sizes.some(function(sz){ return sz.label === lb; });
+      return '<td class="c">'+(has ? '<span class="gi"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="gmuse" data-k="'+esc(c.name+'|'+lb)+'" value="'+(gmCup(c.name, lb) || '')+'"><i>g</i></span>' : '<span style="color:var(--muted)">–</span>')+'</td>';
+    }).join('')+'</tr>';
   }).join('');
-  return '<div class="tbl"><h3>Ice cream portions</h3><div style="padding:12px 16px"><p style="margin:0 0 10px;color:var(--muted)">Grams taken from stock for one cup. Every sale reduces the flavour by this amount; cancelling a bill gives it back.</p>'
-    + '<table><thead><tr><th>Brand</th><th class="n" colspan="3">Grams per cup</th></tr></thead><tbody>'+rows+'</tbody></table>'
-    + '<label class="fld" style="max-width:220px;margin-top:12px">Grams in one tub<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="gmtub" value="'+gmTub()+'"></label></div></div>';
+  return '<div class="tbl"><h3>Ice cream portions <small>grams per cup</small></h3><div style="padding:10px 16px 14px">'
+    + '<p style="margin:0 0 8px;color:var(--muted);font-size:12.5px">Every sale takes this much from the flavour stock. Cancelling a bill gives it back.</p>'
+    + '<table class="whtbl pot"><thead><tr><th>Brand</th>'+labs.map(function(lb){ return '<th class="c">'+esc(lb)+'</th>'; }).join('')+'</tr></thead><tbody>'+rows+'</tbody></table>'
+    + '<div class="pot-tub"><span>One tub holds</span><span class="gi"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="gmtub" value="'+gmTub()+'"><i>g</i></span><small>= '+num(gmTub() / 1000)+' kg</small></div></div></div>';
 }
 function whLogView(){
   var MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], lastDay = '', hasNote = false;
