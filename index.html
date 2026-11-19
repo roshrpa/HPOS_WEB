@@ -1605,7 +1605,8 @@ function whOver(){
         + '<td class="c"><input type="checkbox" data-f="dsh" data-k="'+esc(it.key)+'"'+(whDirect(it.key) ? ' checked' : '')+' aria-label="Goes direct to the shop: '+esc(it.name)+'"></td>'
         + '<td class="c">'+(it.g ? dash : '<input class="inp" type="number" min="0" inputmode="numeric" data-f="ctn" data-k="'+esc(it.key)+'" placeholder="-" value="'+(whCtn(it.key) || '')+'" aria-label="Pieces per carton for '+esc(it.name)+'">')+'</td></tr>';
     }).join('');
-    return '<div class="tbl"><h3>'+esc(g)+' <small>'+groups[g].length+' items</small></h3><table class="whtbl"><thead><tr><th>Item</th><th class="n">Warehouse</th><th class="n">Shop</th><th class="n">Total</th><th></th><th class="c">Direct</th><th class="c">Pcs / ctn</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    var anyW = groups[g].some(function(it){ return whQty(it.key) > 0; });
+    return '<div class="tbl"><h3 style="display:flex;align-items:center;gap:8px"><span style="flex:1">'+esc(g)+' <small>'+groups[g].length+' items</small></span>'+(anyW ? '<button class="btn ghost sm" data-act="whall" data-g="'+esc(g)+'" style="height:28px;min-height:0;padding:0 12px;font-size:12.5px">Move all to shop</button>' : '')+'</h3><table class="whtbl"><thead><tr><th>Item</th><th class="n">Warehouse</th><th class="n">Shop</th><th class="n">Total</th><th></th><th class="c">Direct</th><th class="c">Pcs / ctn</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   }).join('');
   return '<input id="whq" class="inp" style="width:100%;text-align:left;margin-bottom:10px" placeholder="Search an item" aria-label="Search an item">'
     + '<p style="color:var(--muted);margin:0 0 12px;font-size:13.5px">Cups and other items are counted in pieces; ice cream flavours in grams (shown in kg and tubs). New stock goes to the Warehouse first (Stock in), then to the Shop (Transfer). Sales reduce the Shop. <b>Direct</b>: tick for items that never go to the warehouse. <b>Pcs / ctn</b>: type the pieces in one carton so you can enter by carton.</p><div class="whgrid">' + html + '</div>';
@@ -2242,6 +2243,12 @@ document.addEventListener('click', function(e){
     case 'xcsv':
       try { var xbl = new Blob([xCsv(S.xm)], {type:'text/csv;charset=utf-8'}), xa2 = document.createElement('a'); xa2.href = URL.createObjectURL(xbl); xa2.download = 'expenses-' + S.xm + '.csv'; document.body.appendChild(xa2); xa2.click(); document.body.removeChild(xa2); toast('CSV downloaded'); }
       catch(err){ toast('Download is not available here'); } return;
+    case 'whall':
+      var wg = d.g, wl = whItems().filter(function(x){ return x.group === wg && whQty(x.key) > 0; });
+      if (!wl.length){ toast('Nothing in the warehouse'); break; }
+      if (!window.confirm('Move everything in "' + wg + '" (' + wl.length + ' items) from the Warehouse to the Shop?')) break;
+      wl.forEach(function(x){ var q = whQty(x.key); db.wh.qty[x.key] = 0; shopAdd(x, q, 'From warehouse'); whLog({type:'transfer', key:x.key, name:x.name, q:q, unit:x.g ? 'g' : 'pcs', entered:q}); });
+      audit('Stock', 'Transfer to shop', wg + ' · all ' + wl.length + ' items', {}); save(); toast('Moved ' + wl.length + ' items to the shop'); break;
     case 'whgo':
       var whf = S.wf, whk = S.wt, whit = whFind(whf.key), whq = parseFloat(whf.qty);
       if (!whit){ toast('Choose an item'); return; }
