@@ -104,7 +104,7 @@ function render(){
     return;
   }
   var s = summary(), h = '<header><h1>Super admin</h1><small>' + esc(WHO) + '</small><button class="sm" id="out">Sign out</button></header><main>';
-  if (MSG) h += '<div class="msg' + (MSG.e ? ' e' : '') + '">' + esc(MSG.t || MSG) + '</div>';
+  if (MSG && !M) h += '<div class="msg' + (MSG.e ? ' e' : '') + '">' + esc(MSG.t || MSG) + '</div>';
   h += '<div class="stats"><div class="stat"><b>' + s.br + '</b><span>Branches in ' + s.co + ' companies</span></div><div class="stat"><b>' + s.act + '</b><span>Active</span></div>'
     + '<div class="stat ' + (s.soon ? 'w' : '') + '"><b>' + s.soon + '</b><span>Licence ends within 30 days</span></div><div class="stat ' + (s.bad ? 'b' : '') + '"><b>' + s.bad + '</b><span>Expired or off</span></div></div>';
   h += '<div class="bar"><div class="s"><input id="q" type="search" placeholder="Search branch or shop code" value="' + esc(QUERY) + '"></div><button class="pri" id="cnew">+ Company</button></div>';
@@ -148,7 +148,7 @@ function modal(){
   }
   if (M.a === 'more'){ title = esc(b.name); body = '<div class="row" style="flex-direction:column;align-items:stretch"><button id="cpy">Copy shop code (' + esc(b.code) + ')</button><button class="dng" data-a="rst" data-b="' + esc(b.id) + '">Reset test data…</button></div>'; btn = ''; }
   if (M.a === 'rst'){ title = 'Reset test data'; body = '<p>Deletes <b>all bills and tablet orders</b> of <b>' + esc(b.code) + '</b> and sets stock back to 100 (shop and warehouse) on every device. Menu, recipes, expenses, users and settings stay. This cannot be undone.</p><label>Type the shop code to confirm<input id="f1" autocapitalize="off" placeholder="' + esc(b.code) + '"></label>'; btn = 'Reset'; cls = 'dng'; }
-  h += '<h3>' + title + '</h3>' + body + '<div class="row" style="justify-content:flex-end;margin-top:16px"><button id="cx">' + (btn ? 'Cancel' : 'Close') + '</button>' + (btn ? '<button class="' + cls + '" id="ok">' + btn + '</button>' : '') + '</div></div></div>';
+  h += '<h3>' + title + '</h3>' + (MSG && M.a !== 'newc' ? '<div class="msg' + (MSG.e ? ' e' : '') + '">' + esc(MSG.t || MSG) + '</div>' : '') + body + '<div class="row" style="justify-content:flex-end;margin-top:16px"><button id="cx">' + (btn ? 'Cancel' : 'Close') + '</button>' + (btn ? '<button class="' + cls + '" id="ok">' + btn + '</button>' : '') + '</div></div></div>';
   return h;
 }
 function wire(){
@@ -157,7 +157,7 @@ function wire(){
   [].forEach.call(document.querySelectorAll('.modal [data-a]'), function(el){ el.onclick = function(){ M = {a: el.dataset.a, b: el.dataset.b}; render(); }; });
   if ($('cpy')) $('cpy').onclick = function(){ var b = findB(M.b); try { navigator.clipboard.writeText(b.code); } catch(e){} M = null; MSG = {t: 'Shop code copied.'}; render(); };
   [].forEach.call(document.querySelectorAll('[data-x]'), function(el){ el.onclick = function(){ var x = el.dataset.x, f = $('f4'); if (x === 'clr') f.value = ''; else { var cur = f.value, t = new Date().toLocaleDateString('en-CA'); f.value = addDays(cur && cur > t ? cur : t, +x); } }; });
-  [].forEach.call(document.querySelectorAll('[data-u]'), function(el){ el.onclick = function(){ M = {a: 'user', b: M.b, u: el.dataset.u}; render(); }; });
+  [].forEach.call(document.querySelectorAll('[data-u]'), function(el){ el.onclick = function(){ M = {a: 'user', b: M.b, u: el.dataset.u}; MSG = null; render(); }; });
   if ($('tog')) $('tog').onclick = function(){ var u = UL.users.filter(function(x){ return x.id === M.u; })[0]; userOp({active: !u.active}, u.active ? 'User switched off.' : 'User switched on.'); };
   if ($('del')) $('del').onclick = function(){ var u = UL.users.filter(function(x){ return x.id === M.u; })[0]; if (window.confirm('Delete ' + u.name + '? This cannot be undone.')) userOp({delete: true}, 'User deleted.'); };
   if (!$('ok')) return;
