@@ -768,13 +768,14 @@ async function runSync(){
     catch(e){ if (e.status === 401) throw e; }
     if (await cfgSync()) changed = true;
     sync.lastOk = Date.now();
-    if (changed) renderSafe();
+    if (changed){ try { menuPrev = menuSnap(); setPrev = JSON.stringify(setg()); } catch(e){} renderSafe(); }   /* changes that came from the server are not audited as this user's edits */
   } catch(e){ sync.err = e.status === 401 ? 'The device token is wrong or switched off' : (e.message || 'Offline'); }
   syncBusy = false; saveSync(); paintSync();
 }
 var IS_POS_APP = true;
 function applyServerMenu(list){
   menu = list; dirty = true; flushMenu();
+  try { menuPrev = menuSnap(); } catch(e){}   /* a menu that arrived from another device is not this user's edit */
   if (!byId(menu, S.edCat)) S.edCat = menu[0].id;
   if (S.cat && !byId(menu, S.cat)) S.cat = menu[0].id;
 }
