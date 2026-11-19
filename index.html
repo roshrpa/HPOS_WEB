@@ -270,6 +270,8 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 .whtbl{table-layout:auto} .whtbl th{font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;border-bottom:1px solid var(--line);white-space:nowrap} .whtbl th.n,.whtbl td.n{text-align:right} .whtbl th.c,.whtbl td.c{text-align:center;width:1%}
 .whtbl td{padding:7px 10px!important;border-bottom:1px solid #f1eee9;vertical-align:middle;line-height:1.25} .whtbl tr:last-child td{border-bottom:0} .whtbl tbody tr:hover{background:#faf8f5}
 .whtbl td.nm{font-weight:500;width:34%} .whtbl td.n{white-space:nowrap;font-variant-numeric:tabular-nums} .whtbl td.n small{color:var(--muted);font-size:11.5px;margin-left:5px;font-weight:400} .whtbl td.n b{font-weight:600} .whtbl td.tt{color:#55524d} .whtbl td.st,.whtbl th.st{min-width:52px;white-space:nowrap} .whtbl .mut{color:#bdb8b0}
+.mvt td.tm{color:var(--muted);width:78px;white-space:nowrap;font-variant-numeric:tabular-nums} .mvt td.nm{width:auto} .mvt td.nt{color:var(--muted)} .mvt tr.dh td{background:#faf8f5;font-weight:600;font-size:12px;padding:5px 10px!important;border-bottom:1px solid #eee9e2} .mvt tr.dh small{color:var(--muted);font-weight:400;margin-left:6px}
+.mv{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap} .mv.in{background:#e6f4ea;color:#1e6b34} .mv.tr{background:#e8f0fb;color:#2257a8} .mv.ad{background:#fdf0dc;color:#9a5b00}
 .whtbl .inp{width:58px!important;text-align:center}
 .whtbl{width:100%;font-size:13px} .whtbl th{padding:5px 8px;font-size:11px} .whtbl td{padding:3px 8px;line-height:1.2} .whtbl td small{font-size:11px}
 .whtbl .inp{min-height:26px;height:26px;padding:0 6px;font-size:13px;width:64px;border-radius:7px} .whtbl input[type=checkbox]{width:16px!important;height:16px!important}
@@ -1655,12 +1657,31 @@ function whPortions(){
     + '<label class="fld" style="max-width:220px;margin-top:12px">Grams in one tub<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="gmtub" value="'+gmTub()+'"></label></div></div>';
 }
 function whLogView(){
-  var rows = db.wh.log.slice(-150).reverse().map(function(l){
-    var what = l.type === 'in' ? (l.loc === 'shop' ? 'Stock in \u2192 Shop' : 'Stock in \u2192 Warehouse') : l.type === 'transfer' ? (l.to === 'wh' ? 'Shop → Warehouse' : 'Warehouse → Shop') : 'Adjust ' + (l.loc === 'wh' ? 'warehouse' : 'shop');
-    var q = (l.type === 'adjust' ? (l.dir > 0 ? '+' : '−') : '') + (l.unit === 'tub' || l.unit === 'kg' || l.unit === 'g' ? gmQty(l.q) : num(l.q) + ' pcs') + (l.unit === 'ctn' ? ' <small style="color:var(--muted)">('+num(l.entered)+' ctn)</small>' : (l.unit === 'tub' || l.unit === 'kg' ? ' <small style="color:var(--muted)">('+num(l.entered)+' '+l.unit+')</small>' : ''));
-    return '<tr><td>'+fdate(l.t)+'</td><td>'+what+'</td><td>'+esc(l.name)+'</td><td class="n">'+q+'</td><td>'+esc([l.reason, l.note].filter(Boolean).join(' · '))+'</td></tr>';
+  var MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], lastDay = '', hasNote = false;
+  var list = db.wh.log.slice(-150).reverse();
+  list.forEach(function(l){ if (l.reason || l.note) hasNote = true; });
+  var now = new Date(), dayKey = function(d){ return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); };
+  var yd = new Date(now.getTime() - 864e5), cols = hasNote ? 5 : 4;
+  var rows = list.map(function(l){
+    var d = new Date(l.t), dk = dayKey(d), head = '';
+    if (dk !== lastDay){
+      lastDay = dk;
+      var cnt = list.filter(function(x){ return dayKey(new Date(x.t)) === dk; }).length;
+      var lab = dk === dayKey(now) ? 'Today' : dk === dayKey(yd) ? 'Yesterday' : d.getDate() + ' ' + MN[d.getMonth()] + ' ' + d.getFullYear();
+      head = '<tr class="dh"><td colspan="'+cols+'">'+lab+' <small>'+cnt+' movement'+(cnt > 1 ? 's' : '')+'</small></td></tr>';
+    }
+    var kind = l.type === 'in' ? 'in' : l.type === 'transfer' ? 'tr' : 'ad';
+    var chip = l.type === 'in' ? 'Stock in → ' + (l.loc === 'shop' ? 'Shop' : 'Warehouse')
+      : l.type === 'transfer' ? (l.to === 'wh' ? 'Shop → Warehouse' : 'Warehouse → Shop')
+      : 'Adjust · ' + (l.loc === 'wh' ? 'Warehouse' : 'Shop');
+    var gm = l.unit === 'tub' || l.unit === 'kg' || l.unit === 'g';
+    var q = (l.type === 'adjust' ? (l.dir > 0 ? '+' : '−') : '') + (gm ? gmQtyH(l.q) : '<b>'+num(l.q)+'</b> pcs');
+    if (l.unit === 'ctn') q += ' <small>('+num(l.entered)+' ctn)</small>';
+    var tm = d.toLocaleTimeString('en-GB', {hour:'numeric', minute:'2-digit', hour12:true}).toUpperCase();
+    return head + '<tr><td class="tm">'+tm+'</td><td><span class="mv '+kind+'">'+chip+'</span></td><td class="nm">'+esc(l.name)+'</td><td class="n">'+q+'</td>'
+      + (hasNote ? '<td class="nt">'+esc([l.reason, l.note].filter(Boolean).join(' · '))+'</td>' : '') + '</tr>';
   }).join('');
-  return '<div class="tbl"><h3>Stock movements</h3><table><thead><tr><th>Time</th><th>What</th><th>Item</th><th class="n">Quantity</th><th>Note</th></tr></thead><tbody>'+(rows || '<tr><td colspan="5">Nothing recorded yet.</td></tr>')+'</tbody></table></div>';
+  return '<div class="tbl"><h3>Stock movements <small>last '+list.length+'</small></h3><table class="whtbl mvt"><thead><tr><th>Time</th><th>Movement</th><th>Item</th><th class="n">Quantity</th>'+(hasNote ? '<th>Note</th>' : '')+'</tr></thead><tbody>'+(rows || '<tr><td colspan="'+cols+'">Nothing recorded yet.</td></tr>')+'</tbody></table></div>';
 }
 
 /* ---------- Expenses ---------- */
