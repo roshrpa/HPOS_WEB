@@ -1633,8 +1633,9 @@ function whMove(kind){
     fields = item + '<label class="fld">Goes to'+sel('to', [['wh','Warehouse'],['shop','Shop (direct)']], f.to)+'</label>' + qty + unit + (it.kind === 'm' ? '<label class="fld">Total cost (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="wf" data-k="cost" value="'+esc(f.cost)+'"></label>' : '') + note('Supplier or note');
     btn = '<button class="btn primary sm" data-act="whgo">Add stock</button>';
   } else if (kind === 'tr'){
-    title = 'Transfer (Warehouse → Shop)';
-    fields = item + qty + unit; btn = '<button class="btn primary sm" data-act="whgo">Move to shop</button>';
+    var back = f.way === 'wh';
+    title = back ? 'Transfer (Shop → Warehouse)' : 'Transfer (Warehouse → Shop)';
+    fields = '<label class="fld">Direction'+sel('way', [['shop','Warehouse → Shop'],['wh','Shop → Warehouse']], back ? 'wh' : 'shop')+'</label>' + item + qty + unit; btn = '<button class="btn primary sm" data-act="whgo">'+(back ? 'Move to warehouse' : 'Move to shop')+'</button>';
   } else {
     title = 'Adjust (damaged, spoiled, count difference)';
     fields = '<label class="fld">Where'+sel('loc', [['wh','Warehouse'],['shop','Shop']], f.loc)+'</label>' + item
@@ -1657,7 +1658,7 @@ function whPortions(){
 }
 function whLogView(){
   var rows = db.wh.log.slice(-150).reverse().map(function(l){
-    var what = l.type === 'in' ? (l.loc === 'shop' ? 'Stock in \u2192 Shop' : 'Stock in \u2192 Warehouse') : l.type === 'transfer' ? 'Warehouse → Shop' : 'Adjust ' + (l.loc === 'wh' ? 'warehouse' : 'shop');
+    var what = l.type === 'in' ? (l.loc === 'shop' ? 'Stock in \u2192 Shop' : 'Stock in \u2192 Warehouse') : l.type === 'transfer' ? (l.to === 'wh' ? 'Shop → Warehouse' : 'Warehouse → Shop') : 'Adjust ' + (l.loc === 'wh' ? 'warehouse' : 'shop');
     var q = (l.type === 'adjust' ? (l.dir > 0 ? '+' : '−') : '') + (l.unit === 'tub' || l.unit === 'kg' || l.unit === 'g' ? gmQty(l.q) : num(l.q) + ' pcs') + (l.unit === 'ctn' ? ' <small style="color:var(--muted)">('+num(l.entered)+' ctn)</small>' : (l.unit === 'tub' || l.unit === 'kg' ? ' <small style="color:var(--muted)">('+num(l.entered)+' '+l.unit+')</small>' : ''));
     return '<tr><td>'+fdate(l.t)+'</td><td>'+what+'</td><td>'+esc(l.name)+'</td><td class="n">'+q+'</td><td>'+esc([l.reason, l.note].filter(Boolean).join(' · '))+'</td></tr>';
   }).join('');
@@ -2262,16 +2263,23 @@ document.addEventListener('click', function(e){
         var whc = parseFloat(whf.cost); if (whit.kind === 'm' && whc > 0) mat(whit.mid).cost = Math.round(whc / whp * 1000) / 1000;
         whb.type = 'in'; whb.loc = whf.to === 'shop' ? 'shop' : 'wh'; whb.note = (whf.note || '').trim(); whLog(whb); toast(whf.to === 'shop' ? 'Added to shop' : 'Added to warehouse');
       } else if (whk === 'tr'){
-        if (whp > whQty(whf.key)){ toast('Only ' + qTxt(whit, whQty(whf.key)) + ' in the warehouse'); return; }
-        db.wh.qty[whf.key] = num(whQty(whf.key) - whp); shopAdd(whit, whp, 'From warehouse');
-        whb.type = 'transfer'; whLog(whb); toast('Moved to shop');
+        if (whf.way === 'wh'){
+          var shq = shopQty(whit) || 0;
+          if (whp > shq){ toast('Only ' + qTxt(whit, shq) + ' in the shop'); return; }
+          shopAdd(whit, -whp, 'To warehouse'); db.wh.qty[whf.key] = num(whQty(whf.key) + whp);
+          whb.type = 'transfer'; whb.to = 'wh'; whLog(whb); toast('Moved to warehouse');
+        } else {
+          if (whp > whQty(whf.key)){ toast('Only ' + qTxt(whit, whQty(whf.key)) + ' in the warehouse'); return; }
+          db.wh.qty[whf.key] = num(whQty(whf.key) - whp); shopAdd(whit, whp, 'From warehouse');
+          whb.type = 'transfer'; whLog(whb); toast('Moved to shop');
+        }
       } else {
         var whs = whf.dir === '+' ? 1 : -1, whl = whf.loc;
         if (whs < 0){ var whh = whl === 'wh' ? whQty(whf.key) : (shopQty(whit) || 0); if (whp > whh){ toast('Only ' + qTxt(whit, whh) + ' there'); return; } }
         if (whl === 'wh') db.wh.qty[whf.key] = num(whQty(whf.key) + whs * whp); else shopAdd(whit, whs * whp, whf.reason);
         whb.type = 'adjust'; whb.loc = whl; whb.dir = whs; whb.reason = whf.reason; whb.note = (whf.note || '').trim(); whLog(whb); toast('Adjustment saved');
       }
-      audit('Stock', whk === 'in' ? 'Stock in' : whk === 'tr' ? 'Transfer to shop' : 'Stock adjustment', whit.name + ' · ' + qTxt(whit, whp) + (whk === 'in' ? (whf.to === 'shop' ? ' direct to shop' : ' to warehouse') : whk === 'adj' || whk === 'ad' ? '' : '') + (whk !== 'in' && whk !== 'tr' ? ' · ' + (whf.loc === 'wh' ? 'warehouse' : 'shop') + ' ' + (whf.dir === '+' ? 'added' : 'removed') + ' · ' + whf.reason : '') + (whf.note ? ' · ' + whf.note : ''), {flag:(whk !== 'in' && whk !== 'tr')});
+      audit('Stock', whk === 'in' ? 'Stock in' : whk === 'tr' ? 'Transfer to shop' : 'Stock adjustment', whit.name + ' · ' + qTxt(whit, whp) + (whk === 'tr' && whf.way === 'wh' ? ' · shop to warehouse' : '') + (whk === 'in' ? (whf.to === 'shop' ? ' direct to shop' : ' to warehouse') : whk === 'adj' || whk === 'ad' ? '' : '') + (whk !== 'in' && whk !== 'tr' ? ' · ' + (whf.loc === 'wh' ? 'warehouse' : 'shop') + ' ' + (whf.dir === '+' ? 'added' : 'removed') + ' · ' + whf.reason : '') + (whf.note ? ' · ' + whf.note : ''), {flag:(whk !== 'in' && whk !== 'tr')});
       whf.qty = ''; whf.cost = ''; whf.note = ''; save(); break;
     case 'reccat': S.recCat = d.id; break;
     case 'addrec': db.inv.recipes[d.k] = db.inv.recipes[d.k] || []; db.inv.recipes[d.k].push({m:db.inv.materials[0].id, q:1}); save(); break;
