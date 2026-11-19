@@ -2551,12 +2551,11 @@ function permForm(){
         return '<tr><td>'+p[1]+(p[2] ? ' <small style="color:var(--muted)">'+p[2]+'</small>' : '')+'</td>'+RL.map(function(r){ return '<td class="c"><input type="checkbox" data-f="permck" data-role="'+r+'" data-p="'+p[0]+'"'+(roleCan(r, p[0]) ? ' checked' : '')+'></td>'; }).join('') + '</tr>';
       }).join('');
   }).join('');
-  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Role permissions" style="max-width:480px;max-height:92vh;overflow:auto;padding:14px 16px"><h3 style="margin:0 0 4px;font-size:17px">What each role can do</h3><p style="margin:0 0 8px;color:var(--muted);font-size:12.5px;line-height:1.35">The Owner can do everything. For "approve" rows, a person without the permission asks someone who has it to enter their PIN. Each change is saved at once.</p>'
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Role permissions" style="max-width:480px;max-height:92vh;overflow:auto;padding:14px 16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><h3 style="margin:0;font-size:17px;flex:1">What each role can do</h3><button class="btn ghost" data-act="rolenew" style="height:32px;min-height:0;padding:0 12px;font-size:13px">+ New role</button></div><p style="margin:0 0 8px;color:var(--muted);font-size:12.5px;line-height:1.35">The Owner can do everything. For "approve" rows, a person without the permission asks someone who has it to enter their PIN. Each change is saved at once.</p>'
     + '<div style="overflow-x:auto"><table class="pt"><thead><tr><th>Permission</th>'+RL.map(function(r){
       var custom = !!(db.perms[r] && db.perms[r].__role), used = db.users.some(function(u){ return u.role === r; });
       return '<th>'+esc(r)+(custom && !used ? ' <a href="#" data-act="roledel" data-r="'+esc(r)+'" title="Remove role" style="font-weight:700;color:#c4543a;text-decoration:none">×</a>' : '')+'</th>'; }).join('')+'</tr></thead><tbody>'+mx+'</tbody></table></div>'
-    + '<div style="display:flex;gap:8px;margin-top:10px"><input class="inp" data-f="nrole" placeholder="New role name (e.g. Supervisor)" value="'+esc(S.nrole || '')+'" maxlength="30" style="flex:1;text-align:left"><button class="btn ghost" data-act="roleadd">+ Add role</button></div>'
-    + '<p style="margin:5px 0 0;font-size:12px;color:var(--muted)">A new role starts with the same permissions as Cashier. Tick what it may do.</p>'
+    + (S.nropen ? '<div class="scrim" style="z-index:60"><div class="sheet" role="dialog" aria-label="New role" style="max-width:340px;padding:16px"><h3 style="margin:0 0 8px;font-size:17px">New role</h3><input class="inp" data-f="nrole" placeholder="e.g. Supervisor" value="'+esc(S.nrole || '')+'" maxlength="30" style="width:100%;text-align:left" autofocus><p style="margin:6px 0 0;font-size:12px;color:var(--muted)">Starts with the same permissions as Cashier. Then tick what it may do.</p><div class="btns" style="margin-top:12px"><button class="btn ghost" data-act="rolenx">Cancel</button><button class="btn primary" data-act="roleadd">Add role</button></div></div></div>' : '')
     + '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="permx">Done</button></div></div></div>';
 }
 function vUsers(){
@@ -2717,12 +2716,14 @@ document.addEventListener('click', function(e){
       userOp('delete', {id: ud.id}).then(function(ok){ if (ok){ audit('Users and Security', 'User deleted', ud.name, {flag:1}); S.uedit = null; S.ued = null; toast('User deleted'); } render(); });
       return;
     case 'uedx': S.uedit = null; S.ued = null; S.upc = ''; break;
+    case 'rolenew': S.nropen = true; S.nrole = ''; break;
+    case 'rolenx': S.nropen = false; S.nrole = ''; break;
     case 'roleadd':
       var rn = (S.nrole || '').trim();
       if (!/^[A-Za-z][A-Za-z0-9 &'-]{0,29}$/.test(rn)){ toast('Role name: letters and numbers, up to 30 characters'); break; }
       if (allRoles().some(function(x){ return x.toLowerCase() === rn.toLowerCase(); })){ toast('That role already exists'); break; }
       if (!userPinCheck()) break;
-      var np = {__role: true}; PERMS.forEach(function(x){ np[x[0]] = roleCan('Cashier', x[0]); }); db.perms[rn] = np; S.nrole = '';
+      var np = {__role: true}; PERMS.forEach(function(x){ np[x[0]] = roleCan('Cashier', x[0]); }); db.perms[rn] = np; S.nrole = ''; S.nropen = false;
       audit('Users and Security', 'Role added', rn, {flag:1}); save(); toast('Role added. Tick what ' + rn + ' may do.'); break;
     case 'roledel':
       var dr = d.r; if (!(db.perms[dr] && db.perms[dr].__role) || db.users.some(function(u){ return u.role === dr; })) break;
@@ -2730,7 +2731,7 @@ document.addEventListener('click', function(e){
       if (!window.confirm('Remove the role ' + dr + '?')) break;
       delete db.perms[dr]; audit('Users and Security', 'Role removed', dr, {flag:1}); save(); break;
     case 'permopen': S.permopen = true; S.upc = ''; break;
-    case 'permx': S.permopen = false; S.upc = ''; break;
+    case 'permx': S.nropen = false; S.permopen = false; S.upc = ''; break;
     case 'uedsave':
       var ue = byId(db.users, S.uedit), ed = S.ued; if (!ue || !ed) break;
       if (!userPinCheck()) break;
