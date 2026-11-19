@@ -782,7 +782,7 @@ async function runSync(){
 }
 var IS_POS_APP = true;
 function applyServerMenu(list){
-  menu = list; dirty = true; flushMenu();
+  menu = list; dirty = true; flushMenu(); try { pruneStock(); } catch(e){}
   try { menuPrev = menuSnap(); } catch(e){}   /* a menu that arrived from another device is not this user's edit */
   if (!byId(menu, S.edCat)) S.edCat = menu[0].id;
   if (S.cat && !byId(menu, S.cat)) S.cat = menu[0].id;
@@ -928,7 +928,7 @@ function applyTestReset(p){
   db.resetSeen = p.id;
   db.sales = []; db.tOrders = []; db.counter = 0;
   db.stock = {}; db.wh = db.wh || {qty:{}, carton:{}, log:[]}; db.wh.qty = {}; db.wh.log = [];
-  menu.forEach(function(c){ c.items.forEach(function(it){ db.stock[skey(c.name, it.name)] = 100; }); });
+  menu.forEach(function(c){ if (trackOn(c)) c.items.forEach(function(it){ db.stock[skey(c.name, it.name)] = 100; }); });
   whItems().forEach(function(x){ db.wh.qty[x.key] = 100; });
   db.inv.base = invDefault().base;
   var gone = {sale:1, sale_cancel:1, order:1, order_update:1, order_pay:1, order_cancel:1, order_done:1, num:1, wh_move:1};
@@ -1079,7 +1079,8 @@ function vMenu(){
     + '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="pickimg" data-id="">Change picture</button>'
     + (c.img ? '<button class="btn ghost sm" data-act="noimg" data-id="">Remove</button>' : '')
     + '<button class="btn ghost sm" data-act="catup"'+(menu.indexOf(c)===0?' disabled':'')+'>Move up</button><button class="btn ghost sm" data-act="catdown"'+(menu.indexOf(c)===menu.length-1?' disabled':'')+'>Move down</button></div></div>'
-    + '<div class="fgrid" style="margin-top:12px">'+fld('Name','<input class="inp" data-f="cname" value="'+esc(c.name)+'">')+fld('Arabic name','<input class="inp ar" data-f="car" value="'+esc(c.ar)+'">')+'</div></div>'
+    + '<div class="fgrid" style="margin-top:12px">'+fld('Name','<input class="inp" data-f="cname" value="'+esc(c.name)+'">')+fld('Arabic name','<input class="inp ar" data-f="car" value="'+esc(c.ar)+'">')+'</div>'
+    + '<label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px"><input type="checkbox" data-f="ctrack"'+(trackOn(c) ? ' checked' : '')+' style="width:18px;height:18px"> Keep stock of this category in the Warehouse <small style="color:var(--muted)">(leave off for items made to order)</small></label></div>'
     + '<div class="card"><h3>Sizes and prices (AED)</h3>'+sizesHtml+'<button class="btn ghost sm" data-act="addsize">+ Add size</button>'
     + '<p style="color:var(--muted);font-size:13px;margin:10px 0 0">These prices apply to every item. To give one item a different price, type it in that item below. Leave the size name blank if the category has only one size.</p></div>'
     + chPricesCard(c)
@@ -1521,6 +1522,15 @@ if (db.gmInit !== 1){ Object.keys(GM_DEF).forEach(function(k){ if (db.gm.use[k] 
 function gmTub(){ return +db.gm.pack.tub > 0 ? +db.gm.pack.tub : 5500; }
 function gmCup(cat, size){ return +db.gm.use[cat + '|' + size] || 0; }
 function gmOn(cat){ return Object.keys(db.gm.use).some(function(k){ return k.split('|')[0] === cat && +db.gm.use[k] > 0; }); }
+/* only categories whose stock is really kept (ice cream by default) appear in the warehouse and limit sales; the rest are made to order */
+function trackOn(c){ return c.track !== undefined && c.track !== null ? !!c.track : gmOn(c.name); }
+function pruneStock(){
+  var ch = false;
+  menu.forEach(function(c){ if (trackOn(c)) return; c.items.forEach(function(it0){ var k = skey(c.name, it0.name);
+    if (db.stock[k] !== undefined){ delete db.stock[k]; ch = true; }
+    if (db.wh && db.wh.qty && db.wh.qty['i:' + k] !== undefined){ delete db.wh.qty['i:' + k]; ch = true; } }); });
+  if (ch) save();
+}
 function gmAmt(l){ return gmOn(l.cat) ? (gmCup(l.cat, l.size) || 0) * l.qty : l.qty; }   /* what one cart/sale line takes from stock */
 function gmQty(q){ q = +q || 0; var t = gmTub(); return (Math.abs(q) >= 1000 ? num(q / 1000) + ' kg' : num(q) + ' g') + (Math.abs(q) >= t / 2 ? ' · ' + (Math.round(q / t * 10) / 10) + ' tub' : ''); }
 function qTxt(it, q){ return it && it.g ? gmQty(q) : num(q) + ' pcs'; }
@@ -1533,9 +1543,10 @@ if (db.gmFix !== 1){
       if (db.wh && db.wh.qty && +db.wh.qty[wk] > 0 && +db.wh.qty[wk] <= 100) db.wh.qty[wk] = +db.wh.qty[wk] * sm; }); });
   save();
 }
+try { pruneStock(); } catch(e){}
 function whItems(){
   var out = [];
-  menu.forEach(function(c){ c.items.forEach(function(it){ out.push({key:'i:'+skey(c.name, it.name), name:it.name, group:c.name, kind:'i', sk:skey(c.name, it.name), g:gmOn(c.name)}); }); });
+  menu.forEach(function(c){ if (!trackOn(c)) return; c.items.forEach(function(it){ out.push({key:'i:'+skey(c.name, it.name), name:it.name, group:c.name, kind:'i', sk:skey(c.name, it.name), g:gmOn(c.name)}); }); });
   db.inv.materials.forEach(function(m){ out.push({key:'m:'+m.id, name:m.name, group:'Cups, lids, plates and other materials', kind:'m', mid:m.id}); });
   return out;
 }
@@ -2053,6 +2064,7 @@ document.addEventListener('change', function(e){
   if (t.dataset && t.dataset.f === 'rmat'){ db.inv.recipes[t.dataset.k][+t.dataset.i].m = t.value; save(); }
   if (t.dataset && t.dataset.f === 'mcup'){ mat(t.dataset.m).cup = t.checked; save(); }
   if (t.dataset && t.dataset.f === 'choff'){ var it1 = byId(edCat().items, t.dataset.id), ce1 = S.chedit || (chans()[0] || {}).id; if (it1 && ce1){ it1.chOff = it1.chOff || {}; if (t.checked) it1.chOff[ce1] = 1; else delete it1.chOff[ce1]; saveMenu(); } }
+  if (t.dataset && t.dataset.f === 'ctrack'){ edCat().track = t.checked; saveMenu(); pruneStock(); render(); return; }
   if (t.dataset && t.dataset.f === 'ioff'){ byId(edCat().items, t.dataset.id).off = t.checked; saveMenu(); }
   if (t.id === 'file' && t.files && t.files[0]) readPicture(t.files[0]);
 });
