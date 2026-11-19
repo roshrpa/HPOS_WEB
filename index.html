@@ -1113,6 +1113,7 @@ function vSettings(){
   var billing = '<div class="card" style="margin:0"><h3 style="margin:0 0 4px">Billing and sales</h3>'
     + sw(G.vat, 'tgvat', 'Charge VAT', G.vat ? 'Bills and receipts show VAT and the receipt says TAX INVOICE.' : 'No VAT on bills. Receipts say RECEIPT. Use this while the shop is below the VAT registration limit.')
     + (G.vat ? '<div style="padding:12px 0;border-bottom:1px solid var(--line,#eee)"><div class="fgrid">'+inp('VAT rate (%)','rate',G.rate,'number')+inp('Tax registration number (TRN)','trn',G.trn)+'</div><p style="color:var(--muted);font-size:13px;margin:10px 0 0">Prices in the menu are treated as including VAT.</p></div>' : '')
+    + sw(G.whAll !== false, 'tgwhall', 'Show "Move all to shop" in the Warehouse', G.whAll !== false ? 'Each category in Warehouse Overview has a button that moves its whole warehouse stock to the shop in one step.' : 'The button is hidden. Move stock one item at a time with Transfer.')
     + sw(G.allowZero, 'tgzero', 'Allow sale when item stock is 0', G.allowZero ? 'Staff can keep selling even if the stock count was not updated. Stock goes below zero so you can see it.' : 'An item with 0 stock shows Sold out and cannot be sold.')
     + sw(!!G.showSale, 'tgsale', 'Show the Sale tab in this POS', G.showSale ? 'The Sale screen is available in the menu. The Windows counter app always has it.' : 'Off: orders are taken on the tablet and appear here as bills. Turn on to bill from this screen.')
     + '</div>';
@@ -1605,7 +1606,7 @@ function whOver(){
         + '<td class="c"><input type="checkbox" data-f="dsh" data-k="'+esc(it.key)+'"'+(whDirect(it.key) ? ' checked' : '')+' aria-label="Goes direct to the shop: '+esc(it.name)+'"></td>'
         + '<td class="c">'+(it.g ? dash : '<input class="inp" type="number" min="0" inputmode="numeric" data-f="ctn" data-k="'+esc(it.key)+'" placeholder="-" value="'+(whCtn(it.key) || '')+'" aria-label="Pieces per carton for '+esc(it.name)+'">')+'</td></tr>';
     }).join('');
-    var anyW = groups[g].some(function(it){ return whQty(it.key) > 0; });
+    var anyW = setg().whAll !== false && groups[g].some(function(it){ return whQty(it.key) > 0; });
     return '<div class="tbl"><h3 style="display:flex;align-items:center;gap:8px"><span style="flex:1">'+esc(g)+' <small>'+groups[g].length+' items</small></span>'+(anyW ? '<button class="btn ghost sm" data-act="whall" data-g="'+esc(g)+'" style="height:28px;min-height:0;padding:0 12px;font-size:12.5px">Move all to shop</button>' : '')+'</h3><table class="whtbl"><thead><tr><th>Item</th><th class="n">Warehouse</th><th class="n">Shop</th><th class="n">Total</th><th></th><th class="c">Direct</th><th class="c">Pcs / ctn</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   }).join('');
   return '<input id="whq" class="inp" style="width:100%;text-align:left;margin-bottom:10px" placeholder="Search an item" aria-label="Search an item">'
@@ -2198,6 +2199,7 @@ document.addEventListener('click', function(e){
     case 'tgvat': db.settings.vat = !db.settings.vat; save(); break;
     case 'tgsale': db.settings.showSale = !db.settings.showSale; if (!db.settings.showSale && S.tab === 'sale') S.tab = 'dash'; save(); break;
     case 'tgcarry': db.settings.carryOpen = !db.settings.carryOpen; save(); break;
+    case 'tgwhall': db.settings.whAll = db.settings.whAll === false; save(); break;
     case 'tgzero': db.settings.allowZero = !db.settings.allowZero; save(); break;
     case 'dayuse': S.dayUse = d.v === '0' ? today() : shiftDate(S.dayUse || today(), +d.v); break;
     case 'invtab': S.inv = d.id; S.matDel = null; break;
