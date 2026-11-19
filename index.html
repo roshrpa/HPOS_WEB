@@ -265,8 +265,12 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 .rgwrap .rgbtns{grid-column:1/-1;display:flex;gap:10px;justify-content:flex-start;margin:0} .rgwrap .rgbtns .btn{flex:0 0 auto;width:auto;height:auto;min-height:42px;padding:9px 22px;font-size:14px;font-weight:500;border-radius:10px}
 .rgwrap .inp{border-radius:10px;min-height:42px}
 /* compact warehouse overview */
-.whgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:12px;align-items:start} .whgrid>.tbl{margin:0;min-width:0}
-.whgrid .tbl h3{padding:8px 14px;font-size:14px}
+.whgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(660px,1fr));gap:14px;align-items:start} .whgrid>.tbl{margin:0;min-width:0}
+.whgrid .tbl h3{padding:10px 16px;font-size:14.5px;font-weight:600} .whgrid .tbl h3 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+.whtbl{table-layout:auto} .whtbl th{font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;border-bottom:1px solid var(--line);white-space:nowrap} .whtbl th.n,.whtbl td.n{text-align:right} .whtbl th.c,.whtbl td.c{text-align:center;width:1%}
+.whtbl td{padding:7px 10px!important;border-bottom:1px solid #f1eee9;vertical-align:middle;line-height:1.25} .whtbl tr:last-child td{border-bottom:0} .whtbl tbody tr:hover{background:#faf8f5}
+.whtbl td.nm{font-weight:500;width:34%} .whtbl td.n{white-space:nowrap;font-variant-numeric:tabular-nums} .whtbl td.n small{color:var(--muted);font-size:11.5px;margin-left:5px;font-weight:400} .whtbl td.n b{font-weight:600} .whtbl td.tt{color:#55524d} .whtbl td.st{width:1%;white-space:nowrap} .whtbl .mut{color:#bdb8b0}
+.whtbl .inp{width:58px!important;text-align:center}
 .whtbl{width:100%;font-size:13px} .whtbl th{padding:5px 8px;font-size:11px} .whtbl td{padding:3px 8px;line-height:1.2} .whtbl td small{font-size:11px}
 .whtbl .inp{min-height:26px;height:26px;padding:0 6px;font-size:13px;width:64px;border-radius:7px} .whtbl input[type=checkbox]{width:16px!important;height:16px!important}
 .whtbl .pill{padding:1px 7px;font-size:11px}
@@ -1533,6 +1537,7 @@ function pruneStock(){
 }
 function gmAmt(l){ return gmOn(l.cat) ? (gmCup(l.cat, l.size) || 0) * l.qty : l.qty; }   /* what one cart/sale line takes from stock */
 function gmQty(q){ q = +q || 0; var t = gmTub(); return (Math.abs(q) >= 1000 ? num(q / 1000) + ' kg' : num(q) + ' g') + (Math.abs(q) >= t / 2 ? ' · ' + (Math.round(q / t * 10) / 10) + ' tub' : ''); }
+function gmQtyH(q){ q = +q || 0; var t = gmTub(), main = Math.abs(q) >= 1000 ? num(q / 1000) + ' kg' : num(q) + ' g'; return '<b>'+main+'</b>' + (Math.abs(q) >= t / 2 ? ' <small>' + (Math.round(q / t * 10) / 10) + ' tub</small>' : ''); }
 function qTxt(it, q){ return it && it.g ? gmQty(q) : num(q) + ' pcs'; }
 /* one time: the old test stock was counted in cups (100 each); turn it into grams once */
 if (db.gmFix !== 1){
@@ -1586,21 +1591,24 @@ function vStock(){
 function whOver(){
   var E = expectedMap(), groups = {}, order = [], low = setg().lowAt;
   whItems().forEach(function(it){ if (!groups[it.group]){ groups[it.group] = []; order.push(it.group); } groups[it.group].push(it); });
+  var dash = '<span class="mut">\u2013</span>';
   var html = order.map(function(g){
     var rows = groups[g].map(function(it){
-      var w = whQty(it.key), s = shopQty(it, E), m = it.kind === 'm' ? mat(it.mid) : null, lim = m ? m.min : (it.g ? gmTub() : low), ct = it.g ? '' : ctnText(w, it.key), fv = function(q){ return it.g ? gmQty(q) : num(q); };
-      var pill = s === null ? '' : (s <= 0 ? ' <span class="pill void">Out</span>' : (s <= lim ? ' <span class="pill void">Low</span>' : ''));
-      return '<tr data-n="'+esc((it.name + ' ' + g).toLowerCase())+'"><td>'+esc(it.name)+'</td>'
-        + '<td class="n">'+((whDirect(it.key) && !w) ? '<span style="color:var(--muted)">-</span>' : '<b>'+fv(w)+'</b>')+(ct ? '<br><small style="color:var(--muted)">'+ct+'</small>' : '')+'</td>'
-        + '<td class="n">'+(s === null ? '<span style="color:var(--muted)">-</span>' : '<b>'+fv(s)+'</b>')+pill+'</td>'
-        + '<td class="n">'+fv(w + (s || 0))+'</td>'
-        + '<td class="n"><input type="checkbox" style="width:22px;height:22px" data-f="dsh" data-k="'+esc(it.key)+'"'+(whDirect(it.key) ? ' checked' : '')+' aria-label="Goes direct to the shop: '+esc(it.name)+'"></td>'
-        + '<td class="n">'+(it.g ? '<span style="color:var(--muted)">grams</span>' : '<input class="inp" type="number" min="0" inputmode="numeric" data-f="ctn" data-k="'+esc(it.key)+'" placeholder="-" value="'+(whCtn(it.key) || '')+'" aria-label="Pieces per carton for '+esc(it.name)+'">')+'</td></tr>';
+      var w = whQty(it.key), s = shopQty(it, E), m = it.kind === 'm' ? mat(it.mid) : null, lim = m ? m.min : (it.g ? gmTub() : low), ct = it.g ? '' : ctnText(w, it.key);
+      var fv = function(q){ return it.g ? gmQtyH(q) : '<b>'+num(q)+'</b>'; };
+      var pill = s === null ? '' : (s <= 0 ? '<span class="pill void">Out</span>' : (s <= lim ? '<span class="pill void">Low</span>' : ''));
+      return '<tr data-n="'+esc((it.name + ' ' + g).toLowerCase())+'"><td class="nm">'+esc(it.name)+'</td>'
+        + '<td class="n">'+((whDirect(it.key) && !w) ? dash : fv(w))+(ct ? ' <small>'+ct+'</small>' : '')+'</td>'
+        + '<td class="n">'+(s === null ? dash : fv(s))+'</td>'
+        + '<td class="n tt">'+fv(w + (s || 0))+'</td>'
+        + '<td class="st">'+pill+'</td>'
+        + '<td class="c"><input type="checkbox" data-f="dsh" data-k="'+esc(it.key)+'"'+(whDirect(it.key) ? ' checked' : '')+' aria-label="Goes direct to the shop: '+esc(it.name)+'"></td>'
+        + '<td class="c">'+(it.g ? dash : '<input class="inp" type="number" min="0" inputmode="numeric" data-f="ctn" data-k="'+esc(it.key)+'" placeholder="-" value="'+(whCtn(it.key) || '')+'" aria-label="Pieces per carton for '+esc(it.name)+'">')+'</td></tr>';
     }).join('');
-    return '<div class="tbl"><h3>'+esc(g)+'</h3><table class="whtbl"><thead><tr><th>Item</th><th class="n">Warehouse</th><th class="n">Shop</th><th class="n">Total</th><th class="n">Direct to shop</th><th class="n">Pcs / carton</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    return '<div class="tbl"><h3>'+esc(g)+' <small>'+groups[g].length+' items</small></h3><table class="whtbl"><thead><tr><th>Item</th><th class="n">Warehouse</th><th class="n">Shop</th><th class="n">Total</th><th></th><th class="c">Direct</th><th class="c">Pcs / ctn</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   }).join('');
   return '<input id="whq" class="inp" style="width:100%;text-align:left;margin-bottom:10px" placeholder="Search an item" aria-label="Search an item">'
-    + '<p style="color:var(--muted);margin:0 0 12px">Cups and other items are counted in pieces; ice cream flavours in grams (shown in kg and tubs). New stock goes to the Warehouse first (Stock in), then you move it to the Shop (Transfer). Sales reduce the Shop. Tick Direct to shop for items that never go to the warehouse. Type the pieces in one carton so you can enter by carton.</p><div class="whgrid">' + html + '</div>';
+    + '<p style="color:var(--muted);margin:0 0 12px;font-size:13.5px">Cups and other items are counted in pieces; ice cream flavours in grams (shown in kg and tubs). New stock goes to the Warehouse first (Stock in), then to the Shop (Transfer). Sales reduce the Shop. <b>Direct</b>: tick for items that never go to the warehouse. <b>Pcs / ctn</b>: type the pieces in one carton so you can enter by carton.</p><div class="whgrid">' + html + '</div>';
 }
 function whMove(kind){
   var f = S.wf, its = whItems(), E = expectedMap();
