@@ -162,8 +162,9 @@ async function handle(req, res, path, m, pool, h) {
     }
     if (sub === '/user' && m === 'POST') {      // reset a user's PIN and/or switch the user on or off
       const b = await h.readJson(req);
-      const u = (await pool.query('select id, active from users where id = $1 and branch_id = $2', [String(b.user_id || ''), br.id])).rows[0];
+      const u = (await pool.query('select id, name, role, active from users where id = $1 and branch_id = $2', [String(b.user_id || ''), br.id])).rows[0];
       if (!u) throw err(404, 'User not found.');
+      if (b.delete) { await require('./users').deleteUser(pool, br.id, u, ''); return h.send(res, 200, await overview(pool)), true; }
       if (b.pin !== undefined && b.pin !== '') {
         if (!PIN_RE.test(String(b.pin))) throw err(400, 'PIN must be 6 digits or more (numbers only).');
         if ((await pool.query('select 1 from users where branch_id = $1 and pin_local = $2 and active and id <> $3', [br.id, hashPinLocal(b.pin), u.id])).rowCount) throw err(409, 'That PIN is already used in this branch.');

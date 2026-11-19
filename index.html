@@ -2432,6 +2432,12 @@ async function userOp(op, user){
     var tu = user.id ? byId(db.users, user.id) : null;
     if (op === 'create') db.users.push({id: uid('u'), name: user.name, role: user.role, pin: hashPin(user.pin), active: true, t: Date.now()});
     else if (!tu) return false;
+    else if (op === 'delete'){
+      if (tu.id === S.uid){ toast('You cannot delete yourself'); return false; }
+      if (tu.role === 'Owner' && tu.active !== false && ownerCount() < 2){ toast('There must be at least one active Owner'); return false; }
+      if (db.audit.some(function(r){ return r.uid === tu.id || r.u === tu.name || r.ap === tu.name; }) || db.sales.some(function(x){ return x.uid === tu.id || x.by === tu.name; })){ toast('This user already has records. Switch the user off instead.'); return false; }
+      db.users = db.users.filter(function(x){ return x.id !== tu.id; });
+    }
     else if (op === 'setpin') tu.pin = hashPin(user.pin);
     else { if (user.name !== undefined) tu.name = user.name; if (user.role !== undefined) tu.role = user.role; if (user.active !== undefined) tu.active = !!user.active; }
     save(); return true;
@@ -2510,7 +2516,7 @@ function userEditForm(){
     + '<label class="fld">Status<select class="inp" data-f="ueda"><option value="1"'+(e.active ? ' selected' : '')+'>Active</option><option value="0"'+(e.active ? '' : ' selected')+'>Inactive</option></select></label></div>'
     + '<label class="fld">New PIN <small style="color:var(--muted)">(leave empty to keep the current PIN)</small><input class="inp" type="password" inputmode="numeric" data-f="uedp" value="'+esc(e.pin)+'" autocomplete="new-password" style="text-align:left"></label>'
     + '</div>'
-    + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="uedx">Cancel</button><button class="btn primary" data-act="uedsave">Save</button></div></div></div>';
+    + '<div class="btns" style="margin-top:14px;justify-content:space-between">'+(u.id !== S.uid ? '<button class="btn ghost" data-act="udel" style="color:#c4543a">Delete user</button>' : '<span></span>')+'<span style="display:flex;gap:8px"><button class="btn ghost" data-act="uedx">Cancel</button><button class="btn primary" data-act="uedsave">Save</button></span></div></div></div>';
 }
 function permForm(){
   var mx = PERMS.map(function(p){
@@ -2671,6 +2677,11 @@ document.addEventListener('click', function(e){
       userOp('create', {name: un, role: ua.role, pin: ua.pin}).then(function(ok){ if (ok){ audit('Users and Security', 'User added', un + ' (' + ua.role + ')', {flag:1}); S.uadd = {name:'', role:'Cashier', pin:''}; S.uaopen = false; toast('User added'); } render(); });
       return;
     case 'usel': var uu = byId(db.users, d.id); if (!uu) break; S.uedit = uu.id; S.ued = {name:uu.name, role:uu.role, active:uu.active !== false, pin:''}; S.upc = ''; break;
+    case 'udel':
+      var ud = byId(db.users, S.uedit); if (!ud) break;
+      if (!window.confirm('Delete ' + ud.name + '?\n\nOnly a user with no bills or records can be deleted. Otherwise switch the user off.')) break;
+      userOp('delete', {id: ud.id}).then(function(ok){ if (ok){ audit('Users and Security', 'User deleted', ud.name, {flag:1}); S.uedit = null; S.ued = null; toast('User deleted'); } render(); });
+      return;
     case 'uedx': S.uedit = null; S.ued = null; S.upc = ''; break;
     case 'permopen': S.permopen = true; S.upc = ''; break;
     case 'permx': S.permopen = false; S.upc = ''; break;

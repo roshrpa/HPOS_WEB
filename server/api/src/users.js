@@ -80,6 +80,21 @@ async function listUsers(pool, branch) {
   return { ver: ver, users: r.rows.map(publicUser) };
 }
 
+
+// A user may be deleted only if nothing was ever recorded under that user (no login, bill, audit line, expense ...).
+async function userHasHistory(pool, branch, u) {
+  const r = await pool.query(
+    "select 1 from events e join devices d on d.id = e.device_id where d.branch_id = $1 and (e.payload->>'uid' = $2 or lower(e.payload->>'u') = lower($3) or lower(e.payload->>'by') = lower($3) or lower(e.payload->>'givenBy') = lower($3) or lower(e.payload->>'ap') = lower($3)) limit 1",
+    [branch, u.id, u.name]);
+  return r.rowCount > 0;
+}
+async function deleteUser(pool, branch, tu, byId) {
+  if (tu.id === byId) throw err(409, 'You cannot delete yourself.');
+  if (tu.role === 'Owner' && tu.active && (await ownerCount(pool, branch)) < 2) throw err(409, 'There must be at least one active Owner.');
+  if (await userHasHistory(pool, branch, tu)) throw err(409, 'This user already has bills or records, so it cannot be deleted. Switch the user off instead.');
+  await pool.query('delete from users where id = $1', [tu.id]);
+}
+
 function checkLock(name, br) {
   const now = Date.now(), k = (br || '') + '|' + String(name).toLowerCase(), f = fails[k];
   ipFails = ipFails.filter(function (t) { return now - t < 10 * 60 * 1000; });
@@ -195,6 +210,8 @@ async function handle(req, res, path, m, pool, h) {
         if (active && !tu.active) await checkSeat(pool, br, tu.id);
         try { await pool.query('update users set name = $2, role = $3, active = $4, ver = nextval(\'users_ver_seq\') where id = $1', [tu.id, name, role, active]); }
         catch (e) { if (e.code === '23505') throw err(409, 'There is already a user with that name.'); throw e; }
+      } else if (op === 'delete') {
+        await deleteUser(pool, br, tu, au.id);
       } else throw err(400, 'Unknown operation.');
     }
     return h.send(res, 200, await listUsers(pool, br));
@@ -225,4 +242,4 @@ async function finishLogin(res, pool, h, br, name, b) {
   return h.send(res, 200, { ok: true, token: token, user: publicUser(u), users: L.users, ver: L.ver, devno: devno, shop: tenancy.publicBranch(br) });
 }
 
-module.exports = { ensureSchema, handle, hashPinLocal, verify };
+module.exports = { ensureSchema, handle, hashPinLocal, verify , deleteUser: deleteUser };
