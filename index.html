@@ -271,6 +271,7 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 .whtbl td{padding:7px 10px!important;border-bottom:1px solid #f1eee9;vertical-align:middle;line-height:1.25} .whtbl tr:last-child td{border-bottom:0} .whtbl tbody tr:hover{background:#faf8f5}
 .whtbl td.nm{font-weight:500;width:34%} .whtbl td.n{white-space:nowrap;font-variant-numeric:tabular-nums} .whtbl td.n small{color:var(--muted);font-size:11.5px;margin-left:5px;font-weight:400} .whtbl td.n b{font-weight:600} .whtbl td.tt{color:#55524d} .whtbl td.st,.whtbl th.st{min-width:52px;white-space:nowrap} .whtbl .mut{color:#bdb8b0}
 .pot{max-width:520px} .pot th.c,.pot td.c{width:auto;text-align:center} .pot td.nm{width:auto} .gi{display:inline-flex;align-items:center;gap:4px} .gi i{font-style:normal;color:var(--muted);font-size:12px} .pot .inp,.pot-tub .inp{width:84px!important;min-height:26px!important;height:26px!important;padding:0 8px!important;font-size:13px!important} .pot-tub{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #f1eee9;font-size:13px} .pot-tub small{color:var(--muted)}
+.recg{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px;align-items:start} .recg .card{margin:0;padding:10px 12px} .recg .card h3{font-size:13.5px;margin:0 0 8px} .recg .srow{gap:6px;margin-bottom:6px} .recg .srow .inp{min-height:30px!important;height:30px!important;font-size:13px!important} .recg .srow .btn{min-height:30px;padding:0 10px}
 .mvt td.tm{color:var(--muted);width:78px;white-space:nowrap;font-variant-numeric:tabular-nums} .mvt td.nm{width:auto} .mvt td.nt{color:var(--muted)} .mvt tr.dh td{background:#faf8f5;font-weight:600;font-size:12px;padding:5px 10px!important;border-bottom:1px solid #eee9e2} .mvt tr.dh small{color:var(--muted);font-weight:400;margin-left:6px}
 .mv{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap} .mv.in{background:#e6f4ea;color:#1e6b34} .mv.tr{background:#e8f0fb;color:#2257a8} .mv.ad{background:#fdf0dc;color:#9a5b00}
 .whtbl .inp{width:58px!important;text-align:center}
@@ -594,13 +595,13 @@ function invRec(){
   var cards = c.sizes.map(function(s){
     var k = rkey(c.name, s.label), list = db.inv.recipes[k] || [];
     var rows = list.map(function(x, i){
-      return '<div class="srow"><select class="inp" style="flex:2" data-f="rmat" data-k="'+esc(k)+'" data-i="'+i+'">'+matOpts(x.m)+'</select>'
-        + '<input class="inp" style="flex:1" type="number" min="0" step="any" inputmode="decimal" data-f="rqty" data-k="'+esc(k)+'" data-i="'+i+'" value="'+x.q+'" aria-label="Quantity">'
+      return '<div class="srow"><select class="inp" style="flex:1;min-width:0" data-f="rmat" data-k="'+esc(k)+'" data-i="'+i+'">'+matOpts(x.m)+'</select>'
+        + '<input class="inp" style="width:72px;flex:none;text-align:center" type="number" min="0" step="any" inputmode="decimal" data-f="rqty" data-k="'+esc(k)+'" data-i="'+i+'" value="'+x.q+'" aria-label="Quantity">'
         + '<button class="btn danger sm" data-act="rmrec" data-k="'+esc(k)+'" data-i="'+i+'" aria-label="Remove">×</button></div>';
     }).join('');
     return '<div class="card"><h3>'+esc(c.name)+(s.label?' · '+esc(s.label):'')+'</h3>'+(rows||'<p style="color:var(--muted);margin:0 0 10px">Nothing is deducted for this item.</p>')+'<button class="btn ghost sm" data-act="addrec" data-k="'+esc(k)+'">+ Add material</button></div>';
   }).join('');
-  return '<p style="color:var(--muted);margin:0 0 10px">What is used up each time one of these is sold (the same for every flavour in the category). The numbers here are sample values. Replace them with your real portions.</p><div class="cats" style="padding:0 0 10px">'+chips+'</div>'+cards;
+  return '<p style="color:var(--muted);margin:0 0 10px">What is used up each time one of these is sold (the same for every flavour in the category). The numbers here are sample values. Replace them with your real portions.</p><div class="cats" style="padding:0 0 10px">'+chips+'</div><div class="recg">'+cards+'</div>';
 }
 function invMat(){
   var rows = db.inv.materials.map(function(m){
@@ -3602,7 +3603,7 @@ function vCustList(){
   return '<div class="tiles">'+tile('Credit outstanding', 'AED '+money(st.out), st.n+' customers')+tile('Overdue', 'AED '+money(st.od), st.nod+' customers · more than '+creditDays()+' days')+'</div>'
     + '<div class="bar"><span class="sp"></span><button class="btn primary sm" data-act="custnew">+ Add customer</button></div>'
     + '<div class="tbl"><h3>Credit customers</h3><table><thead><tr><th>Customer</th><th class="n">Limit</th><th class="n">Owes</th><th class="n">Overdue</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="5">No credit customers yet. They are added when you sell on credit.</td></tr>')+'</tbody></table></div>'
-    + '<div class="tbl"><h3>Defaults</h3><div style="padding:8px 14px"><p style="margin:0 0 8px;color:var(--muted);font-size:13px">Used for new customers. A bill is overdue when it is unpaid after the credit days.</p><div class="fgrid">'
+    + '<div class="tbl"><h3>Defaults</h3><div style="padding:8px 14px"><p style="margin:0 0 8px;color:var(--muted);font-size:13px">Used for new customers. A bill is overdue when it is unpaid after the credit days.</p><div class="fgrid" style="grid-template-columns:repeat(2,minmax(120px,200px));gap:10px">'
     + '<label class="fld">Default credit limit (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cset" data-k="creditLimit" value="'+creditLimitDef()+'"></label>'
     + '<label class="fld">Credit days (due after)<input class="inp" type="number" min="1" step="1" inputmode="numeric" data-f="cset" data-k="creditDays" value="'+creditDays()+'"></label></div></div></div>';
 }
