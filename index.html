@@ -2519,8 +2519,25 @@ function userEditForm(){
     + '<div class="btns" style="margin-top:14px;justify-content:space-between">'+(u.id !== S.uid ? '<button class="btn ghost" data-act="udel" style="color:#c4543a">Delete user</button>' : '<span></span>')+'<span style="display:flex;gap:8px"><button class="btn ghost" data-act="uedx">Cancel</button><button class="btn primary" data-act="uedsave">Save</button></span></div></div></div>';
 }
 function permForm(){
-  var mx = PERMS.map(function(p){
-    return '<tr><td>'+p[1]+'</td>'+['Manager', 'Cashier'].map(function(r){ return '<td style="text-align:center"><input type="checkbox" data-f="permck" data-role="'+r+'" data-p="'+p[0]+'"'+(roleCan(r, p[0]) ? ' checked' : '')+' style="width:22px;height:22px"></td>'; }).join('') + '</tr>';
+  /* same headings and names as the left menu, so a permission is found where its menu item is */
+  var G = [
+    ['Dashboard', [['dash', 'Dashboard']]],
+    ['Reports', [['sales', 'Bills'], ['close', 'Cash report'], ['reports', 'Accounts', 'monthly, profit and loss, VAT'], ['lock', 'Lock and unlock months']]],
+    ['Stock', [['inv', 'Usage & count'], ['count', 'Cup count'], ['stock', 'Warehouse']]],
+    ['Money', [['purch', 'Purchases'], ['exp', 'Expenses'], ['cash', 'Cash'], ['credit', 'Credit', 'and receiving payments']]],
+    ['Manage', [['menu', 'Menu'], ['users', 'Users', 'and permissions'], ['audit', 'Audit'], ['settings', 'Settings']]],
+    ['Approvals and actions', [['reprint', 'Print receipts'], ['void', 'Cancel bills', 'approve'], ['discount', 'Give discounts', 'approve'], ['price', 'Change price at sale', 'approve'], ['creditgive', 'Give credit to customers', 'approve'], ['creditover', 'Approve credit over the limit']]]
+  ], used = {};
+  G.forEach(function(g){ g[1].forEach(function(p){ used[p[0]] = 1; }); });
+  var rest = PERMS.filter(function(p){ return !used[p[0]]; });
+  if (rest.length) G.push(['Other', rest]);
+  var mx = G.map(function(g){
+    var rows = g[1].filter(function(p){ return PERMS.some(function(q){ return q[0] === p[0]; }); });
+    if (!rows.length) return '';
+    return '<tr><td colspan="3" style="text-align:left;background:#f6f3ef;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6b665f;padding:6px 8px">'+g[0]+'</td></tr>'
+      + rows.map(function(p){
+        return '<tr><td style="text-align:left">'+p[1]+(p[2] ? ' <small style="color:var(--muted)">'+p[2]+'</small>' : '')+'</td>'+['Manager', 'Cashier'].map(function(r){ return '<td style="text-align:center"><input type="checkbox" data-f="permck" data-role="'+r+'" data-p="'+p[0]+'"'+(roleCan(r, p[0]) ? ' checked' : '')+' style="width:22px;height:22px"></td>'; }).join('') + '</tr>';
+      }).join('');
   }).join('');
   return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Role permissions" style="max-width:560px;max-height:92vh;overflow:auto"><h3>What each role can do</h3><p style="margin:0 0 8px;color:var(--muted)">The Owner can do everything. For "approve" rows, a person without the permission asks someone who has it to enter their PIN. Each change is saved at once.</p>'
     + '<table class="tbl"><thead><tr><th style="text-align:left">Permission</th><th>Manager</th><th>Cashier</th></tr></thead><tbody>'+mx+'</tbody></table>'
