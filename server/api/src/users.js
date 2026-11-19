@@ -7,6 +7,8 @@ const tenancy = require('./tenancy');
 
 const PIN_RE = /^\d{6,}$/;                 // 6 digits or more
 const ROLES = ['Owner', 'Manager', 'Cashier'];
+// Extra roles (Supervisor, Helper ...) are made in the POS; the server only checks the name is sensible.
+function okRole(r) { r = String(r || ''); return ROLES.indexOf(r) >= 0 || /^[A-Za-z][A-Za-z0-9 &'-]{0,29}$/.test(r); }
 const LOCK_AFTER = 5, LOCK_MS = 15 * 60 * 1000;
 const fails = {};                          // lower(name) -> {n, until}
 let ipFails = [];                          // timestamps of failures from anywhere, to slow down guessing across names
@@ -156,7 +158,7 @@ async function handle(req, res, path, m, pool, h) {
   if (path === '/admin/users' && m === 'POST') {
     if (!h.isAdmin(req)) throw err(403, 'admin token required');
     const b = await h.readJson(req);
-    const name = String(b.name || '').trim(), role = ROLES.indexOf(b.role) >= 0 ? b.role : 'Owner';
+    const name = String(b.name || '').trim(), role = okRole(b.role) ? b.role : 'Owner';
     if (!name) throw err(400, 'name is required');
     if (!PIN_RE.test(String(b.pin || ''))) throw err(400, 'PIN must be 6 digits or more (numbers only).');
     const br = await tenancy.branchByCode(pool, b.shop);
@@ -184,7 +186,7 @@ async function handle(req, res, path, m, pool, h) {
     if (au.role !== 'Owner') throw err(403, 'Only an Owner can change users.');
     const op = String(b.op || ''), t = b.user || {};
     if (op === 'create') {
-      const name = String(t.name || '').trim(), role = ROLES.indexOf(t.role) >= 0 ? t.role : 'Cashier';
+      const name = String(t.name || '').trim(), role = okRole(t.role) ? t.role : 'Cashier';
       if (!name) throw err(400, 'Enter a name.');
       if (!PIN_RE.test(String(t.pin || ''))) throw err(400, 'PIN must be 6 digits or more (numbers only).');
       if (await pinTaken(pool, br, t.pin)) throw err(409, 'That PIN is already used. Choose another.');
@@ -204,7 +206,7 @@ async function handle(req, res, path, m, pool, h) {
         const role = t.role !== undefined ? t.role : tu.role;
         const active = t.active !== undefined ? !!t.active : tu.active;
         if (!name) throw err(400, 'Enter a name.');
-        if (ROLES.indexOf(role) < 0) throw err(400, 'Unknown role.');
+        if (!okRole(role)) throw err(400, 'Unknown role.');
         if (tu.role === 'Owner' && tu.active && (role !== 'Owner' || !active) && (await ownerCount(pool, br)) < 2) throw err(409, 'There must be at least one active Owner.');
         if (tu.id === au.id && !active) throw err(409, 'You cannot deactivate yourself.');
         if (active && !tu.active) await checkSeat(pool, br, tu.id);
