@@ -2309,7 +2309,7 @@ document.addEventListener('click', function(e){
       if (!wl.length){ toast('Nothing in the warehouse'); break; }
       if (!window.confirm('Move everything in "' + wg + '" (' + wl.length + ' items) from the Warehouse to the Shop?')) break;
       wl.forEach(function(x){ var q = whQty(x.key); db.wh.qty[x.key] = 0; shopAdd(x, q, 'From warehouse'); whLog({type:'transfer', key:x.key, name:x.name, q:q, unit:x.g ? 'g' : 'pcs', entered:q}); });
-      audit('Stock', 'Transfer to shop', wg + ' · all ' + wl.length + ' items', {}); save(); toast('Moved ' + wl.length + ' items to the shop'); break;
+      audit('Stock', 'Transfer to shop', wg + ' · all ' + wl.length + ' items', {}); save(); toast('Moved ' + wl.length + (wl.length === 1 ? ' item' : ' items') + ' to the shop'); break;
     case 'whgo':
       var whf = S.wf, whk = S.wt, whit = whFind(whf.key), whq = parseFloat(whf.qty);
       if (!whit){ toast('Choose an item'); return; }
