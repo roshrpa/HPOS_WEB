@@ -272,6 +272,10 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 .whtbl td.nm{font-weight:500;width:34%} .whtbl td.n{white-space:nowrap;font-variant-numeric:tabular-nums} .whtbl td.n small{color:var(--muted);font-size:11.5px;margin-left:5px;font-weight:400} .whtbl td.n b{font-weight:600} .whtbl td.tt{color:#55524d} .whtbl td.st,.whtbl th.st{min-width:52px;white-space:nowrap} .whtbl .mut{color:#bdb8b0}
 .pot{max-width:520px} .pot th.c,.pot td.c{width:auto;text-align:center} .pot td.nm{width:auto} .gi{display:inline-flex;align-items:center;gap:4px} .gi i{font-style:normal;color:var(--muted);font-size:12px} .pot .inp,.pot-tub .inp{width:84px!important;min-height:26px!important;height:26px!important;padding:0 8px!important;font-size:13px!important} .pot-tub{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #f1eee9;font-size:13px} .pot-tub small{color:var(--muted)}
 .recg{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px;align-items:start} .recg .card{margin:0;padding:10px 12px} .recg .card h3{font-size:13.5px;margin:0 0 8px} .recg .srow{gap:6px;margin-bottom:6px} .recg .srow .inp{min-height:30px!important;height:30px!important;font-size:13px!important} .recg .srow .btn{min-height:30px;padding:0 10px}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:12px;align-items:start} .dgrid .tbl{margin:0} .dut td.nm{width:auto} .dut td.lc{color:var(--muted);font-size:12px} .dut .zr{color:#c4bfb8} .dut th.td,.dut td.td{background:#fdf6f9} .dut tr.sumr td{font-weight:700;border-top:1px solid var(--line);background:#faf8f5} .dut tr.sumr td.td{background:#fbeef3}
+.cnt td.nm{width:auto} .cnt .inp{width:84px!important;text-align:right!important} .tbl>.cnt{max-width:620px} .dgrid .cnt{max-width:none}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:12px;align-items:start} .vgrid .tbl{margin:0} .vwarn{padding:8px 14px;background:var(--warn-bg);color:var(--warn);font-weight:600;font-size:13px} .vall{border-top:1px solid #f1eee9} .vall summary{padding:8px 14px;cursor:pointer;color:var(--muted);font-size:12.5px;font-weight:600} .vall[open] summary{border-bottom:1px solid #f1eee9} .vfoot{padding:8px 14px;border-top:1px solid #f1eee9;font-size:13px} .dut td.dn{color:var(--pink-dk);font-weight:700} .dut td.up{color:var(--done);font-weight:700}
+.mat{max-width:860px} .mat td.nm{width:42%} .mat th small{font-weight:400;font-size:10.5px} .mat .inp{width:76px!important} .mat td.nm .inp{width:100%!important} .mat td.c,.mat th.c{text-align:center;width:1%;white-space:nowrap} .mat .btn{min-height:26px;padding:0 10px}
 .mvt td.tm{color:var(--muted);width:78px;white-space:nowrap;font-variant-numeric:tabular-nums} .mvt td.nm{width:auto} .mvt td.nt{color:var(--muted)} .mvt tr.dh td{background:#faf8f5;font-weight:600;font-size:12px;padding:5px 10px!important;border-bottom:1px solid #eee9e2} .mvt tr.dh small{color:var(--muted);font-weight:400;margin-left:6px}
 .mv{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap} .mv.in{background:#e6f4ea;color:#1e6b34} .mv.tr{background:#e8f0fb;color:#2257a8} .mv.ad{background:#fdf0dc;color:#9a5b00}
 .whtbl .inp{width:58px!important;text-align:center}
@@ -322,6 +326,21 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 .pt td.c{text-align:center;width:64px}
 .pt input[type=checkbox]{width:17px;height:17px;margin:0;accent-color:var(--accent,#df3d8a);vertical-align:middle}
 .pt small{color:var(--muted);font-size:11.5px}
+
+/* ---- global polish: one consistent, quiet table look ---- */
+.tbl{border:1px solid #efe9ec;box-shadow:0 1px 2px rgba(28,26,31,.05)}
+.tbl h3{font-size:13.5px;font-weight:650;letter-spacing:.1px;background:#fbf6f8;border-bottom:1px solid #f0e6eb;color:#2a2630}
+.tbl h3 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+.tbl table th{font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.5px;color:#8a8590;background:#fff;border-bottom:1px solid #eee8e3;padding:7px 12px;white-space:nowrap}
+.tbl table td{padding:6px 12px;border-bottom:1px solid #f4f0ec;font-variant-numeric:tabular-nums;vertical-align:middle}
+.tbl table tbody tr:last-child td{border-bottom:0}
+.tbl table tbody tr:hover td{background:#fcfaf8}
+.tbl table td.n,.tbl table th.n{text-align:right}
+.tbl table .inp{border:1px solid #e3dde0;background:#fff;box-shadow:none}
+.tbl table .inp:focus{border-color:var(--pink);outline:0;box-shadow:0 0 0 3px rgba(224,60,130,.12)}
+.whtbl th{text-transform:uppercase;letter-spacing:.5px;font-size:10.5px!important}
+.dut tr.sumr td{border-top:1px solid #e6dfd9}
+.pill{font-weight:600}
 </style>
 </head>
 <body>
@@ -529,25 +548,30 @@ function invDaily(){
   function block(title, cup){
     var rows = db.inv.materials.filter(function(m){ return !!m.cup === cup; }).map(function(m){
       var e = E[m.id], low = e.exp <= m.min;
-      return '<tr><td>'+esc(m.name)+'</td><td class="n">'+num(P[m.id] || 0)+'</td><td class="n"><b>'+num(U[m.id] || 0)+'</b></td><td class="n"><b'+(low?' style="color:var(--pink-dk)"':'')+'>'+num(e.exp)+'</b></td></tr>';
+      var z = function(v){ return v ? num(v) : '<span class="zr">\u2013</span>'; };
+      return '<tr><td class="nm">'+esc(m.name)+'</td><td class="n">'+z(P[m.id] || 0)+'</td><td class="n td">'+(U[m.id] ? '<b>'+num(U[m.id])+'</b>' : '<span class="zr">\u2013</span>')+'</td><td class="n">'+(low ? '<span class="pill void">Low</span> ' : '')+'<b>'+num(e.exp)+'</b></td></tr>';
     }).join('');
     var tp = 0, tu = 0; db.inv.materials.forEach(function(m){ if (!!m.cup === cup){ tp += P[m.id] || 0; tu += U[m.id] || 0; } });
-    return '<div class="tbl"><h3>'+title+'</h3><table><thead><tr><th>Item</th><th class="n">'+esc(lab(prev))+'</th><th class="n">'+esc(lab(day))+'</th><th class="n">In stock now</th></tr></thead><tbody>'+rows
-      + '<tr><td><b>Total</b></td><td class="n"><b>'+num(tp)+'</b></td><td class="n"><b>'+num(tu)+'</b></td><td></td></tr></tbody></table></div>';
+    return '<div class="tbl"><h3>'+title+'</h3><table class="whtbl dut"><thead><tr><th>Item</th><th class="n">'+esc(lab(prev))+'</th><th class="n td">'+esc(lab(day))+'</th><th class="n">In stock now</th></tr></thead><tbody>'+rows
+      + '<tr class="sumr"><td class="nm">Total used</td><td class="n">'+num(tp)+'</td><td class="n td">'+num(tu)+'</td><td></td></tr></tbody></table></div>';
   }
-  return '<div class="seg" style="margin-bottom:10px"><button data-act="dayuse" data-v="-1" aria-label="Previous day">\u25c0</button><button data-act="dayuse" data-v="0" aria-pressed="'+(day===today())+'">'+esc(lab(day))+'</button><button data-act="dayuse" data-v="1" aria-label="Next day">\u25b6</button></div>'
+  return '<div class="seg" style="margin-bottom:10px;display:inline-flex"><button data-act="dayuse" data-v="-1" aria-label="Previous day">\u25c0</button><button data-act="dayuse" data-v="0" aria-pressed="'+(day===today())+'">'+esc(lab(day))+'</button><button data-act="dayuse" data-v="1" aria-label="Next day">\u25b6</button></div>'
     + '<p style="color:var(--muted);margin:0 0 10px">Cups, plates and bowls used by the sales on each day, next to what should be in stock now. Voided bills are not counted.</p>'
-    + block('Cups, plates and bowls', true) + block('Lids', false);
+    + '<div class="dgrid">' + block('Cups, plates and bowls', true) + block('Lids', false) + '</div>';
 }
 function invOver(){
   var E = expectedMap();
-  var rows = db.inv.materials.map(function(m){
-    var e = E[m.id], b = db.inv.base[m.id] || {t:0};
-    var st = e.exp <= 0 ? '<span class="pill void">Out</span>' : (e.exp <= m.min ? '<span class="pill void">Low</span>' : '<span class="pill cash">OK</span>');
-    return '<tr><td>'+esc(m.name)+(m.cup?' <span class="pill card">cup / plate</span>':'')+'</td><td class="n"><b>'+num(e.exp)+'</b> '+esc(m.unit)+'</td><td>'+st+'</td><td class="n">'+num(e.used)+'</td><td>'+(b.t?fdate(b.t):'-')+'</td></tr>';
-  }).join('');
+  function block(title, cup){
+    var list = db.inv.materials.filter(function(m){ return !!m.cup === cup; });
+    var rows = list.map(function(m){
+      var e = E[m.id], b = db.inv.base[m.id] || {t:0};
+      var pill = e.exp <= 0 ? '<span class="pill void">Out</span> ' : (e.exp <= m.min ? '<span class="pill void">Low</span> ' : '');
+      return '<tr><td class="nm">'+esc(m.name)+'</td><td class="n">'+pill+'<b>'+num(e.exp)+'</b> <small>'+esc(m.unit)+'</small></td><td class="n">'+(e.used ? num(e.used) : '<span class="zr">–</span>')+'</td><td class="n lc">'+(b.t ? fdate(b.t) : '<span class="zr">–</span>')+'</td></tr>';
+    }).join('');
+    return '<div class="tbl"><h3>'+title+' <small>'+list.length+' items</small></h3><table class="whtbl dut"><thead><tr><th>Material</th><th class="n">On hand</th><th class="n">Used since count</th><th class="n">Last count</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  }
   return '<p style="color:var(--muted);margin:0 0 10px">What should be on the shelf now = last count + purchases − waste − what the sales used. Compare it with a real count to find missing stock.</p>'
-    + '<div class="tbl"><table><thead><tr><th>Material</th><th class="n">Should be on hand</th><th>Status</th><th class="n">Used by sales since count</th><th>Last count</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    + '<div class="dgrid">'+block('Cups, plates and bowls', true)+block('Lids and others', false)+'</div>';
 }
 function invBuy(){
   var buy = db.inv.purchases.slice(-12).reverse().map(function(p){ var m = mat(p.m);
@@ -562,32 +586,39 @@ function invBuy(){
 }
 function invCount(){
   var E = expectedMap();
-  var rows = db.inv.materials.map(function(m){
-    var v = S.cnt[m.id] === undefined ? '' : S.cnt[m.id];
-    return '<tr><td>'+esc(m.name)+'</td><td class="n">'+num(E[m.id].exp)+' '+esc(m.unit)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cnt" data-m="'+m.id+'" placeholder="count" value="'+esc(v)+'" aria-label="Counted '+esc(m.name)+'"></td></tr>';
-  }).join('');
+  function block(title, cup){
+    var list = db.inv.materials.filter(function(m){ return !!m.cup === cup; });
+    var rows = list.map(function(m){
+      var v = S.cnt[m.id] === undefined ? '' : S.cnt[m.id];
+      return '<tr><td class="nm">'+esc(m.name)+'</td><td class="n">'+num(E[m.id].exp)+' <small>'+esc(m.unit)+'</small></td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cnt" data-m="'+m.id+'" placeholder="count" value="'+esc(v)+'" aria-label="Counted '+esc(m.name)+'"></td></tr>';
+    }).join('');
+    return '<div class="tbl"><h3>'+title+' <small>'+list.length+' items</small></h3><table class="whtbl cnt"><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  }
   var done = S.lastCount ? byId(db.inv.counts, S.lastCount) : null;
-  return (done ? '<div class="card" style="background:var(--done-bg)"><b>Count saved.</b> See the Variance tab for the result. '+done.lines.filter(function(l){ return l.diff < 0; }).length+' items are short.</div>' : '')
+  return (done ? '<div class="card" style="background:var(--done-bg)"><b>Count saved.</b> See the Variance tab for the result. '+done.lines.filter(function(l){ return l.diff < 0; }).length+' item(s) short.</div>' : '')
     + '<p style="color:var(--muted);margin:0 0 10px">Count what is physically there (cups, lids, tubs, milk) and type it in. Leave a row empty to skip it. Do this at closing time, ideally by someone other than the person at the counter.</p>'
-    + '<div class="tbl"><table><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
-    + '<button class="btn primary" data-act="savecount">Save count</button>';
+    + '<div class="dgrid">'+block('Cups, plates and bowls', true)+block('Lids and others', false)+'</div>'
+    + '<button class="btn primary" style="margin-top:12px" data-act="savecount">Save count</button>';
 }
 function invVar(){
   if (!db.inv.counts.length) return '<div class="empty">No stock count yet. Do one in the Stock count tab.</div>';
-  return db.inv.counts.slice().reverse().map(function(c){
+  return '<div class="vgrid">' + db.inv.counts.slice().reverse().map(function(c){
     var short = c.lines.filter(function(l){ return l.diff !== 0; });
-    var rows = c.lines.map(function(l){
-      var m = mat(l.m), cls = l.diff < 0 ? 'color:var(--pink-dk);font-weight:700' : (l.diff > 0 ? 'color:var(--done);font-weight:700' : '');
-      return '<tr><td>'+esc(m?m.name:l.m)+'</td><td class="n">'+num(l.expected)+'</td><td class="n">'+num(l.counted)+'</td><td class="n" style="'+cls+'">'+(l.diff>0?'+':'')+num(l.diff)+'</td><td class="n">'+(l.diff<0?money(-l.diff*l.cost):'')+'</td></tr>';
-    }).join('');
+    function trow(l){
+      var m = mat(l.m), cls = l.diff < 0 ? 'dn' : (l.diff > 0 ? 'up' : '');
+      return '<tr><td class="nm">'+esc(m?m.name:l.m)+'</td><td class="n">'+num(l.expected)+'</td><td class="n">'+num(l.counted)+'</td><td class="n '+cls+'">'+(l.diff ? (l.diff>0?'+':'')+num(l.diff) : '<span class="zr">–</span>')+'</td><td class="n">'+(l.diff<0 ? money(-l.diff*l.cost) : '<span class="zr">–</span>')+'</td></tr>';
+    }
+    function table(list){ return '<table class="whtbl dut"><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th><th class="n">Difference</th><th class="n">Shortage (AED)</th></tr></thead><tbody>'+list.map(trow).join('')+'</tbody></table>'; }
     var missCups = c.lines.filter(function(l){ return l.cup && l.diff < 0; });
     var cupUnits = missCups.reduce(function(a,l){ return a - l.diff; }, 0), est = missCups.reduce(function(a,l){ return a - l.diff * l.avg; }, 0);
     var loss = c.lines.filter(function(l){ return l.diff < 0; }).reduce(function(a,l){ return a - l.diff * l.cost; }, 0);
-    return '<div class="tbl"><h3>Count of '+fdate(c.t)+(c.kind ? ' \u00b7 '+(c.kind === 'close' ? 'closing count' : 'opening check') : '')+(c.by ? ' \u00b7 '+esc(c.by) : '')+'</h3>'
-      + (cupUnits ? '<div style="padding:12px 16px;background:var(--warn-bg);color:var(--warn);font-weight:600">'+num(cupUnits)+' cups or plates are missing compared with what the sales used. That is about AED '+money(est)+' of sales that may not have been rung up.</div>' : '')
-      + '<table><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th><th class="n">Difference</th><th class="n">Cost of shortage</th></tr></thead><tbody>'+rows+'</tbody></table>'
-      + '<div style="padding:10px 16px;font-weight:600">Shortage at cost: AED '+money(loss)+'</div></div>';
-  }).join('');
+    var chip = short.length ? '<span class="pill void">'+short.length+' different</span>' : '<span class="pill cash">All match</span>';
+    return '<div class="tbl"><h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>Count of '+fdate(c.t)+'</span><small>'+(c.kind ? (c.kind === 'close' ? 'closing count' : 'opening check') : '')+(c.by ? ' · '+esc(c.by) : '')+'</small><span style="flex:1"></span>'+chip+'</h3>'
+      + (cupUnits ? '<div class="vwarn">'+num(cupUnits)+' cups or plates are missing compared with what the sales used. About AED '+money(est)+' of sales may not have been rung up.</div>' : '')
+      + (short.length ? table(short) : '')
+      + '<details class="vall"><summary>'+(short.length ? 'Show all '+c.lines.length+(c.lines.length === 1 ? ' item' : ' items') : 'Show the '+c.lines.length+(c.lines.length === 1 ? ' counted item' : ' counted items'))+'</summary>'+table(c.lines)+'</details>'
+      + (loss ? '<div class="vfoot">Shortage at cost: <b>AED '+money(loss)+'</b></div>' : '')+'</div>';
+  }).join('') + '</div>';
 }
 function invRec(){
   var chips = menu.map(function(m){ return '<button class="cat" data-act="reccat" data-id="'+m.id+'" aria-pressed="'+(m.id===(S.recCat||menu[0].id))+'">'+esc(m.name)+'</button>'; }).join('');
@@ -605,15 +636,15 @@ function invRec(){
 }
 function invMat(){
   var rows = db.inv.materials.map(function(m){
-    return '<tr><td><input class="inp" style="width:100%;text-align:left" data-f="mname" data-m="'+m.id+'" value="'+esc(m.name)+'" aria-label="Name"></td>'
-      + '<td><input class="inp" style="width:70px;text-align:left" data-f="munit" data-m="'+m.id+'" value="'+esc(m.unit)+'" aria-label="Unit"></td>'
+    return '<tr><td class="nm"><input class="inp" style="width:100%;text-align:left" data-f="mname" data-m="'+m.id+'" value="'+esc(m.name)+'" aria-label="Name"></td>'
+      + '<td class="c"><input class="inp" style="width:60px;text-align:center" data-f="munit" data-m="'+m.id+'" value="'+esc(m.unit)+'" aria-label="Unit"></td>'
       + '<td class="n"><input class="inp" type="number" min="0" step="any" data-f="mcost" data-m="'+m.id+'" value="'+m.cost+'" aria-label="Cost per unit"></td>'
       + '<td class="n"><input class="inp" type="number" min="0" step="any" data-f="mmin" data-m="'+m.id+'" value="'+m.min+'" aria-label="Low stock level"></td>'
-      + '<td><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-f="mcup" data-m="'+m.id+'"'+(m.cup?' checked':'')+'> cup / plate (counted daily)</label></td>'
+      + '<td class="c"><input type="checkbox" data-f="mcup" data-m="'+m.id+'"'+(m.cup?' checked':'')+' aria-label="Cup or plate, counted daily"></td>'
       + '<td class="n">'+(S.matDel===m.id?'<button class="btn primary sm" data-act="matdelyes" data-id="'+m.id+'">Delete</button> <button class="btn ghost sm" data-act="matdelno">Keep</button>':'<button class="btn ghost sm" data-act="matdel" data-id="'+m.id+'">Delete</button>')+'</td></tr>';
   }).join('');
   return '<p style="color:var(--muted);margin:0 0 10px">Everything you buy and use up. Mark the cups and plates so the Variance tab can turn missing ones into missing sales. Cost is per unit and updates when you add a purchase.</p>'
-    + '<div class="tbl"><table><thead><tr><th>Name</th><th>Unit</th><th class="n">Cost / unit</th><th class="n">Low at</th><th></th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div><button class="btn primary sm" data-act="addmat">+ Add material</button>';
+    + '<div class="tbl"><table class="whtbl mat"><thead><tr><th>Name</th><th class="c">Unit</th><th class="n">Cost / unit</th><th class="n">Low at</th><th class="c">Cup / plate<br><small>counted daily</small></th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div><button class="btn primary sm" data-act="addmat">+ Add material</button>';
 }
 
 /* ---------- Sync with the shop server ----------
@@ -1280,7 +1311,7 @@ function countInputRows(rec){
   var E = expectedMap(S.cstart || 0, vBaseMap());
   return dailyMats().map(function(m){
     var l = rec ? rec.lines.filter(function(x){ return x.m === m.id; })[0] : null, exp = l ? l.expected : E[m.id].exp, st = rec ? S.ecnt : S.ocnt, cur = st[m.id];
-    return '<tr><td>'+esc(m.name)+'</td><td class="n">'+num(exp)+' '+esc(m.unit)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="'+(rec ? 'ec' : 'oc')+'" data-m="'+m.id+'" placeholder="'+num(exp)+'" value="'+esc(cur === undefined ? (rec && l ? num(l.counted) : '') : cur)+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
+    return '<tr><td class="nm">'+esc(m.name)+'</td><td class="n">'+num(exp)+' <small>'+esc(m.unit)+'</small></td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="'+(rec ? 'ec' : 'oc')+'" data-m="'+m.id+'" placeholder="'+num(exp)+'" value="'+esc(cur === undefined ? (rec && l ? num(l.counted) : '') : cur)+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
 }
 function vOpenCheck(date){
   if (date !== today() || !dailyMats().length) return '';
@@ -1288,12 +1319,12 @@ function vOpenCheck(date){
   var nameBox = '<label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(S.cname || db.lastStaff || '')+'" autocomplete="off"></label>';
   if (done && S.cedit){
     return '<div class="tbl" style="border:2px solid var(--pink)"><h3>Edit today\'s count</h3><p style="color:var(--muted);margin:0 0 8px">Change only the numbers that were wrong. The change is recorded with your name and the partners are told it was edited.</p>'
-      + '<table><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+countInputRows(done)+'</tbody></table>'
+      + '<table class="whtbl cnt"><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+countInputRows(done)+'</tbody></table>'
       + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap">'+nameBox+'<button class="btn ghost sm" data-act="cecancel">Cancel</button><button class="btn primary sm" data-act="cesave">Save changes</button></div></div>';
   }
   if (done) return '<div class="tbl"><h3>Morning cup count</h3><div>'+countSummary(done)+(done.edits && done.edits.length ? ' · <span style="background:#fff2cc;color:#7a5200;font-weight:800;padding:2px 10px;border-radius:99px">Edited by '+esc(done.edits[done.edits.length - 1].by)+' at '+fdate(done.edits[done.edits.length - 1].t)+'</span>' : '')+'</div>'+(countShort(done) ? countTable(done) : '')+'<div class="btns" style="margin-top:8px;align-items:center"><button class="btn ghost sm" data-act="cedit">Edit count</button> '+countWaBtn('open')+' '+cwaStatus('open')+'</div></div>';
   return '<div class="tbl" style="border:2px solid var(--pink)"><h3>Morning cup count</h3><p style="color:var(--muted);margin:0 0 8px">Count the cups and plates on the shelf. If the number in the box is right, leave it empty. If it is different, type what you really see.</p>'
-    + '<table><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+countInputRows(null)+'</tbody></table>'
+    + '<table class="whtbl cnt"><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+countInputRows(null)+'</tbody></table>'
     + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap">'+nameBox+'<button class="btn primary sm" data-act="ocsave">Save count</button></div></div>';
 }
 function printHtml(h){
