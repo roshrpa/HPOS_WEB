@@ -306,6 +306,14 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 .plr{margin:0 0 4px}.plr .inp{height:34px!important;padding:0 8px!important;font-size:14px!important;min-width:0}.plr small{font-size:12px;color:var(--muted)}
 .plr .plx{height:30px;width:30px;padding:0;font-size:18px;line-height:1}
 @media (max-width:760px){.plh{display:none}.plr{grid-template-columns:1fr 1fr;padding:8px 0;border-bottom:1px solid #ece9e4;margin:0}.plr>:first-child{grid-column:1/-1}}
+.pt{width:100%;border-collapse:collapse;table-layout:auto;font-size:13.5px}
+.pt th{font-size:11.5px;font-weight:600;color:var(--muted);padding:4px 6px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+.pt th:first-child{text-align:left}
+.pt td{padding:3px 6px;border-bottom:1px solid #f0ece7;line-height:1.25}
+.pt td.g{background:#f6f3ef;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6b665f;padding:4px 6px;border:0}
+.pt td.c{text-align:center;width:64px}
+.pt input[type=checkbox]{width:17px;height:17px;margin:0;accent-color:var(--accent,#df3d8a);vertical-align:middle}
+.pt small{color:var(--muted);font-size:11.5px}
 </style>
 </head>
 <body>
@@ -2538,17 +2546,17 @@ function permForm(){
   var mx = G.map(function(g){
     var rows = g[1].filter(function(p){ return PERMS.some(function(q){ return q[0] === p[0]; }); });
     if (!rows.length) return '';
-    return '<tr><td colspan="'+(1 + RL.length)+'" style="text-align:left;background:#f6f3ef;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6b665f;padding:6px 8px">'+g[0]+'</td></tr>'
+    return '<tr><td class="g" colspan="'+(1 + RL.length)+'">'+g[0]+'</td></tr>'
       + rows.map(function(p){
-        return '<tr><td style="text-align:left">'+p[1]+(p[2] ? ' <small style="color:var(--muted)">'+p[2]+'</small>' : '')+'</td>'+RL.map(function(r){ return '<td style="text-align:center"><input type="checkbox" data-f="permck" data-role="'+r+'" data-p="'+p[0]+'"'+(roleCan(r, p[0]) ? ' checked' : '')+' style="width:22px;height:22px"></td>'; }).join('') + '</tr>';
+        return '<tr><td>'+p[1]+(p[2] ? ' <small style="color:var(--muted)">'+p[2]+'</small>' : '')+'</td>'+RL.map(function(r){ return '<td class="c"><input type="checkbox" data-f="permck" data-role="'+r+'" data-p="'+p[0]+'"'+(roleCan(r, p[0]) ? ' checked' : '')+'></td>'; }).join('') + '</tr>';
       }).join('');
   }).join('');
-  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Role permissions" style="max-width:560px;max-height:92vh;overflow:auto"><h3>What each role can do</h3><p style="margin:0 0 8px;color:var(--muted)">The Owner can do everything. For "approve" rows, a person without the permission asks someone who has it to enter their PIN. Each change is saved at once.</p>'
-    + '<div style="overflow-x:auto"><table class="tbl"><thead><tr><th style="text-align:left">Permission</th>'+RL.map(function(r){
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Role permissions" style="max-width:480px;max-height:92vh;overflow:auto;padding:14px 16px"><h3 style="margin:0 0 4px;font-size:17px">What each role can do</h3><p style="margin:0 0 8px;color:var(--muted);font-size:12.5px;line-height:1.35">The Owner can do everything. For "approve" rows, a person without the permission asks someone who has it to enter their PIN. Each change is saved at once.</p>'
+    + '<div style="overflow-x:auto"><table class="pt"><thead><tr><th>Permission</th>'+RL.map(function(r){
       var custom = !!(db.perms[r] && db.perms[r].__role), used = db.users.some(function(u){ return u.role === r; });
-      return '<th>'+esc(r)+(custom && !used ? '<br><a href="#" data-act="roledel" data-r="'+esc(r)+'" style="font-weight:500;font-size:12px;color:#c4543a">Remove</a>' : '')+'</th>'; }).join('')+'</tr></thead><tbody>'+mx+'</tbody></table></div>'
-    + '<div style="display:flex;gap:8px;margin-top:12px"><input class="inp" data-f="nrole" placeholder="New role name (e.g. Supervisor)" value="'+esc(S.nrole || '')+'" maxlength="30" style="flex:1;text-align:left"><button class="btn ghost" data-act="roleadd">+ Add role</button></div>'
-    + '<p style="margin:6px 0 0;font-size:13px;color:var(--muted)">A new role starts with the same permissions as Cashier. Tick what it may do.</p>'
+      return '<th>'+esc(r)+(custom && !used ? ' <a href="#" data-act="roledel" data-r="'+esc(r)+'" title="Remove role" style="font-weight:700;color:#c4543a;text-decoration:none">×</a>' : '')+'</th>'; }).join('')+'</tr></thead><tbody>'+mx+'</tbody></table></div>'
+    + '<div style="display:flex;gap:8px;margin-top:10px"><input class="inp" data-f="nrole" placeholder="New role name (e.g. Supervisor)" value="'+esc(S.nrole || '')+'" maxlength="30" style="flex:1;text-align:left"><button class="btn ghost" data-act="roleadd">+ Add role</button></div>'
+    + '<p style="margin:5px 0 0;font-size:12px;color:var(--muted)">A new role starts with the same permissions as Cashier. Tick what it may do.</p>'
     + '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="permx">Done</button></div></div></div>';
 }
 function vUsers(){
