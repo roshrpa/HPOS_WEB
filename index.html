@@ -2333,7 +2333,7 @@ async function signOutDevice(){
   try { localStorage.clear(); sessionStorage.clear(); localStorage.setItem(SYNC_KEY, JSON.stringify({url: url || '', shop: shop || ''})); } catch(e){}
   location.reload();
 }
-function lockNow(){ if (curUser()) audit('Users and Security', 'Locked', ''); sessPin = ''; S.uid = null; try { sessionStorage.removeItem('hp_uid'); } catch(e){} S.lu = null; S.lpin = ''; S.lerr = ''; S.tab = homeTab(); }
+function lockNow(){ if (curUser()) audit('Users and Security', 'Locked', ''); sessPin = ''; S.uid = null; try { sessionStorage.removeItem('hp_uid'); } catch(e){} S.lu = null; S.sw = false; S.lpin = ''; S.lerr = ''; S.tab = homeTab(); }
 
 /* ----- login and first-run setup ----- */
 function vSetup(){
@@ -2347,13 +2347,17 @@ function vSetup(){
 }
 function vLogin(){
   var us = db.users.filter(function(u){ return u.active !== false; });
-  var sel = S.lu && byId(us, S.lu);
-  return '<div class="page"><div class="card" style="max-width:420px;margin:40px auto;text-align:center"><img class="rlogo" src="'+LOGO+'" alt="" style="height:64px"><h3 style="font-size:20px;margin:8px 0 4px">'+esc(setg().shop || 'Hollywood POS')+'</h3><p style="color:var(--muted);margin:0 0 12px">Choose your name and enter your PIN.</p>'
+  var last = null; try { last = byId(us, localStorage.getItem('hp_last') || ''); } catch(e){}
+  if (last && !S.sw) S.lu = last.id;
+  var sel = S.lu && byId(us, S.lu), one = !!(last && !S.sw && sel);
+  if (one) us = [last];
+  return '<div class="page"><div class="card" style="max-width:420px;margin:40px auto;text-align:center"><img class="rlogo" src="'+LOGO+'" alt="" style="height:64px"><h3 style="font-size:20px;margin:8px 0 4px">'+esc(setg().shop || 'Hollywood POS')+'</h3><p style="color:var(--muted);margin:0 0 12px">'+(one ? 'Enter your PIN.' : 'Choose your name and enter your PIN.')+'</p>'
     + '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:12px">'
     + us.map(function(u){ return '<button class="btn '+(sel && sel.id === u.id ? 'primary' : 'ghost')+'" data-act="loginpick" data-id="'+u.id+'">'+esc(u.name)+'<small style="display:block;font-weight:500;opacity:.8">'+u.role+'</small></button>'; }).join('') + '</div>'
     + (sel ? '<input id="lpin" class="inp" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" value="'+esc(S.lpin)+'" style="text-align:center;font-size:22px;letter-spacing:6px">'
       + (S.lerr ? '<p style="color:var(--pink-dk);margin:10px 0 0">'+esc(S.lerr)+'</p>' : '')
       + '<div class="btns"><button class="btn primary" data-act="loginok">Open POS</button></div>' : '')
+    + (one ? '<p style="margin:14px 0 0"><a href="#" data-act="loginsw" style="color:var(--muted);font-size:14px">Not '+esc(last.name)+'? Switch user</a></p>' : '')
     + '</div></div>';
 }
 /* ----- server login: users live on the server, a device gets its own token when a user signs in ----- */
@@ -2394,7 +2398,8 @@ async function serverSignIn(path, body){
 }
 var sessPin = '';   /* the PIN typed at sign in, kept in memory only (never saved), so the server can check an Owner without asking again */
 function finishSignIn(u, auditAct){
-  sessPin = S.lpin || '';
+  sessPin = S.lpin || ''; S.sw = false;
+  try { localStorage.setItem('hp_last', u.id); } catch(er){}
   S.uid = u.id; try { sessionStorage.setItem('hp_uid', u.id); } catch(er){}
   S.lpin = ''; S.lerr = ''; S.tab = homeTab(); S.sl = {name:'', pin:'', shop:null}; S.su = {name:'', pin:'', pin2:''}; S.srv.busy = false;
   audit('Users and Security', auditAct, ''); kickSync(); render();
@@ -2638,6 +2643,7 @@ document.addEventListener('click', function(e){
       return;
     case 'srvretry': S.srv.st = ''; render(); return;
     case 'srvlocal': S.srv.st = 'local'; break;
+    case 'loginsw': S.sw = true; S.lu = null; S.lpin = ''; S.lerr = ''; break;
     case 'loginpick': S.lu = d.id; S.lpin = ''; S.lerr = ''; break;
     case 'loginok':
       doLogin(); return;
