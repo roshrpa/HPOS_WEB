@@ -7,6 +7,8 @@ services:
       POSTGRES_DB: hpos
       POSTGRES_USER: hpos
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"   # reachable only from the server itself (use an SSH tunnel from your PC)
     volumes:
       - dbdata:/var/lib/postgresql/data
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
