@@ -1765,18 +1765,19 @@ function xVoucher(){
     + '</div>'
     + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="xviewclose">Close</button><button class="btn ghost" data-act="xvprint">Print / PDF</button><button class="btn primary" data-act="xvimg">Save as image</button></div></div></div>';
 }
-function xVoucherImage(e, done){
-  var W = 720, rows = xVoucherRows(e), H = 300 + rows.length * 62, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+function xVoucherImage(e, done, opt){
+  opt = opt || {};
+  var W = 720, rows = opt.rows || xVoucherRows(e), H = 300 + rows.length * 62, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   var g = cv.getContext('2d'), F = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
   function draw(img){
     g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
     var x0 = 40, y = 50;
     if (img){ var ih = 70, iw = img.width / img.height * ih; g.drawImage(img, x0, 28, iw, ih); x0 += iw + 18; }
     g.fillStyle = '#111'; g.font = '700 28px ' + F; g.fillText(setg().shop, x0, 62);
-    g.fillStyle = '#777'; g.font = '20px ' + F; g.fillText('Expense voucher  ·  ' + xRef(e), x0, 92);
+    g.fillStyle = '#777'; g.font = '20px ' + F; g.fillText((opt.title || 'Expense voucher') + '  ·  ' + (opt.ref || xRef(e)), x0, 92);
     g.strokeStyle = '#ddd'; g.lineWidth = 2; g.beginPath(); g.moveTo(40, 120); g.lineTo(W - 40, 120); g.stroke();
     g.textAlign = 'center'; g.fillStyle = '#777'; g.font = '20px ' + F; g.fillText('Amount', W / 2, 160);
-    g.fillStyle = '#111'; g.font = '800 58px ' + F; g.fillText('AED ' + money(e.amt), W / 2, 225); g.textAlign = 'left';
+    g.fillStyle = '#111'; g.font = '800 58px ' + F; g.fillText('AED ' + money(opt.amt !== undefined ? opt.amt : e.amt), W / 2, 225); g.textAlign = 'left';
     y = 275;
     rows.forEach(function(r){
       g.fillStyle = '#777'; g.font = '22px ' + F; g.fillText(r[0], 40, y);
@@ -1961,6 +1962,7 @@ function vSheets(){
   if (S.cwa && S.tab === 'count') return cwaSheet();
   if (S.chist && S.tab === 'count') return histSheet();
   if (S.xview && S.tab === 'exp') return xVoucher();
+  if (S.pview && S.tab === 'purch') return pVoucher();
   if (S.supopen && S.tab === 'purch') return supForm();
   if (S.spopen && S.tab === 'purch' && S.psup) return supPayForm();
   if (S.rpopen && S.tab === 'credit' && S.cc) return crPayForm();
@@ -2278,6 +2280,18 @@ document.addEventListener('click', function(e){
     case 'xedit': var xe2 = byId(db.exp.items, d.id); if (xe2){ S.xedit = xe2.id; S.xf = {date:xe2.date, cat:xe2.cat, sub:xe2.sub, amt:String(xe2.amt), from:xe2.from, vat:xe2.vat ? String(xe2.vat) : '', who:xe2.who || '', bill:xe2.bill || '', note:xe2.note || ''}; S.xt = 'list'; S.xopen = true; } break;
     case 'xview': S.xview = d.id; break;
     case 'xviewclose': S.xview = null; break;
+    case 'pview': S.pview = d.id; break;
+    case 'pviewclose': S.pview = null; break;
+    case 'pvprint': var pvp = byId(db.pur.list, S.pview); if (pvp){ var pvb = document.getElementById('pvbox'); printHtml('<div style="color:#000;padding:8mm;max-width:130mm">' + (pvb ? pvb.innerHTML : '') + '</div>'); } return;
+    case 'pvimg':
+      var pvi = byId(db.pur.list, S.pview); if (!pvi) return;
+      xVoucherImage(pvi, function(blob){
+        var name = pRef(pvi) + '.png', file = null;
+        try { file = new File([blob], name, {type:'image/png'}); } catch(er){}
+        if (file && navigator.canShare && navigator.canShare({files:[file]})){ navigator.share({files:[file], title:'Purchase ' + pRef(pvi)}).catch(function(){}); return; }
+        var a3 = document.createElement('a'); a3.href = URL.createObjectURL(blob); a3.download = name; document.body.appendChild(a3); a3.click(); setTimeout(function(){ URL.revokeObjectURL(a3.href); a3.remove(); }, 1500); toast('Image saved');
+      }, {rows:pVoucherRows(pvi), amt:pvi.total, ref:pRef(pvi), title:'Purchase voucher'});
+      return;
     case 'xvprint': var xve = byId(db.exp.items, S.xview); if (xve){ var xvb = document.getElementById('xvbox'); printHtml('<div style="color:#000;padding:8mm;max-width:130mm">' + (xvb ? xvb.innerHTML : '') + '</div>'); } return;
     case 'xvimg':
       var xvi = byId(db.exp.items, S.xview); if (!xvi) return;
@@ -3368,11 +3382,36 @@ function vPurNew(){
     + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="pformclose">Cancel</button><button class="btn primary" data-act="purchsave">'+(S.pedit ? 'Save changes' : 'Save purchase')+'</button></div></div></div>';
 }
 function purDesc(p){ return p.lines.map(function(l){ return l.name + ' ×' + num(l.qty) + (l.unit === 'ctn' ? ' ctn' : ''); }).join(', '); }
+function pRef(p){ return 'PUR-' + String(p.id).replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase(); }
+function pVoucherRows(p){
+  var rows = [['Date', xDate(p.date)], ['Supplier', supName(p.sup)]];
+  if (p.inv) rows.push(['Invoice no.', p.inv]);
+  p.lines.forEach(function(l, i){
+    var q = (l.unit === 'tub' || l.unit === 'kg' || l.unit === 'g') ? gmQty(l.pcs) : num(l.qty) + (l.unit === 'ctn' ? ' ctn' : ' pcs');
+    rows.push(['Item ' + (i + 1), l.name + ' · ' + q + ' · AED ' + money(l.amt)]);
+  });
+  if (p.vat > 0) rows.push(['VAT (input)', 'AED ' + money(p.vat)]);
+  rows.push(['Paid by', p.pay === 'credit' ? 'On credit' : p.pay === 'bank' ? 'Bank' : 'Counter cash']);
+  if (p.note) rows.push(['Note', p.note]);
+  rows.push(['Entered by', p.by || '-'], ['Entered at', xEnteredAt(p)]);
+  if (p.void) rows.push(['Status', 'Cancelled']);
+  return rows;
+}
+function pVoucher(){
+  var p = byId(db.pur.list, S.pview); if (!p) return '';
+  var rows = pVoucherRows(p).map(function(r){ return '<div style="display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid #eee"><span style="color:#777;white-space:nowrap">'+esc(r[0])+'</span><b style="text-align:right">'+esc(r[1])+'</b></div>'; }).join('');
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Purchase voucher" style="max-width:480px;max-height:94vh;overflow:auto">'
+    + '<div id="pvbox" style="background:#fff;border:1px solid #eee;border-radius:14px;padding:18px"><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><img src="'+LOGO+'" alt="" style="height:44px"><div><b style="font-size:17px">'+esc(setg().shop)+'</b><div style="color:#777;font-size:13px">Purchase voucher · '+pRef(p)+'</div></div></div>'
+    + '<div style="text-align:center;padding:14px 0 8px"><div style="color:#777;font-size:13px">Total'+(p.void ? ' (cancelled)' : '')+'</div><div style="font-size:34px;font-weight:800">AED '+money(p.total)+'</div></div>'+rows
+    + '</div>'
+    + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="pviewclose">Close</button><button class="btn ghost" data-act="pvprint">Print / PDF</button><button class="btn primary" data-act="pvimg">Save as image</button></div></div></div>';
+}
 function vPurHist(){
   var list = db.pur.list.filter(function(p){ return p.date.slice(0, 7) === S.pm && !(p.void && p.editedTo); }).slice().sort(function(a, b){ return b.date < a.date ? -1 : b.date > a.date ? 1 : b.t - a.t; });
   var tot = list.filter(function(p){ return !p.void; }).reduce(function(a, p){ return a + p.total; }, 0);
   var rows = list.map(function(p){
-    var act = p.void ? '<span class="pill void">Cancelled</span>' : (S.pcan === p.id ? '<input class="inp" type="password" inputmode="numeric" placeholder="PIN" data-f="pcanpin" value="'+esc(S.pcanpin)+'" style="width:90px;display:'+(pinNeeded('purch') ? 'inline-block' : 'none')+'"> <button class="btn sm danger" data-act="pcany" data-id="'+p.id+'">Cancel it</button> <button class="btn sm ghost" data-act="pcann">×</button>' : '<button class="btn sm ghost" data-act="pedit" data-id="'+p.id+'">Edit</button> <button class="btn sm ghost" data-act="pcan" data-id="'+p.id+'">Cancel</button>');
+    var vb = '<button class="btn sm primary" data-act="pview" data-id="'+p.id+'">View</button> ';
+    var act = vb + (p.void ? '<span class="pill void">Cancelled</span>' : (S.pcan === p.id ? '<input class="inp" type="password" inputmode="numeric" placeholder="PIN" data-f="pcanpin" value="'+esc(S.pcanpin)+'" style="width:90px;display:'+(pinNeeded('purch') ? 'inline-block' : 'none')+'"> <button class="btn sm danger" data-act="pcany" data-id="'+p.id+'">Cancel it</button> <button class="btn sm ghost" data-act="pcann">×</button>' : '<button class="btn sm ghost" data-act="pedit" data-id="'+p.id+'">Edit</button> <button class="btn sm ghost" data-act="pcan" data-id="'+p.id+'">Cancel</button>'));
     return '<tr'+(p.void ? ' style="opacity:.55"' : '')+'><td style="white-space:nowrap">'+xDate(p.date)+(p.edited ? ' <span class="pill" style="background:#fdf1dc;color:#7a5410">Edited</span>' : '')+'</td><td>'+esc(supName(p.sup))+(p.inv ? '<small style="display:block;color:var(--muted)">inv '+esc(p.inv)+'</small>' : '')+'</td><td style="font-size:13px">'+esc(purDesc(p))+'</td><td><span class="pill cash">'+(p.pay === 'credit' ? 'Credit' : p.pay === 'bank' ? 'Bank' : 'Cash')+'</span></td><td class="n" style="text-align:right">'+money(p.total)+(p.vat ? '<small style="display:block;color:var(--muted)">VAT '+money(p.vat)+'</small>' : '')+'</td><td>'+esc(p.by || '')+'</td><td>'+act+'</td></tr>';
   }).join('');
   return '<div class="bar">'+monthSeg('pmonth', S.pm)+'<span class="sp"></span><button class="btn primary sm" data-act="pnew">+ New purchase</button></div>'
@@ -3472,7 +3511,7 @@ document.addEventListener('click', function(e){
   var el = e.target.closest('[data-act]'); if (!el) return;
   var a = el.dataset.act, d = el.dataset;
   switch (a){
-    case 'ptab': S.pt = d.id; S.popen = false; S.pedit = null; break;
+    case 'ptab': S.pview = null; S.pt = d.id; S.popen = false; S.pedit = null; break;
     case 'gopurch': S.tab = can('purch') ? 'purch' : S.tab; break;
     case 'pmonth': S.pm = d.v === '0' ? today().slice(0, 7) : shiftMonth(S.pm, +d.v); break;
     case 'pladd': S.pf.lines.push({key:'', qty:'', unit:'pcs', amt:'', to:'wh'}); break;
