@@ -7,25 +7,25 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 Inter,'Segoe UI',system-ui,-apple-system,Roboto,sans-serif}
 header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:10px}
 header h1{margin:0;font-size:17px;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} header small{color:var(--mut);font-size:13px}
-main{padding:14px 16px 90px;max-width:1100px;margin:0 auto}
+main{padding:18px 24px 90px;max-width:1500px;margin:0 auto}
 input,select{font:inherit;font-size:16px;border:1px solid #ddd8d1;border-radius:11px;padding:0 12px;height:44px;background:#fff;min-width:0;width:100%}
 label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--mut);font-weight:500}
 button{font:inherit;font-weight:600;border-radius:11px;border:1px solid #ddd8d1;background:#fff;color:var(--ink);height:44px;padding:0 16px;cursor:pointer}
 button.pri{background:var(--acc);border-color:var(--acc);color:#fff} button.sm{height:36px;padding:0 12px;font-size:14px} button.dng{color:var(--bad);border-color:#f0c9bf} button.gh{border-color:transparent;background:transparent;color:var(--accd)} button:disabled{opacity:.5}
 .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px}
-.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px} .stat b{display:block;font-size:22px;line-height:1.1} .stat span{font-size:12px;color:var(--mut)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:16px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px} .stat b{display:block;font-size:26px;line-height:1.1} .stat span{font-size:12px;color:var(--mut)}
 .stat.w b{color:var(--warn)} .stat.b b{color:var(--bad)}
 .bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap} .bar .s{flex:1;min-width:200px}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px} .chip{height:36px;border-radius:99px;padding:0 14px;font-size:14px;font-weight:600;white-space:nowrap;background:#fff} .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
 .co{margin:18px 0 8px;display:flex;align-items:center;gap:8px} .co h2{margin:0;font-size:15px;font-weight:700;flex:1;text-transform:uppercase;letter-spacing:.05em;color:#6b665f}
-.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
-.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(380px,1fr))}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 1px 2px rgba(30,24,20,.04)}
 .card .top{display:flex;gap:8px;align-items:flex-start} .card .nm{flex:1;min-width:0} .card .nm b{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .card .nm span{font-size:13px;color:var(--mut)}
 .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:#f3f0ec;border-radius:7px;padding:2px 7px}
 .pill{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:3px 10px;font-size:12.5px;font-weight:600} .pill i{width:7px;height:7px;border-radius:50%;background:currentColor}
 .pill.ok{color:var(--ok);background:var(--okbg)} .pill.bad{color:var(--bad);background:var(--badbg)} .pill.warn{color:var(--warn);background:var(--warnbg)} .pill.mut{color:var(--mut);background:#f1eeea}
-.meta{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0;text-align:center} .meta div{background:#faf8f6;border-radius:10px;padding:7px 2px} .meta b{display:block;font-size:16px} .meta span{font-size:11px;color:var(--mut)}
+.meta{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0;text-align:center} .meta div{background:#faf8f6;border-radius:10px;padding:7px 2px} .meta b{display:block;font-size:18px} .meta span{font-size:11px;color:var(--mut)}
 .lic{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13.5px;margin-bottom:10px}
 .acts{display:flex;gap:8px} .acts button{flex:1}
 .alert{font-size:13px;background:var(--warnbg);color:var(--warn);border-radius:10px;padding:7px 10px;margin-bottom:10px}
@@ -88,7 +88,7 @@ function show(b){
 function card(b){
   var st = state(b), statusPill = '<span class="pill ' + (b.active ? 'ok' : 'bad') + '"><i></i>' + (b.active ? 'Active' : 'Switched off') + '</span>';
   var h = '<div class="card"><div class="top"><div class="nm"><b>' + esc(b.name) + '</b><span><span class="code">' + esc(b.code) + '</span> &nbsp;Last seen ' + esc(ago(b.last_seen)) + '</span></div>' + statusPill + '</div>';
-  h += '<div class="meta"><div><b>' + b.users + '/' + b.max_users + '</b><span>Users</span></div><div><b>' + b.devices + '</b><span>Devices</span></div><div><b>' + b.bills + '</b><span>Bills</span></div><div><b>' + b.admins + '</b><span>Admins</span></div></div>';
+  h += '<div class="meta"><div><b>' + b.users + '/' + b.max_users + '</b><span>Users</span></div><div><b>' + b.devices + '</b><span title="' + b.devices_all + ' registered, ' + b.devices + ' seen in the last 7 days">Devices (7d)</span></div><div><b>' + b.bills + '</b><span>Bills</span></div><div><b>' + b.admins + '</b><span>Admins</span></div></div>';
   if (!b.admins) h += '<div class="alert">No admin yet. Press Admin to create the first one.</div>';
   h += '<div class="lic"><span class="mut">Licence ' + (b.expires_on ? esc(b.expires_on) : '') + '</span>' + licPill(b) + '</div>';
   if (st === 'soon' || st === 'expired') h += '<div class="acts" style="margin-bottom:8px"><button class="sm pri" data-a="ext" data-b="' + esc(b.id) + '">Extend 1 year</button></div>';

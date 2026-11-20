@@ -64,12 +64,13 @@ async function overview(pool) {
   const br = (await pool.query(`select b.*,
       (select count(*)::int from users u where u.branch_id = b.id and u.active) as users,
       (select count(*)::int from users u where u.branch_id = b.id and u.active and u.role = 'Owner') as admins,
-      (select count(*)::int from devices d where d.branch_id = b.id and d.kind <> 'system' and d.active) as devices,
+      (select count(*)::int from devices d where d.branch_id = b.id and d.kind <> 'system' and d.active and d.last_seen > now() - interval '7 days') as devices,
+      (select count(*)::int from devices d where d.branch_id = b.id and d.kind <> 'system' and d.active) as devices_all,
       (select max(d.last_seen) from devices d where d.branch_id = b.id and d.kind <> 'system') as last_seen,
       (select count(*)::int from sales s where s.branch_id = b.id) as bills
     from branches b order by b.created_at, b.id`)).rows;
   return { companies: co.map(function (c) { return { id: c.id, name: c.name, active: c.active, branches: br.filter(function (b) { return b.company_id === c.id; }).map(function (b) {
-    return { id: b.id, name: b.name, code: b.code, active: b.active, max_users: b.max_users, users: b.users, admins: b.admins, devices: b.devices, bills: b.bills,
+    return { id: b.id, name: b.name, code: b.code, active: b.active, max_users: b.max_users, users: b.users, admins: b.admins, devices: b.devices, devices_all: b.devices_all, bills: b.bills,
       expires_on: b.expires_on ? new Date(b.expires_on).toISOString().slice(0, 10) : null, last_seen: b.last_seen, legacy_default: b.legacy_default };
   }) }; }) };
 }
