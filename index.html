@@ -481,7 +481,7 @@ function invDefault(){
   r('Mr. Corn','Medium',[['cornM',1]]);
   r('Mr. Corn','Large',[['cornL',1]]);
   var base = {};
-  M.forEach(function(x){ base[x[0]] = {t:0, q:x[6]}; });
+  M.forEach(function(x){ base[x[0]] = {t:0, q:0}; });
   return {v:9, materials:M.map(function(x){ return {id:x[0], name:x[1], unit:x[2], cost:x[3], cup:x[4], min:x[5]}; }), recipes:R, base:base, purchases:[], waste:[], counts:[]};
 }
 if (!db.inv || db.inv.v !== 9) db.inv = invDefault();
@@ -492,7 +492,7 @@ if (db.settings.showSale === undefined) db.settings.showSale = false;
 function saleOn(){ return !!window.HP_DESKTOP || !!(db.settings && db.settings.showSale); }
 function homeTab(){ return saleOn() ? 'sale' : 'dash'; }
 /* Test start: every menu item begins with 100 in stock (runs once per browser) */
-if (db.stockSeed !== 1){ db.stock = {}; menu.forEach(function(c){ c.items.forEach(function(it0){ db.stock[skey(c.name, it0.name)] = 100; }); }); db.stockSeed = 1; save(); }
+if (db.stockSeed !== 1){ db.stock = {}; menu.forEach(function(c){ c.items.forEach(function(it0){ db.stock[skey(c.name, it0.name)] = 0; }); }); db.stockSeed = 1; save(); }
 function num(n){ return Math.round(n * 100) / 100; }
 /* one-time fix: untouched starting stock counts every sale (it used to start at first-open time, so earlier sales were skipped) */
 if (db.inv && db.inv.base && db.invBaseFix !== 1){ db.invBaseFix = 1; var cts = (db.inv.counts || []).map(function(c){ return c.t; }); Object.keys(db.inv.base).forEach(function(k){ var b = db.inv.base[k]; if (b && b.t && cts.indexOf(b.t) < 0) b.t = 0; }); save(); }
@@ -963,17 +963,27 @@ function tabCatchUp(){   // tablet orders that came in before this version: bill
   return ch;
 }
 /* Testing period: sales, tablet orders and stock go back to the starting point (stock 100 in the shop and the warehouse) */
+/* Go-live reset (from the Super Admin): everything about trading goes back to zero. Kept: users, their roles and permissions,
+   menu and prices, settings, expense categories, materials, recipes, portions, channels, suppliers and customers. */
+var RESET_GONE = {sale:1, sale_cancel:1, order:1, order_update:1, order_pay:1, order_cancel:1, order_done:1, order_delivered:1, num:1, wh_move:1, audit:1,
+  expense:1, expense_update:1, expense_delete:1, purchase:1, pur_new:1, pur_void:1, waste:1, stock_count:1, stock_count_edit:1, credit_pay:1, cash_entry:1, cash_delete:1, cash_out:1, day_close:1, sup_pay:1};
+var RESET_COLLS = ['exp.items','pur.list','pur.pays','cpay','cash.entries','inv.purchases','inv.waste','inv.counts','days','locks','openStock','avg','cash.open','inv.base'];
 function applyTestReset(p){
   if (!p || !p.id || db.resetSeen === p.id) return false;
   db.resetSeen = p.id;
-  db.sales = []; db.tOrders = []; db.counter = 0;
+  db.sales = []; db.tOrders = []; db.tOrphans = {}; db.counter = 0; db.audit = [];
   db.stock = {}; db.wh = db.wh || {qty:{}, carton:{}, log:[]}; db.wh.qty = {}; db.wh.log = [];
-  menu.forEach(function(c){ if (trackOn(c)) c.items.forEach(function(it){ db.stock[skey(c.name, it.name)] = 100; }); });
-  whItems().forEach(function(x){ db.wh.qty[x.key] = 100; });
-  db.inv.base = invDefault().base;
-  var gone = {sale:1, sale_cancel:1, order:1, order_update:1, order_pay:1, order_cancel:1, order_done:1, num:1, wh_move:1};
-  sync.outbox = sync.outbox.filter(function(x){ return !gone[x.type]; });
+  menu.forEach(function(c){ if (trackOn(c)) c.items.forEach(function(it){ db.stock[skey(c.name, it.name)] = 0; }); });
+  whItems().forEach(function(x){ db.wh.qty[x.key] = 0; });
+  if (db.exp) db.exp.items = [];
+  db.pur = {list:[], pays:[]}; db.cpay = []; db.avg = {}; db.days = {}; db.locks = {}; db.openStock = {};
+  db.cash = db.cash || {open:{}, entries:[]}; db.cash.entries = []; db.cash.open = {drawer:{amt:0, date:''}, bank:{amt:0, date:''}};
+  db.inv.purchases = []; db.inv.waste = []; db.inv.counts = []; db.inv.base = {};
+  db.inv.materials.forEach(function(m){ db.inv.base[m.id] = {t:p.t || 0, q:0}; });
+  db.audit.push({id:'rst-' + p.id, t:p.t || Date.now(), u:p.by || 'Super admin', uid:'', cat:'Settings', act:'Go-live reset', d:'Sales, purchases, expenses, cash, stock and logs were cleared. Users, permissions, menu and settings were kept.', flag:1});
+  sync.outbox = sync.outbox.filter(function(x){ return !RESET_GONE[x.type] && !((x.type === 'rec' || x.type === 'recdel') && x.payload && RESET_COLLS.indexOf(x.payload.c) >= 0); });
   var sy = syState(); sy.n = {};
+  RESET_COLLS.forEach(function(c){ sy.h[c] = {}; sy.u[c] = {}; });
   saveSync(); save();
   return true;
 }

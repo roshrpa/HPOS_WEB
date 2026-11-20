@@ -146,8 +146,8 @@ function modal(){
     title = esc(u.name); body = '<p class="mut">' + esc(u.role) + ' · ' + (u.active ? 'Active' : 'Switched off') + '</p><label>New PIN (6+ digits)<input id="f1" type="password" inputmode="numeric" autocomplete="new-password"></label><p class="mut">Leave empty to keep the current PIN.</p>'
       + '<div class="row"><button class="sm ' + (u.active ? 'dng' : '') + '" id="tog">' + (u.active ? 'Switch user off' : 'Switch user on') + '</button><button class="sm dng" id="del">Delete user</button></div><p class="mut">Delete works only for a user with no bills or records. Otherwise switch the user off.</p>'; btn = 'Set PIN';
   }
-  if (M.a === 'more'){ title = esc(b.name); body = '<div class="row" style="flex-direction:column;align-items:stretch"><button id="cpy">Copy shop code (' + esc(b.code) + ')</button><button class="dng" data-a="rst" data-b="' + esc(b.id) + '">Reset test data…</button></div>'; btn = ''; }
-  if (M.a === 'rst'){ title = 'Reset test data'; body = '<p>Deletes <b>all bills and tablet orders</b> of <b>' + esc(b.code) + '</b> and sets stock back to 100 (shop and warehouse) on every device. Menu, recipes, expenses, users and settings stay. This cannot be undone.</p><label>Type the shop code to confirm<input id="f1" autocapitalize="off" placeholder="' + esc(b.code) + '"></label>'; btn = 'Reset'; cls = 'dng'; }
+  if (M.a === 'more'){ title = esc(b.name); body = '<div class="row" style="flex-direction:column;align-items:stretch"><button id="cpy">Copy shop code (' + esc(b.code) + ')</button><button class="dng" data-a="rst" data-b="' + esc(b.id) + '">Go-live reset…</button></div>'; btn = ''; }
+  if (M.a === 'rst'){ title = 'Go-live reset'; body = '<p>Starts <b>' + esc(b.code) + '</b> from zero on every device.</p><p class="mut" style="margin:6px 0 0"><b>Cleared:</b> bills, tablet orders, purchases, expenses, cash and bank entries, credit payments, stock counts, waste, day closings, the audit log, and all stock (shop and warehouse, set to 0).</p><p class="mut" style="margin:6px 0 10px"><b>Kept:</b> users, their roles and permissions, menu and prices, settings, expense categories, materials, recipes, portions, suppliers and customers.</p><p><b>This cannot be undone.</b></p><label>Type the shop code to confirm<input id="f1" autocapitalize="off" placeholder="' + esc(b.code) + '"></label>'; btn = 'Reset'; cls = 'dng'; }
   h += '<h3>' + title + '</h3>' + (MSG && M.a !== 'newc' ? '<div class="msg' + (MSG.e ? ' e' : '') + '">' + esc(MSG.t || MSG) + '</div>' : '') + body + '<div class="row" style="justify-content:flex-end;margin-top:16px"><button id="cx">' + (btn ? 'Cancel' : 'Close') + '</button>' + (btn ? '<button class="' + cls + '" id="ok">' + btn + '</button>' : '') + '</div></div></div>';
   return h;
 }
@@ -171,7 +171,7 @@ function wire(){
       if (a === 'ext') return api('/super/branch/' + id, {expires_on: addDays((b.expires_on && daysLeft(b.expires_on) > 0) ? b.expires_on : new Date().toLocaleDateString('en-CA'), 365)});
       if (a === 'adm') return api('/super/branch/' + id + '/admin', {name: $('f1').value, pin: $('f2').value});
       if (a === 'rst') return api('/super/branch/' + id + '/reset-test', {confirm: $('f1').value});
-    }, a === 'rst' ? 'Test data reset.' : a === 'ext' ? 'Licence extended by one year.' : a === 'newc' ? 'Company added.' : a === 'adm' ? 'Admin saved.' : 'Saved.');
+    }, a === 'rst' ? 'Go-live reset done.' : a === 'ext' ? 'Licence extended by one year.' : a === 'newc' ? 'Company added.' : a === 'adm' ? 'Admin saved.' : 'Saved.');
   };
 }
 async function loadUsers(){

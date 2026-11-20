@@ -11,7 +11,10 @@ const sessions = new Map();      // token -> {id, name, exp}
 let fails = [];                  // timestamps of wrong passwords
 const PIN_RE = /^\d{6,}$/;
 const CODE_RE = /^[a-z0-9][a-z0-9_-]{2,29}$/;
-const RESET_TYPES = "('sale','sale_cancel','order','order_update','order_pay','order_cancel','order_done','num','wh_move')";
+// Everything that records trading. Users, permissions, menu, prices, settings, suppliers and customers are not in this list, so they stay.
+const RESET_TYPES = "('sale','sale_cancel','order','order_update','order_pay','order_cancel','order_done','order_delivered','num','wh_move','audit','expense','expense_update','expense_delete','purchase','pur_new','pur_void','waste','stock_count','stock_count_edit','credit_pay','cash_entry','cash_delete','cash_out','day_close','sup_pay','test_reset')";
+// State records (type 'rec' / 'recdel') of these collections are trading data too.
+const RESET_COLLS = "('exp.items','pur.list','pur.pays','cpay','cash.entries','inv.purchases','inv.waste','inv.counts','days','locks','openStock','avg','cash.open','inv.base')";
 
 function err(status, message) { return Object.assign(new Error(message), { status }); }
 function scryptHash(p) { const salt = crypto.randomBytes(16); return salt.toString('hex') + ':' + crypto.scryptSync(String(p), salt, 32).toString('hex'); }
@@ -28,7 +31,8 @@ async function ensureSchema(pool) {
     create unique index if not exists superadmins_name_ci on superadmins (lower(name));`);
 }
 
-// Wipe a branch's bills, tablet orders and stock movements and tell every device of that branch to start again (stock 100).
+// Go-live reset: wipe a branch's bills, orders, purchases, expenses, cash, stock and logs, keep its users and settings,
+// and tell every device of that branch to start again from zero.
 async function resetBranch(pool, branchId, by) {
   let sys = (await pool.query("select id from devices where branch_id = $1 and kind = 'system' limit 1", [branchId])).rows[0];
   if (!sys) {
@@ -40,6 +44,7 @@ async function resetBranch(pool, branchId, by) {
   try {
     await c.query('begin');
     await c.query('delete from events where branch_id = $1 and type in ' + RESET_TYPES, [branchId]);
+    await c.query("delete from events where branch_id = $1 and type in ('rec','recdel') and payload->>'c' in " + RESET_COLLS, [branchId]);
     await c.query('delete from sales where branch_id = $1', [branchId]);
     await c.query("insert into events(id, device_id, type, payload, client_time) values ($1, $2, 'test_reset', $3::jsonb, now())", [id, sys.id, JSON.stringify({ id: id, by: by, t: Date.now() })]);
     await c.query('commit');
