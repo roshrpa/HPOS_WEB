@@ -38,6 +38,15 @@ header.top{display:flex;align-items:center;gap:14px;padding:8px 18px;background:
 .brand{font-weight:700;font-size:19px;margin-right:auto;line-height:1.15}
 .brand small{display:block;font-size:12px;font-weight:500;color:var(--muted)}
 .chkpill{border-radius:99px;padding:6px 14px;font-size:12px;font-weight:700;background:var(--pink);color:#fff;min-height:32px}
+.nbell{position:relative;margin-right:6px}.nbadge{position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;border-radius:99px;background:#e5484d;color:#fff;font:700 10.5px/17px Inter,sans-serif;font-style:normal;text-align:center;padding:0 4px}
+.npanel{position:fixed;top:62px;right:14px;width:min(380px,calc(100vw - 28px));background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.28);z-index:60;padding:6px 6px 8px}
+.nph{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;gap:8px}.nph b{font-size:15px}
+.npi{display:flex;align-items:center;gap:10px;padding:10px;margin:4px;border-radius:11px;background:var(--soft);border-left:4px solid var(--plum)}.npi.warn{border-left-color:#f2b01e}.npi.bad{border-left-color:#e5484d}
+.npi>div{flex:1;min-width:0}.npi b{display:block;font-size:14px}.npi small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.npe{padding:18px 12px;color:var(--muted);text-align:center;font-size:14px}
+#npop{position:fixed;right:16px;top:68px;width:min(380px,calc(100vw - 32px));background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.35);z-index:70;padding:6px 6px 10px;animation:npin .25s ease-out}
+@keyframes npin{from{transform:translateY(-10px);opacity:0}to{transform:none;opacity:1}}
+#npop .npx{background:none;border:0;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;padding:0 6px}.npf{padding:4px 8px 0}.npf .btn{width:100%}
 .thbtn{width:34px;height:34px;border-radius:50%;background:var(--soft);color:var(--ink);display:inline-flex;align-items:center;justify-content:center;flex:none}
 .syncpill{border-radius:99px;padding:6px 12px 6px 22px;font-size:12px;font-weight:600;background:var(--soft);color:var(--muted);position:relative;min-height:32px}
 .syncpill::before{content:'';position:absolute;left:9px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:#b8b3b8}
@@ -1464,7 +1473,7 @@ var TAB_GROUPS = [
   {id:'rep', label:'Reports', tabs:[['sales','Bills'], ['range','Cash report'], ['reports','Accounts']]},
   {id:'stk', label:'Stock', tabs:[['inv','Usage &amp; count'], ['count','Cup count'], ['stock','Warehouse']]},
   {id:'mon', label:'Money', tabs:[['purch','Purchases'], ['exp','Expenses'], ['cash','Cash'], ['credit','Credit']]},
-  {id:'adm', label:'Manage', tabs:[['menu','Menu'], ['users','Users'], ['audit','Audit'], ['settings','Settings']]}
+  {id:'adm', label:'Manage', tabs:[['menu','Menu'], ['users','Users'], ['audit','Audit'], ['rem','Reminders'], ['settings','Settings']]}
 ];
 var TAB_ICON = {
   sale:'<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 10.5h10.6L20.5 8H6.5"/>',
@@ -1482,9 +1491,10 @@ var TAB_ICON = {
   menu:'<path d="M5 6h14M5 12h14M5 18h9"/>',
   users:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
   audit:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  rem:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M13.7 20a2 2 0 0 1-3.4 0"/>',
   settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'
 };
-function tabShown(id){ if (id === 'sale' && !saleOn()) return false; if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users','count'].indexOf(id) < 0) return false; if (TAB_PERM[id] && !can(TAB_PERM[id])) return false; return true; }
+function tabShown(id){ if (id === 'sale' && !saleOn()) return false; if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users','count','rem'].indexOf(id) < 0) return false; if (TAB_PERM[id] && !can(TAB_PERM[id])) return false; return true; }
 function tabLabel(id){ var r = ''; TAB_GROUPS.forEach(function(g){ g.tabs.forEach(function(t){ if (t[0] === id) r = t[1]; }); }); return r; }
 function tabBadge(id){
   var n = 0;
@@ -1505,6 +1515,88 @@ function headInfo(){
   if (S.tab === 'dash'){ var t = today(), c = dSales(t, t); return [new Date().toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'}), c.length + ' bill' + (c.length === 1 ? '' : 's') + ' today · AED ' + money(dSum(c)) + ' sold']; }
   return [tabLabel(S.tab), ''];
 }
+
+/* ---------- Notifications: bell + reminder popup ---------- */
+var N_DEF = {on:true, every:30, count:{on:true, from:'08:00'}, close:{on:true, from:'22:00'}, low:{on:false}, backup:{on:true}, credit:{on:true}};
+function ncfg(){ var c = (db.settings && db.settings.notif) || {}, d = N_DEF, o = {on: c.on !== false, every: parseInt(c.every, 10) || d.every, tasks: Array.isArray(c.tasks) ? c.tasks : []};
+  ['count','close','low','backup','credit'].forEach(function(k){ o[k] = Object.assign({}, d[k], c[k] || {}); }); return o; }
+function nowHM(){ var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+function nList(){
+  var c = ncfg(), out = [], u = curUser(); if (!u || !c.on) return out;
+  var hm = nowHM();
+  if (c.count.on && can('count') && openCheckPending() && hm >= c.count.from) out.push({key:'count', ic:'inv', title:'Morning cup count not done', sub:'Count the cups and plates for today.', tone:'warn', go:function(){ S.tab = 'count'; S.closeDate = today(); }});
+  if (c.close.on && can('close') && hm >= c.close.from && !(dayRec(today()).closed) && db.sales.some(function(x){ return !x.void && (x.day || new Date(x.t).toLocaleDateString('en-CA')) === today(); })) out.push({key:'close', ic:'audit', title:'Day is not closed yet', sub:'Count the drawer and close today.', tone:'warn', go:function(){ S.tab = 'close'; S.closeDate = today(); }});
+  var ls = c.low.on && can('stock') ? lowStockCount() : 0;
+  if (ls > 0) out.push({key:'low', ic:'stock', title:ls + ' item' + (ls > 1 ? 's' : '') + ' low on stock', sub:'Open the warehouse.', tone:'warn', go:function(){ S.tab = 'stock'; }});
+  if (c.backup.on && u.role === 'Owner'){ var age = db.lastBackup ? Math.floor((Date.now() - db.lastBackup) / 864e5) : 999;
+    if (age >= 7) out.push({key:'backup', ic:'audit', title:db.lastBackup ? 'No backup for ' + age + ' days' : 'No backup downloaded yet', sub:'Download a backup in Settings.', tone:'', go:function(){ S.tab = 'settings'; }}); }
+  var st = c.credit.on && can('credit') ? creditStats() : null;
+  if (st && st.nod) out.push({key:'credit', ic:'credit', title:'Credit overdue · AED ' + money(st.od), sub:st.nod + ' customer' + (st.nod > 1 ? 's' : ''), tone:'bad', go:function(){ S.tab = 'credit'; S.cc = null; S.ct = 'over'; }});
+  var wd = new Date().getDay(), dn = (dayRec(today()).ntDone) || {};
+  c.tasks.forEach(function(tk){
+    if (tk.on === false || !tk.title || hm < (tk.from || '00:00') || (tk.days && tk.days.length && tk.days.indexOf(wd) < 0) || dn[tk.id]) return;
+    out.push({key:'t:' + tk.id, ic:'audit', title:tk.title, sub:'Scheduled task · from ' + (tk.from || '00:00'), tone:'', task:tk.id});
+  });
+  return out;
+}
+function nDone(id){ var r = dayRec(today()); r.ntDone = r.ntDone || {}; r.ntDone[id] = {t:Date.now(), by:(typeof curName === 'function' ? curName() : '')}; save(); toast('Marked done'); }
+function nSnooze(){ try { return JSON.parse(localStorage.getItem('hpos_nsnz') || '{}'); } catch(e){ return {}; } }
+function nSetSnooze(keys, mins){ var m = nSnooze(), t = Date.now() + mins * 60000; keys.forEach(function(k){ m[k] = t; }); try { localStorage.setItem('hpos_nsnz', JSON.stringify(m)); } catch(e){} }
+function nBadge(){ var n = nList().length, b = document.getElementById('nbadge'); if (b){ b.textContent = n > 9 ? '9+' : n; b.style.display = n ? '' : 'none'; } }
+function nGo(key){ var it = nList().filter(function(x){ return x.key === key; })[0]; S.nopen = false; npopClose(); if (it){ if (it.task){ nDone(it.task); render(); nBadge(); return; } S.sbOpen = false; it.go(); render(); } }
+function npopClose(){ var e = document.getElementById('npop'); if (e) e.remove(); }
+function npopShow(items){
+  npopClose();
+  var d = document.createElement('div'); d.id = 'npop'; d.setAttribute('role', 'alertdialog');
+  d.innerHTML = '<div class="nph"><b>Reminder</b><button class="npx" aria-label="Close">×</button></div>' + items.map(function(x){ return '<div class="npi ' + x.tone + '"><div><b>' + esc(x.title) + '</b><small>' + esc(x.sub) + '</small></div><button class="btn primary sm" data-k="' + x.key + '">' + (x.task ? 'Done' : 'Open') + '</button></div>'; }).join('')
+    + '<div class="npf"><button class="btn ghost sm" id="npsz">Remind me in ' + ncfg().every + ' min</button></div>';
+  document.body.appendChild(d);
+  var keys = items.map(function(x){ return x.key; });
+  d.querySelector('.npx').onclick = d.querySelector('#npsz').onclick = function(){ nSetSnooze(keys, ncfg().every); npopClose(); };
+  [].forEach.call(d.querySelectorAll('[data-k]'), function(b){ b.onclick = function(){ nGo(b.dataset.k); }; });
+}
+function nTick(){
+  nBadge(); if (!curUser() || document.hidden) return;
+  var sn = nSnooze(), now = Date.now(), due = nList().filter(function(x){ return !(sn[x.key] > now); });
+  var cur = document.getElementById('npop');
+  if (!due.length){ if (cur) npopClose(); return; }
+  if (cur) return;      /* one popup at a time; it stays until the person acts */
+  npopShow(due);
+}
+setInterval(nTick, 20000); setTimeout(nTick, 2500);
+function nPanel(){
+  var l = nList(), sn = nSnooze(), now = Date.now();
+  return '<div class="npanel"><div class="nph"><b>Notifications</b><button class="btn ghost sm" data-act="nsettings">Settings</button></div>'
+    + (l.length ? l.map(function(x){ return '<div class="npi ' + x.tone + '"><div><b>' + esc(x.title) + '</b><small>' + esc(x.sub) + (sn[x.key] > now ? ' · snoozed' : '') + '</small></div><button class="btn primary sm" data-act="ngo" data-k="' + x.key + '">' + (x.task ? 'Done' : 'Open') + '</button></div>'; }).join('') : '<div class="npe">All clear. Nothing needs you right now.</div>') + '</div>';
+}
+function nCard(){
+  var c = ncfg();
+  function sw(on, act, k, title, hint, time){ return '<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)"><div style="flex:1"><b>' + title + '</b><div style="color:var(--muted);font-size:13px;margin-top:2px">' + hint + '</div></div>'
+    + (time ? '<input class="inp" type="time" style="width:132px" data-f="nset" data-k="' + k + '" data-p="from" value="' + esc(time) + '">' : '')
+    + '<button role="switch" aria-checked="' + on + '" data-act="' + act + '" data-k="' + k + '" class="btn ' + (on ? 'good' : 'ghost') + ' sm" style="min-width:70px">' + (on ? 'On' : 'Off') + '</button></div>'; }
+  return '<div class="card" style="margin:0"><h3 style="margin:0 0 4px">Notifications</h3><p style="color:var(--muted);font-size:13px;margin:0 0 4px">Reminders show in the bell at the top and as a small popup on every screen, including Sale. If the job is still not done, the popup comes again after the repeat time.</p>'
+    + sw(c.on, 'ntg', 'on', 'Reminders', 'Master switch for this shop.')
+    + '<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)"><div style="flex:1"><b>Repeat every</b><div style="color:var(--muted);font-size:13px;margin-top:2px">Also the Snooze time on the popup.</div></div><select class="inp" style="width:130px" data-f="nset" data-k="every">' + [5,10,15,30,60,120,240].map(function(m){ return '<option value="' + m + '"' + (m === c.every ? ' selected' : '') + '>' + (m < 60 ? m + ' minutes' : (m / 60) + (m === 60 ? ' hour' : ' hours')) + '</option>'; }).join('') + '</select></div>'
+    + sw(c.count.on, 'ntg', 'count', 'Morning cup count', 'Remind from this time until the count is done.', c.count.from)
+    + sw(c.close.on, 'ntg', 'close', 'Close the day', 'Remind from this time if there were sales and the day is not closed.', c.close.from)
+    + sw(c.low.on, 'ntg', 'low', 'Low stock', 'Remind while any item is low in the warehouse.')
+    + sw(c.backup.on, 'ntg', 'backup', 'Backup', 'Owner only. Remind when there is no backup for 7 days.')
+    + sw(c.credit.on, 'ntg', 'credit', 'Credit overdue', 'Remind while any customer is overdue.')
+    + '</div>';
+}
+function nTasksCard(){
+  var c = ncfg();
+  return '<div class="card" style="margin:0"><h3 style="margin:0 0 4px">Scheduled tasks</h3><p style="color:var(--muted);font-size:13px;margin:0 0 8px">For jobs like cleaning. Each task shows from its time on the chosen days until someone taps Done.</p>'
+    + (c.tasks.length ? c.tasks.map(function(tk){ var dl = ['S','M','T','W','T','F','S'];
+        return '<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="inp" style="flex:1;min-width:150px" placeholder="e.g. Clean the freezer" data-f="nt" data-id="' + tk.id + '" data-k="title" value="' + esc(tk.title || '') + '"><input class="inp" type="time" style="width:132px" data-f="nt" data-id="' + tk.id + '" data-k="from" value="' + esc(tk.from || '09:00') + '">'
+          + '<button class="btn ' + (tk.on !== false ? 'good' : 'ghost') + ' sm" data-act="nttog" data-id="' + tk.id + '" style="min-width:60px">' + (tk.on !== false ? 'On' : 'Off') + '</button><button class="btn ghost sm" data-act="ntdel" data-id="' + tk.id + '" aria-label="Delete">×</button></div>'
+          + '<div style="display:flex;gap:5px;margin-top:8px">' + dl.map(function(l, i){ var on = !tk.days || !tk.days.length || tk.days.indexOf(i) >= 0; return '<button class="btn ' + (on ? 'primary' : 'ghost') + ' sm" data-act="ntday" data-id="' + tk.id + '" data-d="' + i + '" style="min-width:34px;padding:0 8px">' + l + '</button>'; }).join('') + '</div></div>'; }).join('') : '<div style="color:var(--muted);font-size:13px;padding:6px 0">No tasks yet.</div>')
+    + '<div class="btns" style="margin-top:10px"><button class="btn ghost sm" data-act="ntadd">+ Add task</button></div>'
+    + '</div>';
+}
+function vRem(){
+  return '<div class="page"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px;align-items:start">' + nCard() + nTasksCard() + '</div></div>';
+}
 function themeMode(){ try { return localStorage.getItem('hpos_theme') || 'auto'; } catch(e){ return 'auto'; } }
 function themeDark(){ return document.documentElement.getAttribute('data-theme') === 'dark'; }
 function themeIcon(){ return themeDark()
@@ -1515,7 +1607,7 @@ function setTheme(m){ try { localStorage.setItem('hpos_theme', m); } catch(e){}
   document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light'); }
 function vHeader(){
   var hi = headInfo(), ls = 0; try { ls = can('stock') ? lowStockCount() : 0; } catch(e){}
-  return '<header class="top"><button class="menubtn" data-act="sbtoggle" aria-label="Menu"><svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div class="ht1"><h1 class="ptitle">'+hi[0]+'</h1>'+(hi[1] ? '<p>'+hi[1]+'</p>' : '')+'</div><span class="sp"></span><button class="thbtn" data-act="theme" aria-label="Light or dark mode" title="Light / dark mode">'+themeIcon()+'</button>'+(ls > 0 ? '<button class="alertp" data-act="gostock"><i></i>'+ls+' low on stock</button>' : '')+'<button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+creditPill()+userChip()+'</header>';
+  return '<header class="top"><button class="menubtn" data-act="sbtoggle" aria-label="Menu"><svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div class="ht1"><h1 class="ptitle">'+hi[0]+'</h1>'+(hi[1] ? '<p>'+hi[1]+'</p>' : '')+'</div><span class="sp"></span><button class="thbtn nbell" data-act="nbell" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M13.7 20a2 2 0 0 1-3.4 0"/></svg><i id="nbadge" class="nbadge" style="display:none"></i></button><button class="thbtn" data-act="theme" aria-label="Light or dark mode" title="Light / dark mode">'+themeIcon()+'</button>'+(ls > 0 ? '<button class="alertp" data-act="gostock"><i></i>'+ls+' low on stock</button>' : '')+'<button id="syncpill" class="syncpill off" data-act="syncnow">This device only</button>'+(openCheckPending() && can('close') ? '<button class="chkpill" data-act="opencheck">Stock check</button>' : '')+creditPill()+userChip()+'</header>'+(S.nopen ? nPanel() : '');
 }
 
 function vSale(){
@@ -2075,7 +2167,7 @@ function render(){
   if (S.tab === 'sale' && !saleOn()) S.tab = homeTab();
   var keep = {}; SCR.forEach(function(s){ var e = document.querySelector(s); if (e) keep[s] = [e.scrollTop, e.scrollLeft]; });
   var key = S.tab;
-  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'reports' ? vReports() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'count' ? vCount() : S.tab === 'range' ? vRange() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'settings' ? vSettings() : vMenu();
+  var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'reports' ? vReports() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'count' ? vCount() : S.tab === 'range' ? vRange() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'rem' ? vRem() : S.tab === 'settings' ? vSettings() : vMenu();
   document.getElementById('app').innerHTML = '<div class="shell">' + vSide() + '<div class="mainc">' + vHeader() + licBanner() + '<main>' + body + '</main></div></div>' + vSheets();
   paintSync();
   SCR.forEach(function(s){ var e = document.querySelector(s), k = keep[s]; if (e && k && key === lastKey && !(s === '.items' && S.catChanged)){ e.scrollTop = k[0]; e.scrollLeft = k[1]; } });
@@ -2121,6 +2213,8 @@ document.addEventListener('input', function(e){
   if (t.id === 'dval' && S.discForm){ S.discForm.val = t.value; discRefresh(); return; }
   if (f === 'dnote' && S.discForm){ S.discForm.note = t.value; discRefresh(); return; }
   if (f === 'sync'){ sync[t.dataset.k] = t.value.trim(); saveSync(); paintSync(); return; }
+  if (f === 'nt'){ var nt = ncfg(); nt.tasks.forEach(function(x){ if (x.id === t.dataset.id) x[t.dataset.k] = t.value; }); db.settings.notif = nt; save(); nBadge(); return; }
+  if (f === 'nset'){ var nn = ncfg(), nk2 = t.dataset.k; if (t.dataset.p) nn[nk2][t.dataset.p] = t.value; else nn[nk2] = parseInt(t.value, 10) || 30; db.settings.notif = nn; save(); nBadge(); return; }
   if (f === 'set'){ var kk = t.dataset.k; db.settings[kk] = (kk === 'rate' || kk === 'lowAt') ? (parseFloat(t.value) || 0) : t.value; save(); return; }
   if (t.id === 'whq'){ var wq0 = t.value.trim().toLowerCase(); document.querySelectorAll('tr[data-n]').forEach(function(r){ r.style.display = (!wq0 || r.dataset.n.indexOf(wq0) >= 0) ? '' : 'none'; }); return; }
   if ((f === 'cc' || f === 'oc' || f === 'ec') && (!S.cstart || Date.now() - S.cstart > 3600000)) S.cstart = Date.now();
@@ -2202,6 +2296,14 @@ document.addEventListener('click', function(e){
     case 'tordclear': db.tOrphans = {}; save(); toast('Cleared'); break;
     case 'liccheck': licCheck(); break;
     case 'licdis': try { sessionStorage.setItem('hp_licdis_' + today(), '1'); } catch(er){} render(); break;
+    case 'ntadd': var na = ncfg(); na.tasks.push({id:uid('n'), title:'', from:'09:00', days:[0,1,2,3,4,5,6], on:true}); db.settings.notif = na; save(); break;
+    case 'ntdel': var nd = ncfg(); nd.tasks = nd.tasks.filter(function(x){ return x.id !== t.dataset.id; }); db.settings.notif = nd; save(); break;
+    case 'nttog': var ng = ncfg(); ng.tasks.forEach(function(x){ if (x.id === t.dataset.id) x.on = x.on === false; }); db.settings.notif = ng; save(); break;
+    case 'ntday': var ny = ncfg(), di = +t.dataset.d; ny.tasks.forEach(function(x){ if (x.id !== t.dataset.id) return; var a = (x.days && x.days.length) ? x.days.slice() : [0,1,2,3,4,5,6]; var p = a.indexOf(di); if (p >= 0) a.splice(p, 1); else a.push(di); x.days = a.length ? a : [di]; }); db.settings.notif = ny; save(); break;
+    case 'nbell': S.nopen = !S.nopen; break;
+    case 'ngo': nGo(t.dataset.k); return;
+    case 'nsettings': S.nopen = false; S.tab = 'rem'; break;
+    case 'ntg': var nk = t.dataset.k; db.settings.notif = ncfg(); if (nk === 'on') db.settings.notif.on = !db.settings.notif.on; else db.settings.notif[nk].on = !db.settings.notif[nk].on; save(); break;
     case 'theme': setTheme(themeDark() ? 'light' : 'dark'); break;
     case 'sbtoggle': S.sbOpen = !S.sbOpen; break;
     case 'tab': S.sbOpen = false; S.uedit = null; S.permopen = false; S.uaopen = S.supopen = S.spopen = S.rpopen = S.cfopen = S.copopen = S.custopen = S.popen = S.ropen = S.xopen = false; S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
@@ -2473,7 +2575,7 @@ var PERMS = [
   ['exp', 'Expenses'], ['menu', 'Menu'], ['settings', 'Settings'], ['audit', 'Audit log'], ['users', 'Users and permissions'],
   ['void', 'Cancel bills (approve)'], ['discount', 'Give discounts (approve)'], ['price', 'Change price at sale (approve)']
 ];
-var TAB_PERM = {count:'count', sales:'sales', close:'close', range:'close', inv:'inv', stock:'stock', exp:'exp', menu:'menu', settings:'settings', audit:'audit', users:'users'};
+var TAB_PERM = {count:'count', sales:'sales', close:'close', range:'close', inv:'inv', stock:'stock', exp:'exp', menu:'menu', settings:'settings', rem:'settings', audit:'audit', users:'users'};
 var AUDIT_CATS = ['Sales', 'Purchases', 'Expenses', 'Cash', 'Stock', 'Day close', 'Credit', 'Menu', 'Settings', 'Users and Security'];
 var PRICE_REASONS = ['Customer bargain', 'Near expiry or damaged', 'Price entered wrongly', 'Staff or family', 'Promotion or offer', 'Other (write the reason)'];
 if (!db.users) db.users = [];
