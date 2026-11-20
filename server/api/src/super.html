@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex">
-<title>Control Centre</title>
+<title>POS - Admin Control</title>
 <style>
 :root{--acc:#df3d8a;--accd:#b82a6f;--ink:#1c1a1f;--mut:#6c6a70;--line:#e9e6e1;--bg:#f6f4f2;--ok:#14815f;--okbg:#e4f4ed;--bad:#c4543a;--badbg:#fbe8e3;--warn:#a86a08;--warnbg:#fdf0d8}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -98,12 +98,12 @@ function card(b){
 function render(){
   var a = document.getElementById('app'), keep = document.getElementById('q'), had = keep && document.activeElement === keep, pos = had ? keep.selectionStart : 0;
   if (!T){
-    a.innerHTML = '<div class="login"><div class="card"><h2 style="margin:0 0 16px">Control Centre</h2>' + (MSG ? '<div class="msg e">' + esc(MSG) + '</div>' : '')
+    a.innerHTML = '<div class="login"><div class="card"><h2 style="margin:0 0 16px">POS - Admin Control</h2>' + (MSG ? '<div class="msg e">' + esc(MSG) + '</div>' : '')
       + '<label>Name<input id="n" autocomplete="username" autocapitalize="off"></label><label>Password<input id="p" type="password" autocomplete="current-password"></label><button class="pri" id="go" style="width:100%">Sign in</button></div></div>';
     document.getElementById('go').onclick = login; document.getElementById('p').onkeydown = function(e){ if (e.key === 'Enter') login(); };
     return;
   }
-  var s = summary(), h = '<header><h1>Control Centre <small style="font-weight:500">· Shops and licences</small></h1><small>' + esc(WHO) + '</small><button class="sm" id="out">Sign out</button></header><main>';
+  var s = summary(), h = '<header><h1>POS - Admin Control</h1><small>' + esc(WHO) + '</small><button class="sm" id="out">Sign out</button></header><main>';
   if (MSG && !M) h += '<div class="msg' + (MSG.e ? ' e' : '') + '">' + esc(MSG.t || MSG) + '</div>';
   h += '<div class="stats"><div class="stat"><b>' + s.br + '</b><span>Branches in ' + s.co + ' companies</span></div><div class="stat"><b>' + s.act + '</b><span>Active</span></div>'
     + '<div class="stat ' + (s.soon ? 'w' : '') + '"><b>' + s.soon + '</b><span>Licence ends within 30 days</span></div><div class="stat ' + (s.bad ? 'b' : '') + '"><b>' + s.bad + '</b><span>Expired or off</span></div></div>';
