@@ -21,6 +21,8 @@
  html[data-theme=dark] input[type=checkbox]{accent-color:var(--pink)}
  html[data-theme=dark] .tbl h3,html[data-theme=dark] h1,html[data-theme=dark] h2,html[data-theme=dark] h3{color:var(--ink)}
  html[data-theme=dark] .cat{background:var(--soft);color:var(--ink)}
+ html[data-theme=dark] .cat[aria-pressed="true"]{background:var(--pink);color:#fff}
+ .cats .cat[aria-pressed="true"]::before{content:"\2713";margin-right:6px;font-weight:700}
  html[data-theme=dark] .btn.primary:disabled,html[data-theme=dark] .btn.plum:disabled,html[data-theme=dark] .btn:disabled{background:var(--soft);color:var(--muted)}
  html[data-theme=dark] .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
  html[data-theme=dark] .logo,html[data-theme=dark] .brand img{background:#fff;border-radius:8px}
