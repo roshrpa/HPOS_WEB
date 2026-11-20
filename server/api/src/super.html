@@ -41,7 +41,7 @@ button.pri{background:var(--acc);border-color:var(--acc);color:#fff} button.sm{h
 <div id="app"></div>
 <script>
 var T = ''; try { T = sessionStorage.getItem('st') || ''; } catch(e){}
-var UL = null, D = null, M = null, MSG = null, WHO = '', FILTER = 'all', QUERY = '';
+var DL = null, UL = null, D = null, M = null, MSG = null, WHO = '', FILTER = 'all', QUERY = '';
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 async function api(path, body){
   var r = await fetch(path, {method: body ? 'POST' : 'GET', headers: Object.assign({'Content-Type':'application/json'}, T ? {'X-Super-Token': T} : {}), body: body ? JSON.stringify(body) : undefined});
@@ -124,7 +124,7 @@ function render(){
   document.getElementById('cnew').onclick = function(){ M = {a: 'newc'}; MSG = null; render(); };
   var q = document.getElementById('q'); q.oninput = function(){ QUERY = q.value; render(); }; if (had){ q.focus(); try { q.setSelectionRange(pos, pos); } catch(e){} }
   [].forEach.call(document.querySelectorAll('[data-f]'), function(el){ el.onclick = function(){ FILTER = el.dataset.f; render(); }; });
-  [].forEach.call(document.querySelectorAll('[data-a]'), function(el){ el.onclick = function(){ M = {a: el.dataset.a, b: el.dataset.b, c: el.dataset.c}; MSG = null; if (M.a === 'users') loadUsers(); render(); }; });
+  [].forEach.call(document.querySelectorAll('[data-a]'), function(el){ el.onclick = function(){ M = {a: el.dataset.a, b: el.dataset.b, c: el.dataset.c}; MSG = null; if (M.a === 'users') loadUsers(); if (M.a === 'dev') loadDevices(); render(); }; });
   if (M) wire();
 }
 function findB(id){ var r = null; allBranches().forEach(function(b){ if (b.id === id) r = b; }); return r; }
@@ -141,12 +141,20 @@ function modal(){
       + '<p class="mut" style="margin-top:12px">PINs are stored scrambled, so they cannot be shown. Use Manage to set a new one. Users: ' + b.users + ' of ' + b.max_users + '.</p><button class="sm" data-a="adm" data-b="' + esc(b.id) + '" style="margin-top:4px">+ Add / reset an admin</button>';
     btn = '';
   }
+  if (M.a === 'dev'){
+    title = esc(b.name) + ' devices';
+    var seen = function(t){ if (!t) return 'never'; var m = Math.round((Date.now() - new Date(t).getTime()) / 60000); return m < 2 ? 'now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+    body = !DL ? '<p class="mut">Loading…</p>' : (DL.error ? '<div class="msg e">' + esc(DL.error) + '</div>' : '<p class="mut" style="margin:0 0 6px">Each browser or app that signed in is one device. Switching a device off signs it out; it must sign in again.</p>'
+      + (DL.devices.length ? DL.devices.map(function(d){ return '<div class="urow"><div class="nm"><b>' + esc(d.name || d.kind) + '</b><span><span class="pill mut">' + esc(d.kind) + '</span> <span class="pill ' + (d.active ? 'ok' : 'bad') + '"><i></i>' + (d.active ? 'On' : 'Off') + '</span> <span class="mut">Seen ' + seen(d.last_seen) + '</span></span></div>' + (d.active ? '<button class="sm dng" data-d="' + esc(d.id) + '">Switch off</button>' : '') + '</div>'; }).join('') : '<div class="empty">No devices.</div>')
+      + '<button class="sm" id="dclean" style="margin-top:12px">Switch off devices unused for 30 days</button><p class="mut" style="margin-top:6px">This also runs automatically every day.</p>');
+    btn = '';
+  }
   if (M.a === 'user'){
     var u = UL && UL.users.filter(function(x){ return x.id === M.u; })[0] || {name: '', role: '', active: true};
     title = esc(u.name); body = '<p class="mut">' + esc(u.role) + ' · ' + (u.active ? 'Active' : 'Switched off') + '</p><label>New PIN (6+ digits)<input id="f1" type="password" inputmode="numeric" autocomplete="new-password"></label><p class="mut">Leave empty to keep the current PIN.</p>'
       + '<div class="row"><button class="sm ' + (u.active ? 'dng' : '') + '" id="tog">' + (u.active ? 'Switch user off' : 'Switch user on') + '</button><button class="sm dng" id="del">Delete user</button></div><p class="mut">Delete works only for a user with no bills or records. Otherwise switch the user off.</p>'; btn = 'Set PIN';
   }
-  if (M.a === 'more'){ title = esc(b.name); body = '<div class="row" style="flex-direction:column;align-items:stretch"><button id="cpy">Copy shop code (' + esc(b.code) + ')</button><button class="dng" data-a="rst" data-b="' + esc(b.id) + '">Go-live reset…</button></div>'; btn = ''; }
+  if (M.a === 'more'){ title = esc(b.name); body = '<div class="row" style="flex-direction:column;align-items:stretch"><button id="cpy">Copy shop code (' + esc(b.code) + ')</button><button data-a="dev" data-b="' + esc(b.id) + '">Devices (' + b.devices_all + ')…</button><button class="dng" data-a="rst" data-b="' + esc(b.id) + '">Go-live reset…</button></div>'; btn = ''; }
   if (M.a === 'rst'){ title = 'Go-live reset'; body = '<p>Starts <b>' + esc(b.code) + '</b> from zero on every device.</p><p class="mut" style="margin:6px 0 0"><b>Cleared:</b> bills, tablet orders, purchases, expenses, cash and bank entries, credit payments, stock counts, waste, day closings, the audit log, and all stock (shop and warehouse, set to 0).</p><p class="mut" style="margin:6px 0 10px"><b>Kept:</b> users, their roles and permissions, menu and prices, settings, expense categories, materials, recipes, portions, suppliers and customers.</p><p><b>This cannot be undone.</b></p><label>Type the shop code to confirm<input id="f1" autocapitalize="off" placeholder="' + esc(b.code) + '"></label>'; btn = 'Reset'; cls = 'dng'; }
   h += '<h3>' + title + '</h3>' + (MSG && M.a !== 'newc' ? '<div class="msg' + (MSG.e ? ' e' : '') + '">' + esc(MSG.t || MSG) + '</div>' : '') + body + '<div class="row" style="justify-content:flex-end;margin-top:16px"><button id="cx">' + (btn ? 'Cancel' : 'Close') + '</button>' + (btn ? '<button class="' + cls + '" id="ok">' + btn + '</button>' : '') + '</div></div></div>';
   return h;
@@ -154,10 +162,12 @@ function modal(){
 function wire(){
   var $ = function(i){ return document.getElementById(i); };
   $('cx').onclick = function(){ M = (M.a === 'user' || (M.a === 'adm' && UL)) ? {a: 'users', b: M.b} : null; if (M && M.a === 'users') loadUsers(); render(); }; $('scr').onclick = function(e){ if (e.target.id === 'scr'){ M = null; render(); } };
-  [].forEach.call(document.querySelectorAll('.modal [data-a]'), function(el){ el.onclick = function(){ M = {a: el.dataset.a, b: el.dataset.b}; render(); }; });
+  [].forEach.call(document.querySelectorAll('.modal [data-a]'), function(el){ el.onclick = function(){ M = {a: el.dataset.a, b: el.dataset.b}; if (M.a === 'dev') loadDevices(); render(); }; });
   if ($('cpy')) $('cpy').onclick = function(){ var b = findB(M.b); try { navigator.clipboard.writeText(b.code); } catch(e){} M = null; MSG = {t: 'Shop code copied.'}; render(); };
   [].forEach.call(document.querySelectorAll('[data-x]'), function(el){ el.onclick = function(){ var x = el.dataset.x, f = $('f4'); if (x === 'clr') f.value = ''; else { var cur = f.value, t = new Date().toLocaleDateString('en-CA'); f.value = addDays(cur && cur > t ? cur : t, +x); } }; });
   [].forEach.call(document.querySelectorAll('[data-u]'), function(el){ el.onclick = function(){ M = {a: 'user', b: M.b, u: el.dataset.u}; MSG = null; render(); }; });
+  [].forEach.call(document.querySelectorAll('[data-d]'), function(el){ el.onclick = function(){ if (window.confirm('Switch this device off? It will be signed out.')) devOp('/device', {device_id: el.dataset.d}, 'Device switched off.'); }; });
+  if ($('dclean')) $('dclean').onclick = function(){ devOp('/devices-clean', {days: 30}, function(r){ return r.cleaned + ' unused device(s) switched off.'; }); };
   if ($('tog')) $('tog').onclick = function(){ var u = UL.users.filter(function(x){ return x.id === M.u; })[0]; userOp({active: !u.active}, u.active ? 'User switched off.' : 'User switched on.'); };
   if ($('del')) $('del').onclick = function(){ var u = UL.users.filter(function(x){ return x.id === M.u; })[0]; if (window.confirm('Delete ' + u.name + '? This cannot be undone.')) userOp({delete: true}, 'User deleted.'); };
   if (!$('ok')) return;
@@ -178,6 +188,17 @@ async function loadUsers(){
   UL = null; var id = M && M.b;
   try { UL = await api('/super/branch/' + id + '/users'); } catch(e){ UL = {error: e.message, users: []}; }
   if (M && M.a === 'users' && M.b === id) render();
+}
+async function loadDevices(){
+  DL = null; var id = M && M.b;
+  try { DL = await api('/super/branch/' + id + '/devices'); } catch(e){ DL = {error: e.message, devices: []}; }
+  if (M && M.a === 'dev' && M.b === id) render();
+}
+async function devOp(path, body, ok){
+  var id = M.b;
+  try { var r = await api('/super/branch/' + id + path, body); D = r; MSG = {t: typeof ok === 'function' ? ok(r) : ok}; }
+  catch(e){ MSG = {t: e.message, e: 1}; }
+  M = {a: 'dev', b: id}; await loadDevices(); render();
 }
 async function userOp(body, ok){
   var id = M.b, uid = M.u;

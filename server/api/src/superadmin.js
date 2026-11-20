@@ -29,6 +29,19 @@ async function ensureSchema(pool) {
   await pool.query(`create table if not exists superadmins (
     id text primary key, name text not null, pass_hash text not null, created_at timestamptz not null default now());
     create unique index if not exists superadmins_name_ci on superadmins (lower(name));`);
+  cleanStaleDevices(pool);
+  const t = setInterval(function () { cleanStaleDevices(pool); }, 24 * 60 * 60 * 1000); if (t.unref) t.unref();
+}
+
+// Switch off devices not seen for N days (never deletes: bills and logs keep their device reference).
+async function cleanStaleDevices(pool, branchId, days) {
+  const d = Math.max(1, parseInt(days, 10) || 30);
+  const v = [d]; let w = '';
+  if (branchId) { v.push(branchId); w = ' and branch_id = $2'; }
+  try {
+    const r = await pool.query("update devices set active = false where active and kind <> 'system' and coalesce(last_seen, created_at) < now() - ($1 || ' days')::interval" + w, v);
+    return r.rowCount;
+  } catch (e) { console.error('device cleanup failed', e.message); return 0; }
 }
 
 // Go-live reset: wipe a branch's bills, orders, purchases, expenses, cash, stock and logs, keep its users and settings,
@@ -184,6 +197,21 @@ async function handle(req, res, path, m, pool, h) {
         await pool.query("update users set active = $2, ver = nextval('users_ver_seq') where id = $1", [u.id, !!b.active]);
       }
       return h.send(res, 200, await overview(pool)), true;
+    }
+    if (sub === '/devices' && m === 'GET') {
+      const r = await pool.query("select id, name, kind, active, created_at, last_seen from devices where branch_id = $1 and kind <> 'system' order by active desc, last_seen desc nulls last, created_at desc", [br.id]);
+      return h.send(res, 200, { devices: r.rows }), true;
+    }
+    if (sub === '/device' && m === 'POST') {       // switch one device off
+      const b = await h.readJson(req);
+      const r = await pool.query("update devices set active = false where id::text = $1 and branch_id = $2 and kind <> 'system'", [String(b.device_id || ''), br.id]);
+      if (!r.rowCount) throw err(404, 'Device not found.');
+      return h.send(res, 200, await overview(pool)), true;
+    }
+    if (sub === '/devices-clean' && m === 'POST') {  // switch off devices unused for N days
+      const b = await h.readJson(req);
+      const n = await cleanStaleDevices(pool, br.id, b.days);
+      return h.send(res, 200, Object.assign(await overview(pool), { cleaned: n })), true;
     }
     if (sub === '/reset-test' && m === 'POST') {
       const b = await h.readJson(req);
