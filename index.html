@@ -341,7 +341,7 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 }
 
 .licbar{display:flex;align-items:center;gap:10px;background:var(--warn-bg);color:#7a5410;border-bottom:1px solid #f0dcae;padding:8px 18px;font-size:13px}.licbar span{flex:1}.licbar button{background:none;border:0;font-size:20px;line-height:1;cursor:pointer;color:inherit}
-.plh,.plr{display:grid;grid-template-columns:minmax(150px,2.2fr) 84px 124px 104px 132px minmax(96px,1fr) 34px;gap:6px;align-items:center}
+.plh,.plr{display:grid;grid-template-columns:minmax(150px,2fr) 84px 124px 104px 132px minmax(130px,1.5fr) minmax(96px,.9fr) 34px;gap:6px;align-items:center}
 .plh{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 0 4px}
 .plr{margin:0 0 4px}.plr .inp{height:34px!important;padding:0 8px!important;font-size:14px!important;min-width:0}.plr small{font-size:12px;color:var(--muted)}
 .plr .plx{height:30px;width:30px;padding:0;font-size:18px;line-height:1}
@@ -511,9 +511,22 @@ function invDefault(){
   r('Mr. Corn','Large',[['cornL',1]]);
   var base = {};
   M.forEach(function(x){ base[x[0]] = {t:0, q:0}; });
-  return {v:9, materials:M.map(function(x){ return {id:x[0], name:x[1], unit:x[2], cost:x[3], cup:x[4], min:x[5]}; }), recipes:R, base:base, purchases:[], waste:[], counts:[]};
+  var inv = {v:10, materials:M.map(function(x){ return {id:x[0], name:x[1], unit:x[2], cost:x[3], cup:x[4], min:x[5]}; }), recipes:R, base:base, purchases:[], waste:[], counts:[]};
+  invAddRaw(inv); return inv;
 }
-if (!db.inv || db.inv.v !== 9) db.inv = invDefault();
+/* raw materials: what you really buy (ice cream by weight, powder, packets). Sales take them off by the recipe, whatever the flavour. */
+function invAddRaw(inv){
+  [['brRaw','Baskin Robbins raw (ice cream)','g',5500,5500],['mmRaw','Minimelts raw (ice cream)','g',5500,0],['pcPowder','Pancake powder','g',2000,0],['nachosPk','Nachos packets','pack',5,0]].forEach(function(x){
+    if (!inv.materials.some(function(m){ return m.id === x[0]; })) inv.materials.push({id:x[0], name:x[1], unit:x[2], cost:0, cup:false, min:x[3], tub:x[4], raw:true});
+    if (!inv.base[x[0]]) inv.base[x[0]] = {t:0, q:0};
+  });
+  function add(k, m, q){ var l = inv.recipes[k] || (inv.recipes[k] = []); if (!l.some(function(x){ return x.m === m; })) l.push({m:m, q:q}); }
+  add('Baskin Robbins|Small', 'brRaw', 100); add('Baskin Robbins|Medium', 'brRaw', 150); add('Baskin Robbins|Large', 'brRaw', 200);
+  add('Minimelts Ice Cream|Small', 'mmRaw', 90); add('Minimelts Ice Cream|Medium', 'mmRaw', 130); add('Minimelts Ice Cream|Large', 'mmRaw', 170);
+  add('Nachos|', 'nachosPk', 2);
+}
+if (db.inv && db.inv.v === 9){ invAddRaw(db.inv); db.inv.v = 10; save(); }
+if (!db.inv || db.inv.v !== 10) db.inv = invDefault();
 if (db.settings && db.settings.pin === undefined){ db.settings.pinOn = false; db.settings.pin = '1234'; }
 if (!db.settings) db.settings = {pinOn:false, pin:'1234', shop:'Hollywood Ice Creams', tel:'056 900 4121 / 07 236 1564', insta:'@hollywoodicecreams_ae', trn:'', vat:false, rate:5, allowZero:true, lowAt:5};
 if (db.settings.carryOpen === undefined) db.settings.carryOpen = true;
@@ -554,7 +567,7 @@ function avgPriceForCup(mid){
   return units ? rev / units : 0;
 }
 function fdate(t){ var d = new Date(t); return d.toLocaleDateString('en-GB', {day:'numeric', month:'short'}) + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
-function matOpts(sel){ return db.inv.materials.map(function(m){ return '<option value="'+m.id+'"'+(m.id===sel?' selected':'')+'>'+esc(m.name)+' ('+esc(m.unit)+')</option>'; }).join(''); }
+function matOpts(sel){ return db.inv.materials.filter(function(m){ return m.raw; }).concat(db.inv.materials.filter(function(m){ return !m.raw; })).map(function(m){ return '<option value="'+m.id+'"'+(m.id===sel?' selected':'')+'>'+esc(m.name)+' ('+esc(m.unit)+')</option>'; }).join(''); }
 
 function vInv(){
   var tabs = [['daily','Daily use'],['over','Overview'],['buy','Buy / waste'],['count','Stock count'],['var','Variance'],['rec','Recipes'],['mat','Materials']];
@@ -665,16 +678,18 @@ function invRec(){
   return '<p style="color:var(--muted);margin:0 0 10px">What is used up each time one of these is sold (the same for every flavour in the category). The numbers here are sample values. Replace them with your real portions.</p><div class="cats" style="padding:0 0 10px">'+chips+'</div><div class="recg">'+cards+'</div>';
 }
 function invMat(){
-  var rows = db.inv.materials.map(function(m){
+  var rows = db.inv.materials.filter(function(m){ return m.raw; }).concat(db.inv.materials.filter(function(m){ return !m.raw; })).map(function(m){
     return '<tr><td class="nm"><input class="inp" style="width:100%;text-align:left" data-f="mname" data-m="'+m.id+'" value="'+esc(m.name)+'" aria-label="Name"></td>'
       + '<td class="c"><input class="inp" style="width:60px;text-align:center" data-f="munit" data-m="'+m.id+'" value="'+esc(m.unit)+'" aria-label="Unit"></td>'
       + '<td class="n"><input class="inp" type="number" min="0" step="any" data-f="mcost" data-m="'+m.id+'" value="'+m.cost+'" aria-label="Cost per unit"></td>'
       + '<td class="n"><input class="inp" type="number" min="0" step="any" data-f="mmin" data-m="'+m.id+'" value="'+m.min+'" aria-label="Low stock level"></td>'
+      + '<td class="c"><input type="checkbox" data-f="mraw" data-m="'+m.id+'"'+(m.raw?' checked':'')+' aria-label="Raw material"></td>'
+      + '<td class="n">'+(String(m.unit).toLowerCase() === 'g' ? '<input class="inp" type="number" min="0" step="any" data-f="mtub" data-m="'+m.id+'" value="'+(m.tub || '')+'" placeholder="none" aria-label="Tub size in grams">' : '<span style="color:var(--muted)">–</span>')+'</td>'
       + '<td class="c"><input type="checkbox" data-f="mcup" data-m="'+m.id+'"'+(m.cup?' checked':'')+' aria-label="Cup or plate, counted daily"></td>'
       + '<td class="n">'+(S.matDel===m.id?'<button class="btn primary sm" data-act="matdelyes" data-id="'+m.id+'">Delete</button> <button class="btn ghost sm" data-act="matdelno">Keep</button>':'<button class="btn ghost sm" data-act="matdel" data-id="'+m.id+'">Delete</button>')+'</td></tr>';
   }).join('');
-  return '<p style="color:var(--muted);margin:0 0 10px">Everything you buy and use up. Mark the cups and plates so the Variance tab can turn missing ones into missing sales. Cost is per unit and updates when you add a purchase.</p>'
-    + '<div class="tbl"><table class="whtbl mat"><thead><tr><th>Name</th><th class="c">Unit</th><th class="n">Cost / unit</th><th class="n">Low at</th><th class="c">Cup / plate<br><small>counted daily</small></th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div><button class="btn primary sm" data-act="addmat">+ Add material</button>';
+  return '<p style="color:var(--muted);margin:0 0 10px">Everything you buy and use up. Raw materials (ice cream, powder, packets) are bought as they come and taken off by the Recipes. Use unit <b>g</b> for anything weighed (then you can buy it in tub, kg or g), or <b>pack</b>, <b>pcs</b> and so on. Mark the cups and plates so the Variance tab can turn missing ones into missing sales. Cost is per unit and updates when you add a purchase.</p>'
+    + '<div class="tbl"><table class="whtbl mat"><thead><tr><th>Name</th><th class="c">Unit</th><th class="n">Cost / unit</th><th class="n">Low at</th><th class="c">Raw<br><small>material</small></th><th class="n">Tub size (g)</th><th class="c">Cup / plate<br><small>counted daily</small></th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div><button class="btn primary sm" data-act="addmat">+ Add material</button>';
 }
 
 /* ---------- Sync with the shop server ----------
@@ -1158,8 +1173,7 @@ function vMenu(){
     + '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="pickimg" data-id="">Change picture</button>'
     + (c.img ? '<button class="btn ghost sm" data-act="noimg" data-id="">Remove</button>' : '')
     + '<button class="btn ghost sm" data-act="catup"'+(menu.indexOf(c)===0?' disabled':'')+'>Move up</button><button class="btn ghost sm" data-act="catdown"'+(menu.indexOf(c)===menu.length-1?' disabled':'')+'>Move down</button></div></div>'
-    + '<div class="fgrid" style="margin-top:12px">'+fld('Name','<input class="inp" data-f="cname" value="'+esc(c.name)+'">')+fld('Arabic name','<input class="inp ar" data-f="car" value="'+esc(c.ar)+'">')+'</div>'
-    + '<label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px"><input type="checkbox" data-f="ctrack"'+(trackOn(c) ? ' checked' : '')+' style="width:18px;height:18px"> Keep stock of this category in the Warehouse <small style="color:var(--muted)">(leave off for items made to order)</small></label></div>'
+    + '<div class="fgrid" style="margin-top:12px">'+fld('Name','<input class="inp" data-f="cname" value="'+esc(c.name)+'">')+fld('Arabic name','<input class="inp ar" data-f="car" value="'+esc(c.ar)+'">')+'</div></div>'
     + '<div class="card"><h3>Sizes and prices (AED)</h3>'+sizesHtml+'<button class="btn ghost sm" data-act="addsize">+ Add size</button>'
     + '<p style="color:var(--muted);font-size:13px;margin:10px 0 0">These prices apply to every item. To give one item a different price, type it in that item below. Leave the size name blank if the category has only one size.</p></div>'
     + chPricesCard(c)
@@ -1693,9 +1707,9 @@ if (!db.gm.use) db.gm.use = {}; if (!db.gm.pack) db.gm.pack = {};
 if (db.gmInit !== 1){ Object.keys(GM_DEF).forEach(function(k){ if (db.gm.use[k] === undefined) db.gm.use[k] = GM_DEF[k]; }); if (!db.gm.pack.tub) db.gm.pack.tub = 5500; db.gmInit = 1; }
 function gmTub(){ return +db.gm.pack.tub > 0 ? +db.gm.pack.tub : 5500; }
 function gmCup(cat, size){ return +db.gm.use[cat + '|' + size] || 0; }
-function gmOn(cat){ return Object.keys(db.gm.use).some(function(k){ return k.split('|')[0] === cat && +db.gm.use[k] > 0; }); }
+function gmOn(cat){ return false; }   /* flavour-by-flavour gram stock is retired: ice cream is now a raw material taken off by the recipe */
 /* only categories whose stock is really kept (ice cream by default) appear in the warehouse and limit sales; the rest are made to order */
-function trackOn(c){ return c.track !== undefined && c.track !== null ? !!c.track : gmOn(c.name); }
+function trackOn(c){ return false; }
 function pruneStock(){
   var ch = false;
   menu.forEach(function(c){ if (trackOn(c)) return; c.items.forEach(function(it0){ var k = skey(c.name, it0.name);
@@ -1704,9 +1718,9 @@ function pruneStock(){
   if (ch) save();
 }
 function gmAmt(l){ return gmOn(l.cat) ? (gmCup(l.cat, l.size) || 0) * l.qty : l.qty; }   /* what one cart/sale line takes from stock */
-function gmQty(q){ q = +q || 0; var t = gmTub(); return (Math.abs(q) >= 1000 ? num(q / 1000) + ' kg' : num(q) + ' g') + (Math.abs(q) >= t / 2 ? ' · ' + (Math.round(q / t * 10) / 10) + ' tub' : ''); }
-function gmQtyH(q){ q = +q || 0; var t = gmTub(), main = Math.abs(q) >= 1000 ? num(q / 1000) + ' kg' : num(q) + ' g'; return '<b>'+main+'</b>' + (Math.abs(q) >= t / 2 ? ' <small>' + (Math.round(q / t * 10) / 10) + ' tub</small>' : ''); }
-function qTxt(it, q){ return it && it.g ? gmQty(q) : num(q) + ' pcs'; }
+function gmQty(q, tub){ q = +q || 0; var t = tub === undefined ? gmTub() : (+tub || 0); return (Math.abs(q) >= 1000 ? num(q / 1000) + ' kg' : num(q) + ' g') + (t > 0 && Math.abs(q) >= t / 2 ? ' · ' + (Math.round(q / t * 10) / 10) + ' tub' : ''); }
+function gmQtyH(q, tub){ q = +q || 0; var t = tub === undefined ? gmTub() : (+tub || 0), main = Math.abs(q) >= 1000 ? num(q / 1000) + ' kg' : num(q) + ' g'; return '<b>'+main+'</b>' + (t > 0 && Math.abs(q) >= t / 2 ? ' <small>' + (Math.round(q / t * 10) / 10) + ' tub</small>' : ''); }
+function qTxt(it, q){ return it && it.g ? gmQty(q, itTub(it)) : num(q) + ' ' + ((it && it.un) || 'pcs'); }
 /* one time: the old test stock was counted in cups (100 each); turn it into grams once */
 if (db.gmFix !== 1){
   db.gmFix = 1;
@@ -1720,9 +1734,18 @@ try { pruneStock(); } catch(e){}
 function whItems(){
   var out = [];
   menu.forEach(function(c){ if (!trackOn(c)) return; c.items.forEach(function(it){ out.push({key:'i:'+skey(c.name, it.name), name:it.name, group:c.name, kind:'i', sk:skey(c.name, it.name), g:gmOn(c.name)}); }); });
-  db.inv.materials.forEach(function(m){ out.push({key:'m:'+m.id, name:m.name, group:'Cups, lids, plates and other materials', kind:'m', mid:m.id}); });
+  var ms = db.inv.materials.filter(function(m){ return m.raw; }).concat(db.inv.materials.filter(function(m){ return !m.raw; }));
+  ms.forEach(function(m){ out.push({key:'m:'+m.id, name:m.name, group:m.raw ? 'Raw materials' : 'Cups, lids, plates and other materials', kind:'m', mid:m.id, g:String(m.unit).toLowerCase() === 'g', tub:+m.tub || 0, un:m.unit || 'pcs'}); });
   return out;
 }
+function itTub(it){ return it && it.kind === 'm' ? (+it.tub || 0) : gmTub(); }
+function tubOf(key){ var it = key && whFind(key); return it ? itTub(it) : gmTub(); }
+function unitList(it, allCtn){
+  if (it && it.g){ var t = itTub(it); return (t > 0 ? [['tub', 'Tub (' + num(t / 1000) + ' kg)']] : []).concat([['kg', 'Kilograms'], ['g', 'Grams']]); }
+  var c = it && whCtn(it.key), un = (it && it.un) || 'pcs';
+  return [['pcs', un === 'pcs' ? 'Pieces' : un]].concat(c || allCtn ? [['ctn', 'Carton' + (c ? ' (' + c + ' ' + un + ')' : '')]] : []);
+}
+function defUnit(key){ var it = whFind(key); if (!it) return 'pcs'; return it.g ? unitList(it)[0][0] : (whCtn(key) ? 'ctn' : 'pcs'); }
 function whFind(key){ return whItems().filter(function(x){ return x.key === key; })[0]; }
 function whQty(key){ return +db.wh.qty[key] || 0; }
 function whDirect(key){ return false; }
@@ -1732,7 +1755,7 @@ function shopQty(it, E){
   var v = db.stock[it.sk]; return (v === undefined || v === null || v === '') ? null : +v;
 }
 function ctnText(q, key){ var c = whCtn(key); if (c > 1 && q >= c) return Math.floor(q / c) + ' ctn' + (q % c ? ' + ' + num(q % c) + ' pcs' : ''); return ''; }
-function toPcs(key, qty, unit){ return unit === 'ctn' ? qty * whCtn(key) : unit === 'kg' ? qty * 1000 : unit === 'tub' ? qty * gmTub() : qty; }
+function toPcs(key, qty, unit){ return unit === 'ctn' ? qty * whCtn(key) : unit === 'kg' ? qty * 1000 : unit === 'tub' ? qty * tubOf(key) : qty; }
 function shopAdd(it, delta, why){
   var now = Date.now();
   if (it.kind === 'i'){ var cur = shopQty(it); db.stock[it.sk] = num((cur === null ? 0 : cur) + delta); }
@@ -1746,12 +1769,12 @@ function whLog(o){
 }
 function whPrev(){
   var q = parseFloat(S.wf.qty); if (!(q > 0)) return '';
-  if (S.wf.unit === 'kg' || S.wf.unit === 'tub') return '= ' + gmQty(toPcs(S.wf.key, q, S.wf.unit));
+  if (S.wf.unit === 'kg' || S.wf.unit === 'tub') return '= ' + gmQty(toPcs(S.wf.key, q, S.wf.unit), tubOf(S.wf.key));
   if (S.wf.unit === 'ctn'){ var c = whCtn(S.wf.key); return c ? '= ' + num(q * c) + ' pcs' : 'Enter pieces per carton first'; }
   return '';
 }
 function vStock(){
-  var tabs = [['over','Overview'],['in','Stock in'],['tr','Transfer'],['adj','Adjust'],['log','History'],['led','Ledger'],['por','Portions']];
+  var tabs = [['over','Overview'],['in','Stock in'],['tr','Transfer'],['adj','Adjust'],['log','History'],['led','Ledger']];
   var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="whtab" data-id="'+t[0]+'" aria-pressed="'+(S.wt===t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
   var body = (S.wt === 'in' || S.wt === 'tr' || S.wt === 'adj') ? whMove(S.wt) : S.wt === 'log' ? whLogView() : S.wt === 'led' ? ledView() : S.wt === 'por' ? whPortions() : whOver();
   return '<div class="page"><div class="bar">'+seg+'</div>'+body+'</div>';
@@ -1762,8 +1785,8 @@ function whOver(){
   var dash = '<span class="mut">\u2013</span>';
   var html = order.map(function(g){
     var rows = groups[g].map(function(it){
-      var w = whQty(it.key), s = shopQty(it, E), m = it.kind === 'm' ? mat(it.mid) : null, lim = m ? m.min : (it.g ? gmTub() : low), ct = it.g ? '' : ctnText(w, it.key);
-      var fv = function(q){ return it.g ? gmQtyH(q) : '<b>'+num(q)+'</b>'; };
+      var w = whQty(it.key), s = shopQty(it, E), m = it.kind === 'm' ? mat(it.mid) : null, lim = m ? m.min : low, ct = it.g ? '' : ctnText(w, it.key);
+      var fv = function(q){ return it.g ? gmQtyH(q, itTub(it)) : '<b>'+num(q)+'</b>'; };
       var pill = s === null ? '' : (s <= 0 ? '<span class="pill void">Out</span>' : (s <= lim ? '<span class="pill void">Low</span>' : ''));
       return '<tr data-n="'+esc((it.name + ' ' + g).toLowerCase())+'"><td class="nm">'+esc(it.name)+'</td>'
         + '<td class="n">'+((whDirect(it.key) && !w) ? dash : fv(w))+(ct ? ' <small>'+ct+'</small>' : '')+'</td>'
@@ -1774,12 +1797,12 @@ function whOver(){
     return '<div class="tbl"><h3 style="display:flex;align-items:center;gap:8px"><span style="flex:1">'+esc(g)+' <small>'+groups[g].length+' items</small></span>'+(anyW ? '<button class="btn ghost sm" data-act="whall" data-g="'+esc(g)+'" style="height:28px;min-height:0;padding:0 12px;font-size:12.5px">Move all to shop</button>' : '')+'</h3><table class="whtbl"><thead><tr><th>Item</th><th class="n">Warehouse</th><th class="n">Shop</th><th class="n">Total</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   }).join('');
   return '<input id="whq" class="inp" style="width:100%;text-align:left;margin-bottom:10px" placeholder="Search an item" aria-label="Search an item">'
-    + '<p style="color:var(--muted);margin:0 0 12px;font-size:13.5px">Cups and other items are counted in pieces; ice cream flavours in grams (shown in kg and tubs). New stock goes to the Warehouse first (Stock in), then to the Shop (Transfer). Sales reduce the Shop.</p><div class="whgrid">' + html + '</div>';
+    + '<p style="color:var(--muted);margin:0 0 12px;font-size:13.5px">Raw materials (ice cream, powder) are counted in grams and shown in kg and tubs; packets, cups and others in pieces. New stock goes to the Warehouse first (Stock in), then to the Shop (Transfer). Sales reduce the Shop.</p><div class="whgrid">' + html + '</div>';
 }
 function whMove(kind){
   var f = S.wf, its = whItems(), E = expectedMap();
-  if (!f.key || !whFind(f.key)){ f.key = its[0].key; f.unit = whCtn(f.key) ? 'ctn' : 'pcs'; f.to = whDirect(f.key) ? 'shop' : 'wh'; }
-  if (whFind(f.key).g ? (f.unit !== 'tub' && f.unit !== 'kg' && f.unit !== 'g') : (f.unit === 'tub' || f.unit === 'kg' || f.unit === 'g')) f.unit = whFind(f.key).g ? 'tub' : (whCtn(f.key) ? 'ctn' : 'pcs');
+  if (!f.key || !whFind(f.key)){ f.key = its[0].key; f.unit = defUnit(f.key); f.to = whDirect(f.key) ? 'shop' : 'wh'; }
+  if (unitList(whFind(f.key), true).map(function(x){ return x[0]; }).indexOf(f.unit) < 0) f.unit = defUnit(f.key);
   var it = whFind(f.key), w = whQty(f.key), s = shopQty(it, E), c = whCtn(f.key), opts = '', lastG = null;
   its.forEach(function(x){
     if (x.group !== lastG){ if (lastG !== null) opts += '</optgroup>'; opts += '<optgroup label="'+esc(x.group)+'">'; lastG = x.group; }
@@ -1789,7 +1812,7 @@ function whMove(kind){
   function sel(k, list, cur){ return '<select class="inp" data-f="wfs" data-k="'+k+'">'+list.map(function(o){ return '<option value="'+o[0]+'"'+(o[0] === cur ? ' selected' : '')+'>'+o[1]+'</option>'; }).join('')+'</select>'; }
   var item = '<label class="fld">Item<select class="inp" data-f="wfs" data-k="key">'+opts+'</select></label>';
   var qty = '<label class="fld">Quantity<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="wf" data-k="qty" value="'+esc(f.qty)+'"></label>';
-  var unit = '<label class="fld">Unit'+sel('unit', it.g ? [['tub','Tub (' + num(gmTub() / 1000) + ' kg)'],['kg','Kilograms'],['g','Grams']] : [['pcs','Pieces'],['ctn','Carton' + (c ? ' (' + c + ' pcs)' : '')]], f.unit)+'</label>';
+  var unit = '<label class="fld">Unit'+sel('unit', unitList(it, true), f.unit)+'</label>';
   var ctnf = (!it.g && f.unit === 'ctn') ? '<label class="fld">Pieces per carton<input class="inp" type="number" min="1" inputmode="numeric" data-f="ctn" data-k="'+esc(it.key)+'" placeholder="e.g. 1000" value="'+(whCtn(it.key) || '')+'"></label>' : '';
   var note = function(lab){ return '<label class="fld">'+lab+'<input class="inp" data-f="wf" data-k="note" value="'+esc(f.note)+'"></label>'; };
   var title, fields, btn;
@@ -1808,7 +1831,7 @@ function whMove(kind){
       + '<label class="fld">Reason'+sel('reason', ['Damaged','Spoiled','Count difference','Staff use','Sample or free','Other'].map(function(r){ return [r, r]; }), f.reason)+'</label>' + note('Note (optional)');
     btn = '<button class="btn plum sm" data-act="whgo">Save adjustment</button>';
   }
-  var info = '<div style="color:var(--muted);margin-bottom:10px">Warehouse <b style="color:var(--ink)">'+(it.g ? gmQty(w) : num(w))+'</b>'+(it.g ? '' : ' pcs')+(ctnText(w, f.key) ? ' ('+ctnText(w, f.key)+')' : '')+' &nbsp;·&nbsp; Shop <b style="color:var(--ink)">'+(s === null ? '-' : (it.g ? gmQty(s) : num(s)))+'</b>'
+  var info = '<div style="color:var(--muted);margin-bottom:10px">Warehouse <b style="color:var(--ink)">'+(it.g ? gmQty(w, itTub(it)) : num(w))+'</b>'+(it.g ? '' : ' ' + (it.un || 'pcs'))+(ctnText(w, f.key) ? ' ('+ctnText(w, f.key)+')' : '')+' &nbsp;·&nbsp; Shop <b style="color:var(--ink)">'+(s === null ? '-' : (it.g ? gmQty(s, itTub(it)) : num(s)))+'</b>'
     + (c || it.g ? '' : ' &nbsp;·&nbsp; No carton size set')+'</div>';
   return '<div class="tbl"><h3>'+title+'</h3><div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;align-items:end">'+fields+'</div>'
     + '<div style="padding:0 16px 16px">'+info+'<div style="display:flex;gap:14px;align-items:center"><span id="whprev" style="font-weight:700;color:var(--pink-dk)">'+whPrev()+'</span>'+btn+'</div></div></div>';
@@ -1845,8 +1868,8 @@ function ledEntries(it){
     }); });
   } else {
     var b = db.inv.base[it.mid] || {t:0, q:0};
-    db.inv.purchases.forEach(function(p){ if (p.m !== it.mid || p.t <= b.t) return; push(p.t, 'in', p.wh ? 'From warehouse' : 'Bought', p.supplier || '', 0, +p.q || 0); });
-    db.inv.waste.forEach(function(w){ if (w.m !== it.mid || w.t <= b.t) return; push(w.t, 'ad', w.wh ? 'Adjusted' : 'Waste', w.reason || '', 0, -(+w.q || 0)); });
+    db.inv.purchases.forEach(function(p){ if (p.m !== it.mid || p.t <= b.t || p.wh) return; push(p.t, 'in', 'Bought', p.supplier || '', 0, +p.q || 0); });
+    db.inv.waste.forEach(function(w){ if (w.m !== it.mid || w.t <= b.t || w.wh) return; push(w.t, 'ad', 'Waste', w.reason || '', 0, -(+w.q || 0)); });
     db.sales.forEach(function(s){ if (s.void || s.t <= b.t) return; s.lines.forEach(function(l){ var r = db.inv.recipes[rkey(l.cat, l.size)]; if (!r) return; var q = 0; r.forEach(function(x){ if (x.m === it.mid) q += x.q * l.qty; }); if (q) push(s.t, 'sl', 'Used in sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty, 0, -q); }); });
   }
   E.sort(function(a, b){ return a.t - b.t; });
@@ -1857,7 +1880,7 @@ function ledView(){
   var L = S.led = S.led || {}; if (!L.key || !whFind(L.key)) L.key = items[0].key;
   var d30 = new Date(Date.now() - 29 * 864e5); L.from = L.from || d30.toLocaleDateString('en-CA'); L.to = L.to || today(); L.loc = L.loc || 'all';
   var it = whFind(L.key), tFrom = new Date(L.from + 'T00:00:00').getTime(), tTo = new Date(L.to + 'T23:59:59').getTime();
-  var fq = function(q){ return it.g ? gmQty(q) : num(q); }, E = ledEntries(it), pick = function(e){ return L.loc === 'wh' ? e.wh : L.loc === 'shop' ? e.sh : e.wh + e.sh; };
+  var fq = function(q){ return it.g ? gmQty(q, itTub(it)) : num(q); }, E = ledEntries(it), pick = function(e){ return L.loc === 'wh' ? e.wh : L.loc === 'shop' ? e.sh : e.wh + e.sh; };
   var close = L.loc === 'wh' ? whQty(it.key) : L.loc === 'shop' ? (shopQty(it) || 0) : whQty(it.key) + (shopQty(it) || 0);
   var after = 0, inRange = [], tin = 0, tout = 0;
   E.forEach(function(e){ var d = pick(e); if (e.t > tTo) after += d; else if (e.t >= tFrom) inRange.push({e:e, d:d}); });
@@ -1900,7 +1923,7 @@ function whLogView(){
       : l.type === 'transfer' ? (l.to === 'wh' ? 'Shop → Warehouse' : 'Warehouse → Shop')
       : 'Adjust · ' + (l.loc === 'wh' ? 'Warehouse' : 'Shop');
     var gm = l.unit === 'tub' || l.unit === 'kg' || l.unit === 'g';
-    var q = (l.type === 'adjust' ? (l.dir > 0 ? '+' : '−') : '') + (gm ? gmQtyH(l.q) : '<b>'+num(l.q)+'</b> pcs');
+    var q = (l.type === 'adjust' ? (l.dir > 0 ? '+' : '−') : '') + (gm ? gmQtyH(l.q, tubOf(l.key)) : '<b>'+num(l.q)+'</b> pcs');
     if (l.unit === 'ctn') q += ' <small>('+num(l.entered)+' ctn)</small>';
     var tm = d.toLocaleTimeString('en-GB', {hour:'numeric', minute:'2-digit', hour12:true}).toUpperCase();
     return head + '<tr><td class="tm">'+tm+'</td><td><span class="mv '+kind+'">'+chip+'</span></td><td class="nm">'+esc(l.name)+'</td><td class="n">'+q+'</td>'
@@ -2314,8 +2337,8 @@ document.addEventListener('input', function(e){
   if (f === 'ctn'){ var cn = parseInt(t.value, 10); if (cn > 0) db.wh.carton[t.dataset.k] = cn; else delete db.wh.carton[t.dataset.k]; save(); return; }
   if (f === 'cnt'){ if (t.value === '') delete S.cnt[t.dataset.m]; else S.cnt[t.dataset.m] = t.value; return; }
   if (f === 'rqty'){ db.inv.recipes[t.dataset.k][+t.dataset.i].q = parseFloat(t.value) || 0; save(); return; }
-  if (f === 'mname' || f === 'munit' || f === 'mcost' || f === 'mmin'){ var mm = mat(t.dataset.m);
-    if (f === 'mname') mm.name = t.value; else if (f === 'munit') mm.unit = t.value; else if (f === 'mcost') mm.cost = parseFloat(t.value) || 0; else mm.min = parseFloat(t.value) || 0; save(); return; }
+  if (f === 'mname' || f === 'munit' || f === 'mcost' || f === 'mmin' || f === 'mtub'){ var mm = mat(t.dataset.m);
+    if (f === 'mname') mm.name = t.value; else if (f === 'munit') mm.unit = t.value; else if (f === 'mcost') mm.cost = parseFloat(t.value) || 0; else if (f === 'mtub') mm.tub = parseFloat(t.value) || 0; else mm.min = parseFloat(t.value) || 0; save(); return; }
   if (f && ['cname','car','slabel','sprice','iname','iar','itag','idesc','iprice'].indexOf(f) >= 0){
     var c = edCat(), item = t.dataset.id ? byId(c.items, t.dataset.id) : null;
     if (f === 'cname') c.name = t.value; else if (f === 'car') c.ar = t.value;
@@ -2350,12 +2373,14 @@ document.addEventListener('change', function(e){
   if (t.dataset && t.dataset.f === 'xwho'){ var wv = t.value; if (wv === '__new' || wv === '__other'){ S.xf.wmode = wv; S.xf.who = ''; } else { S.xf.wmode = ''; S.xf.who = wv; } render(); return; }
   if (t.dataset && t.dataset.f === 'xfs'){ S.xf[t.dataset.k] = t.value; if (t.dataset.k === 'cat'){ var xc0 = xCat(t.value); S.xf.sub = (xc0 && xc0.subs[0]) ? xc0.subs[0].id : ''; } render(); return; }
   if (t.dataset && t.dataset.f === 'xfilter'){ S.xc = t.value; render(); return; }
-  if (t.dataset && t.dataset.f === 'wfs'){ S.wf[t.dataset.k] = t.value; if (t.dataset.k === 'key'){ S.wf.unit = whCtn(t.value) ? 'ctn' : 'pcs'; S.wf.to = whDirect(t.value) ? 'shop' : 'wh'; } render(); return; }
+  if (t.dataset && t.dataset.f === 'wfs'){ S.wf[t.dataset.k] = t.value; if (t.dataset.k === 'key'){ S.wf.unit = defUnit(t.value); S.wf.to = whDirect(t.value) ? 'shop' : 'wh'; } render(); return; }
   if (t.dataset && t.dataset.f === 'dsh'){ if (t.checked) db.wh.direct[t.dataset.k] = 1; else delete db.wh.direct[t.dataset.k]; save(); return; }
   if (t.dataset && t.dataset.f === 'vreason' && S.voidForm){ S.voidForm.reason = t.value; render(); return; }
   if (t.dataset && t.dataset.f === 'dreason' && S.discForm){ S.discForm.reason = t.value; render(); return; }
   if (t.dataset && t.dataset.f === 'rmat'){ db.inv.recipes[t.dataset.k][+t.dataset.i].m = t.value; save(); }
   if (t.dataset && t.dataset.f === 'mcup'){ mat(t.dataset.m).cup = t.checked; save(); }
+  if (t.dataset && t.dataset.f === 'mraw'){ mat(t.dataset.m).raw = t.checked; save(); render(); return; }
+  if (t.dataset && t.dataset.f === 'munit'){ render(); }
   if (t.dataset && t.dataset.f === 'choff'){ var it1 = byId(edCat().items, t.dataset.id), ce1 = S.chedit || (chans()[0] || {}).id; if (it1 && ce1){ it1.chOff = it1.chOff || {}; if (t.checked) it1.chOff[ce1] = 1; else delete it1.chOff[ce1]; saveMenu(); } }
   if (t.dataset && t.dataset.f === 'ctrack'){ edCat().track = t.checked; saveMenu(); pruneStock(); render(); return; }
   if (t.dataset && t.dataset.f === 'ioff'){ byId(edCat().items, t.dataset.id).off = t.checked; saveMenu(); }
@@ -2590,7 +2615,7 @@ document.addEventListener('click', function(e){
     case 'reccat': S.recCat = d.id; break;
     case 'addrec': db.inv.recipes[d.k] = db.inv.recipes[d.k] || []; db.inv.recipes[d.k].push({m:db.inv.materials[0].id, q:1}); save(); break;
     case 'rmrec': db.inv.recipes[d.k].splice(+d.i, 1); save(); break;
-    case 'addmat': db.inv.materials.push({id:uid('m'), name:'New material', unit:'pcs', cost:0, cup:false, min:0}); save(); break;
+    case 'addmat': db.inv.materials.push({id:uid('m'), name:'New material', unit:'pcs', cost:0, cup:false, min:0, raw:false, tub:0}); save(); break;
     case 'matdel': S.matDel = d.id; break;
     case 'matdelno': S.matDel = null; break;
     case 'matdelyes': db.inv.materials = db.inv.materials.filter(function(m){ return m.id !== d.id; }); Object.keys(db.inv.recipes).forEach(function(k){ db.inv.recipes[k] = db.inv.recipes[k].filter(function(x){ return x.m !== d.id; }); }); S.matDel = null; save(); break;
@@ -3507,7 +3532,7 @@ if (!db.sup) db.sup = [];
 if (!db.pur) db.pur = {list:[], pays:[]};
 if (!db.avg) db.avg = {};
 S.pt = 'hist'; S.popen = false; S.pedit = null; S.pm = today().slice(0, 7); S.psup = null;
-function newPurForm(){ return {date:today(), sup:'', inv:'', pay:'cash', vat:'', note:'', pin:'', lines:[{key:'', qty:'', unit:'pcs', amt:'', to:'wh'}]}; }
+function newPurForm(){ return {date:today(), sup:'', inv:'', pay:'cash', vat:'', note:'', pin:'', lines:[{key:'', qty:'', unit:'pcs', amt:'', to:'wh', rem:''}]}; }
 S.pf = newPurForm(); S.supf = {name:'', phone:''}; S.spf = {amt:'', from:'cash', date:today(), note:'', pin:''}; S.pcan = null; S.pcanpin = ''; S.supEdit = null;
 function xCatType(c){ return c.type || (c.name === 'Purchases' ? 'cogs' : 'opex'); }
 function supById(id){ return byId(db.sup, id); }
@@ -3552,8 +3577,8 @@ function savePurchase(ap, quiet){
     db.avg[l.key] = Math.round(avg * 10000) / 10000;
     if (it.kind === 'm'){ var mm = mat(it.mid); if (mm) mm.cost = Math.round(avg * 1000) / 1000; }
     if (l.to === 'shop') shopAdd(it, pcs, 'Purchase' + (f.inv ? ' ' + f.inv : '')); else db.wh.qty[l.key] = num(whQty(l.key) + pcs);
-    whLog({key:l.key, name:it.name, q:pcs, unit:l.unit, entered:q, type:'in', loc:l.to === 'shop' ? 'shop' : 'wh', note:'Purchase' + (f.inv ? ' ' + f.inv : '') + (f.sup ? ' · ' + supName(f.sup) : '')});
-    lines.push({key:l.key, name:it.name, qty:q, unit:l.unit, pcs:pcs, amt:amt, to:l.to});
+    whLog({key:l.key, name:it.name, q:pcs, unit:l.unit, entered:q, type:'in', loc:l.to === 'shop' ? 'shop' : 'wh', note:'Purchase' + (f.inv ? ' ' + f.inv : '') + (f.sup ? ' · ' + supName(f.sup) : '') + ((l.rem || '').trim() ? ' · ' + l.rem.trim() : '')});
+    lines.push({key:l.key, name:it.name, qty:q, unit:l.unit, pcs:pcs, amt:amt, to:l.to, rem:(l.rem || '').trim()});
   });
   var p = {id:uid('p'), t:Date.now(), date:f.date, sup:f.sup, inv:f.inv.trim(), pay:f.pay, lines:lines, sub:T.sub, vat:T.vat, total:T.total, note:f.note.trim(), by:ap.name};
   db.pur.list.push(p); queueEvent('pur_new', p);
@@ -3582,27 +3607,27 @@ function vPurch(){
   return '<div class="page"><div class="bar">'+seg+'</div>' + (S.pt === 'hist' ? vPurHist() : S.pt === 'sup' ? vSup() : S.pt === 'cost' ? vCost() : vPurHist()) + '</div>';
 }
 function plIsG(key){ var it = key && whFind(key); return !!(it && it.g); }
-function plDefUnit(key){ return plIsG(key) ? 'tub' : (whCtn(key) ? 'ctn' : 'pcs'); }
+function plDefUnit(key){ return defUnit(key); }
 function plUnitOpts(l){
-  var ctn = l.key && whCtn(l.key);
-  var o = plIsG(l.key) ? [['tub','Tub (' + num(gmTub() / 1000) + ' kg)'],['kg','Kilograms'],['g','Grams']] : [['pcs','Pieces']].concat(ctn ? [['ctn','Cartons (' + ctn + ' pcs)']] : []);
-  return o.map(function(x){ return '<option value="'+x[0]+'"'+(l.unit === x[0] ? ' selected' : '')+'>'+x[1]+'</option>'; }).join('');
+  var it = l.key && whFind(l.key); if (!it) return '<option value="pcs">Pieces</option>';
+  return unitList(it).map(function(x){ return '<option value="'+x[0]+'"'+(l.unit === x[0] ? ' selected' : '')+'>'+esc(x[1])+'</option>'; }).join('');
 }
 function plPrev(l){
   if (!(l.key && parseFloat(l.qty) > 0)) return '';
   var pcs = toPcs(l.key, parseFloat(l.qty), l.unit), amt = parseFloat(l.amt);
-  if (plIsG(l.key)) return gmQty(pcs) + (amt >= 0 && pcs > 0 ? ' · AED ' + money(amt / pcs * 1000) + ' / kg' : '');
-  return num(pcs) + ' pcs' + (amt >= 0 && pcs > 0 ? ' · AED ' + money(amt / pcs) + ' each' : '');
+  if (plIsG(l.key)) return gmQty(pcs, tubOf(l.key)) + (amt >= 0 && pcs > 0 ? ' · AED ' + money(amt / pcs * 1000) + ' / kg' : '');
+  var it0 = whFind(l.key); return num(pcs) + ' ' + ((it0 && it0.un) || 'pcs') + (amt >= 0 && pcs > 0 ? ' · AED ' + money(amt / pcs) + ' each' : '');
 }
 function plRows(){
   var f = S.pf;
-  return '<div class="plh"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost (AED)</span><span>Goes to</span><span></span><span></span></div>' + f.lines.map(function(l, i){
+  return '<div class="plh"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost (AED)</span><span>Goes to</span><span>Remarks</span><span></span><span></span></div>' + f.lines.map(function(l, i){
     return '<div class="plr">'
       + '<select class="inp" aria-label="Item" data-f="pls" data-i="'+i+'" data-k="key">'+itemOptions(l.key)+'</select>'
       + '<input class="inp" aria-label="Quantity" placeholder="Qty" type="number" min="0" step="any" inputmode="decimal" data-f="pl" data-i="'+i+'" data-k="qty" value="'+esc(l.qty)+'">'
       + '<select class="inp" aria-label="Unit" data-f="pls" data-i="'+i+'" data-k="unit">'+plUnitOpts(l)+'</select>'
       + '<input class="inp" aria-label="Line cost (AED)" placeholder="AED" type="number" min="0" step="any" inputmode="decimal" data-f="pl" data-i="'+i+'" data-k="amt" value="'+esc(l.amt)+'">'
       + '<select class="inp" aria-label="Goes to" data-f="pls" data-i="'+i+'" data-k="to"><option value="wh"'+(l.to === 'wh' ? ' selected' : '')+'>Warehouse</option><option value="shop"'+(l.to === 'shop' ? ' selected' : '')+'>Shop (direct)</option></select>'
+      + '<input class="inp" aria-label="Remarks (flavour etc.)" placeholder="e.g. Chocolate, Vanilla" data-f="pl" data-i="'+i+'" data-k="rem" value="'+esc(l.rem || '')+'" autocomplete="off">'
       + '<small id="plp'+i+'">'+plPrev(l)+'</small>'
       + (f.lines.length > 1 ? '<button class="btn sm ghost plx" data-act="plrm" data-i="'+i+'" aria-label="Remove line" title="Remove line">&times;</button>' : '<span></span>') + '</div>';
   }).join('');
@@ -3626,14 +3651,14 @@ function vPurNew(){
     + '<p style="color:var(--muted);margin:6px 0 0;font-size:13px">Saving adds the stock to the warehouse or shop, updates the average cost and records the payment. '+(f.pay === 'credit' ? 'This amount will be added to what you owe the supplier.' : 'The money goes out of the '+(f.pay === 'bank' ? 'bank' : 'counter drawer')+'.')+'</p>'
     + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="pformclose">Cancel</button><button class="btn primary" data-act="purchsave">'+(S.pedit ? 'Save changes' : 'Save purchase')+'</button></div></div></div>';
 }
-function purDesc(p){ return p.lines.map(function(l){ return l.name + ' ×' + num(l.qty) + (l.unit === 'ctn' ? ' ctn' : (l.unit === 'tub' || l.unit === 'kg' || l.unit === 'g') ? ' ' + l.unit : ''); }).join(', '); }
+function purDesc(p){ return p.lines.map(function(l){ return l.name + ' ×' + num(l.qty) + (l.unit === 'ctn' ? ' ctn' : (l.unit === 'tub' || l.unit === 'kg' || l.unit === 'g') ? ' ' + l.unit : '') + (l.rem ? ' (' + l.rem + ')' : ''); }).join(', '); }
 function pRef(p){ return 'PUR-' + String(p.id).replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase(); }
 function pVoucherRows(p){
   var rows = [['Date', xDate(p.date)], ['Supplier', supName(p.sup)]];
   if (p.inv) rows.push(['Invoice no.', p.inv]);
   p.lines.forEach(function(l, i){
-    var q = (l.unit === 'tub' || l.unit === 'kg' || l.unit === 'g') ? gmQty(l.pcs) : num(l.qty) + (l.unit === 'ctn' ? ' ctn' : ' pcs');
-    rows.push(['Item ' + (i + 1), l.name + ' · ' + q + ' · AED ' + money(l.amt)]);
+    var q = (l.unit === 'tub' || l.unit === 'kg' || l.unit === 'g') ? gmQty(l.pcs, tubOf(l.key)) : num(l.qty) + (l.unit === 'ctn' ? ' ctn' : ' pcs');
+    rows.push(['Item ' + (i + 1), l.name + ' · ' + q + ' · AED ' + money(l.amt) + (l.rem ? ' · ' + l.rem : '')]);
   });
   if (p.vat > 0) rows.push(['VAT (input)', 'AED ' + money(p.vat)]);
   rows.push(['Paid by', p.pay === 'credit' ? 'On credit' : p.pay === 'bank' ? 'Bank' : 'Counter cash']);
@@ -3714,8 +3739,8 @@ function vCost(){
   var E = expectedMap(), V = stockValue(), groups = {}, order = [];
   whItems().forEach(function(it){ if (!groups[it.group]){ groups[it.group] = []; order.push(it.group); } groups[it.group].push(it); });
   var html = order.map(function(g){
-    return '<div class="tbl"><h3>'+esc(g)+'</h3><table><thead><tr><th>Item</th><th class="n">On hand (pcs)</th><th class="n">Cost / pc (AED)</th><th class="n">Value</th></tr></thead><tbody>'
-      + groups[g].map(function(it){ var q = onHandPcs(it, E), c = unitCost(it.key); return '<tr data-n="'+esc((it.name + ' ' + g).toLowerCase())+'"><td>'+esc(it.name)+'</td><td class="n">'+num(q)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="avgc" data-k="'+esc(it.key)+'" value="'+(c ? c : '')+'" placeholder="-" style="width:110px" aria-label="Cost per piece of '+esc(it.name)+'"></td><td class="n">'+(q > 0 && c > 0 ? money(q * c) : '<span style="color:var(--muted)">-</span>')+'</td></tr>'; }).join('')
+    return '<div class="tbl"><h3>'+esc(g)+'</h3><table><thead><tr><th>Item</th><th class="n">On hand</th><th class="n">Cost / pc, or / kg for weighed (AED)</th><th class="n">Value</th></tr></thead><tbody>'
+      + groups[g].map(function(it){ var q = onHandPcs(it, E), c = unitCost(it.key), cv = it.g ? Math.round(c * 1000 * 100) / 100 : c; return '<tr data-n="'+esc((it.name + ' ' + g).toLowerCase())+'"><td>'+esc(it.name)+'</td><td class="n">'+(it.g ? gmQty(q, itTub(it)) : num(q))+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="avgc" data-k="'+esc(it.key)+'"'+(it.g ? ' data-kg="1"' : '')+' value="'+(cv ? cv : '')+'" placeholder="-" style="width:110px" aria-label="Cost per piece of '+esc(it.name)+'"></td><td class="n">'+(q > 0 && c > 0 ? money(q * c) : '<span style="color:var(--muted)">-</span>')+'</td></tr>'; }).join('')
       + '</tbody></table></div>';
   }).join('');
   return '<div class="card"><h3>Item costs and stock value</h3><p style="margin:0;color:var(--muted)">The cost per piece updates itself as a weighted average each time you save a purchase. You can type a cost for stock you already had. The stock value at each Day close is used for the profit report.</p>'
@@ -3748,7 +3773,7 @@ document.addEventListener('change', function(e){
   else if (f === 'spfs'){ S.spf[t.dataset.k] = t.value; render(); }
   else if (f === 'xctype'){ var c = xCat(t.dataset.c); if (c){ c.type = t.value; audit('Expenses', 'Category type changed', c.name + ' counts as ' + (t.value === 'cogs' ? 'cost of goods' : 'operating expense'), {flag:1}); save(); } }
   else if (f === 'avgc'){
-    var old = unitCost(t.dataset.k), nv = t.value === '' ? 0 : Math.max(0, parseFloat(t.value) || 0), it = whFind(t.dataset.k);
+    var old = unitCost(t.dataset.k), nv = t.value === '' ? 0 : Math.max(0, parseFloat(t.value) || 0), it = whFind(t.dataset.k); if (t.dataset.kg) nv = nv / 1000;
     if (nv !== old){ db.avg[t.dataset.k] = nv; if (it && it.kind === 'm'){ var mm = mat(it.mid); if (mm) mm.cost = nv; } audit('Stock', 'Item cost changed', (it ? it.name : t.dataset.k) + ': AED ' + money(old) + ' to AED ' + money(nv) + ' per piece', {flag:1}); save(); render(); }
   }
 });
@@ -3759,7 +3784,7 @@ document.addEventListener('click', function(e){
     case 'ptab': S.pview = null; S.pt = d.id; S.popen = false; S.pedit = null; break;
     case 'gopurch': S.tab = can('purch') ? 'purch' : S.tab; break;
     case 'pmonth': S.pm = d.v === '0' ? today().slice(0, 7) : shiftMonth(S.pm, +d.v); break;
-    case 'pladd': S.pf.lines.push({key:'', qty:'', unit:'pcs', amt:'', to:'wh'}); break;
+    case 'pladd': S.pf.lines.push({key:'', qty:'', unit:'pcs', amt:'', to:'wh', rem:''}); break;
     case 'plrm': S.pf.lines.splice(+d.i, 1); break;
     case 'purchsave':
       var f = S.pf, ap = pinUser(f.pin, 'purch');
@@ -3777,7 +3802,7 @@ document.addEventListener('click', function(e){
     case 'pnew': S.pedit = null; var pk = S.pf; S.pf = newPurForm(); S.pf.date = pk.date || today(); S.pf.sup = pk.sup || ''; S.pf.pay = pk.pay || 'cash'; S.popen = true; break;
     case 'pedit':
       var pe = byId(db.pur.list, d.id); if (!pe || pe.void) break;
-      S.pedit = pe.id; S.pf = {date:pe.date, sup:pe.sup || '', inv:pe.inv || '', pay:pe.pay, vat:pe.vat ? String(pe.vat) : '', note:pe.note || '', pin:'', lines:pe.lines.map(function(l){ return {key:l.key, qty:String(l.qty), unit:(l.unit === 'pcs' && plIsG(l.key)) ? 'g' : l.unit, amt:String(l.amt), to:l.to}; })}; S.popen = true; break;
+      S.pedit = pe.id; S.pf = {date:pe.date, sup:pe.sup || '', inv:pe.inv || '', pay:pe.pay, vat:pe.vat ? String(pe.vat) : '', note:pe.note || '', pin:'', lines:pe.lines.map(function(l){ return {key:l.key, qty:String(l.qty), unit:(l.unit === 'pcs' && plIsG(l.key)) ? 'g' : l.unit, amt:String(l.amt), to:l.to, rem:l.rem || ''}; })}; S.popen = true; break;
     case 'pformclose': S.popen = false; S.pedit = null; S.pf = newPurForm(); break;
     case 'pcan': S.pcan = d.id; S.pcanpin = ''; break;
     case 'pcann': S.pcan = null; break;
