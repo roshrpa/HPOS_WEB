@@ -302,8 +302,8 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:12px;align-items:start} .dgrid .tbl{margin:0} .dut td.nm{width:auto} .dut td.lc{color:var(--muted);font-size:12px} .dut .zr{color:#c4bfb8} .dut th.td,.dut td.td{background:var(--soft)} .dut tr.sumr td{font-weight:700;border-top:1px solid var(--line);background:var(--soft)} .dut tr.sumr td.td{background:var(--tint)}
 .cnt td.nm{width:auto} .tbl table.whtbl.cnt .inp{width:96px!important;text-align:right!important;padding:0 10px!important} .tbl>.cnt{max-width:620px} .dgrid .cnt{max-width:none}
 .vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:12px;align-items:start} .vgrid .tbl{margin:0} .vwarn{padding:8px 14px;background:var(--warn-bg);color:var(--warn);font-weight:600;font-size:13px} .vall{border-top:1px solid var(--line)} .vall summary{padding:8px 14px;cursor:pointer;color:var(--muted);font-size:12.5px;font-weight:600} .vall[open] summary{border-bottom:1px solid var(--line)} .vfoot{padding:8px 14px;border-top:1px solid var(--line);font-size:13px} .dut td.dn{color:var(--pink-dk);font-weight:700} .dut td.up{color:var(--done);font-weight:700}
-.mat{max-width:860px} .mat td.nm{width:42%} .mat th small{font-weight:400;font-size:10.5px} .mat .inp{width:76px!important} .mat td.nm .inp{width:100%!important} .mat td.c,.mat th.c{text-align:center;width:1%;white-space:nowrap} .mat .btn{min-height:26px;padding:0 10px}
-.recx{max-width:860px} .rec{width:100%} .rec td{padding:6px 10px!important;border-bottom:1px solid var(--line)} .rec tr:last-child td{border-bottom:0} .rec td.n{width:1%;white-space:nowrap} .rec td.ra{width:1%;white-space:nowrap;text-align:right} .rec td.ra .btn{min-height:26px;padding:0 10px;font-size:12px;margin-left:4px} .rec td.ra .pill{margin-right:2px} .rec .inp{min-height:28px!important;height:28px!important;font-size:13px!important}
+.mat{max-width:none} .mat td.nm{width:42%} .mat th small{font-weight:400;font-size:10.5px} .mat .inp{width:76px!important} .mat td.nm .inp{width:100%!important} .mat td.c,.mat th.c{text-align:center;width:1%;white-space:nowrap} .mat .btn{min-height:26px;padding:0 10px}
+.recx{max-width:none} .rec{width:100%} .rec td{padding:6px 10px!important;border-bottom:1px solid var(--line)} .rec tr:last-child td{border-bottom:0} .rec td.n{width:1%;white-space:nowrap} .rec td.ra{width:1%;white-space:nowrap;text-align:right} .rec td.ra .btn{min-height:26px;padding:0 10px;font-size:12px;margin-left:4px} .rec td.ra .pill{margin-right:2px} .rec .inp{min-height:28px!important;height:28px!important;font-size:13px!important}
 .mvt td.tm{color:var(--muted);width:78px;white-space:nowrap;font-variant-numeric:tabular-nums} .mvt td.nm{width:auto} .mvt td.nt{color:var(--muted)} .mvt tr.dh td{background:var(--soft);font-weight:600;font-size:12px;padding:5px 10px!important;border-bottom:1px solid var(--line)} .mvt tr.dh small{color:var(--muted);font-weight:400;margin-left:6px}
 .mv{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap} .mv.in{background:var(--done-bg);color:#1e6b34} .mv.tr{background:#e8f0fb;color:#2257a8} .mv.ad{background:var(--warn-bg);color:#9a5b00}
 .whtbl .inp{width:58px!important;text-align:center}
@@ -1953,6 +1953,22 @@ function monthSeg(act, m, isNow){
 function xMonthBar(){
   return '<div class="seg" style="margin-bottom:10px"><button data-act="xmonth" data-v="-1" aria-label="Previous month">◀</button><button data-act="xmonth" data-v="0" aria-pressed="'+(S.xm === today().slice(0, 7))+'">'+esc(monthLabel(S.xm))+'</button><button data-act="xmonth" data-v="1" aria-label="Next month">▶</button></div>';
 }
+function xSupNames(){
+  var use = {}; (db.exp.items || []).forEach(function(e){ var k = (e.who || '').trim().toLowerCase(); if (k) use[k] = (use[k] || 0) + 1; });
+  return (db.sup || []).filter(function(x){ return x.active !== false; }).map(function(x){ return x.name; }).sort(function(a, b){ return (use[b.toLowerCase()] || 0) - (use[a.toLowerCase()] || 0) || a.localeCompare(b); });
+}
+function xAddSup(name){ name = (name || '').trim(); if (!name) return ''; var ex = (db.sup || []).filter(function(x){ return x.name.toLowerCase() === name.toLowerCase(); })[0]; if (ex) return ex.name;
+  var ns = {id:uid('s'), name:name, phone:'', active:true}; db.sup.push(ns); audit('Purchases', 'Supplier added', name + ' (from Expenses)'); queueEvent('sup_save', ns); return name; }
+function xWhoField(f){
+  var names = xSupNames(), w = (f.who || '').trim(), mode = f.wmode || '', known = names.some(function(n){ return n.toLowerCase() === w.toLowerCase(); }), old = w && !known && !mode;
+  var o = '<option value="">None</option>' + names.map(function(n){ return '<option value="' + esc(n) + '"' + (!mode && known && n.toLowerCase() === w.toLowerCase() ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('')
+    + (old ? '<option value="' + esc(w) + '" selected>' + esc(w) + ' (not in Suppliers)</option>' : '')
+    + '<option value="__new"' + (mode === '__new' ? ' selected' : '') + '>+ New supplier…</option><option value="__other"' + (mode === '__other' ? ' selected' : '') + '>Other (type a name)</option>';
+  var h = '<label class="fld">Paid to or supplier<select class="inp" data-f="xwho">' + o + '</select></label>';
+  if (mode) h += '<label class="fld">' + (mode === '__new' ? 'New supplier name' : 'Paid to (name)') + '<input class="inp" data-f="xf" data-k="who" value="' + esc(f.who) + '" placeholder="' + (mode === '__new' ? 'It is added to Suppliers' : 'Name only for this expense') + '"></label>';
+  else if (old) h += '<div class="fld" style="justify-content:flex-end"><button class="btn ghost sm" type="button" data-act="xwsup">Add "' + esc(w) + '" to Suppliers</button></div>';
+  return h;
+}
 function xForm(){
   var f = S.xf, c = xCat(f.cat) || db.exp.cats[0];
   if (c){ f.cat = c.id; if (!xSub(c, f.sub)) f.sub = c.subs[0] ? c.subs[0].id : ''; }
@@ -1964,7 +1980,7 @@ function xForm(){
     + '<label class="fld">Amount (AED)'+inp('amt', 'number', 'min="0" step="any" inputmode="decimal" ')+'</label>'
     + (setg().vat ? '<label class="fld">VAT included in the amount (AED)'+inp('vat', 'number', 'min="0" step="any" inputmode="decimal" ')+'</label>' : '')
     + '<label class="fld">Paid from'+sel('from', [['cash','Counter cash'],['bank','Bank (card or transfer)']], f.from)+'</label>'
-    + '<label class="fld">Paid to or supplier'+inp('who')+'</label>'
+    + xWhoField(f)
     + '<label class="fld">Bill no. (optional)'+inp('bill')+'</label>'
     + '<label class="fld">Note (optional)'+inp('note')+'</label>';
   return '<div class="scrim"><div class="sheet" role="dialog" aria-label="'+(S.xedit ? 'Edit expense' : 'Add expense')+'"><h3>'+(S.xedit ? 'Edit expense' : 'Add expense')+'</h3>'
@@ -2269,6 +2285,7 @@ document.addEventListener('change', function(e){
     }; im.onerror = function(){ toast('That file is not a picture'); }; im.src = fr.result; }; fr.readAsDataURL(t.files[0]); t.value = ''; return;
   }
   if (t.id === 'cdate' && t.value){ S.closeDate = t.value; S.closeAsk = false; render(); return; }
+  if (t.dataset && t.dataset.f === 'xwho'){ var wv = t.value; if (wv === '__new' || wv === '__other'){ S.xf.wmode = wv; S.xf.who = ''; } else { S.xf.wmode = ''; S.xf.who = wv; } render(); return; }
   if (t.dataset && t.dataset.f === 'xfs'){ S.xf[t.dataset.k] = t.value; if (t.dataset.k === 'cat'){ var xc0 = xCat(t.value); S.xf.sub = (xc0 && xc0.subs[0]) ? xc0.subs[0].id : ''; } render(); return; }
   if (t.dataset && t.dataset.f === 'xfilter'){ S.xc = t.value; render(); return; }
   if (t.dataset && t.dataset.f === 'wfs'){ S.wf[t.dataset.k] = t.value; if (t.dataset.k === 'key'){ S.wf.unit = whCtn(t.value) ? 'ctn' : 'pcs'; S.wf.to = whDirect(t.value) ? 'shop' : 'wh'; } render(); return; }
@@ -2425,6 +2442,7 @@ document.addEventListener('click', function(e){
       var xf = S.xf, xa = parseFloat(xf.amt);
       if (!xf.date){ toast('Choose the date'); return; }
       if (!(xa > 0)){ toast('Enter the amount'); return; }
+      if (xf.wmode === '__new' && (xf.who || '').trim()) xf.who = xAddSup(xf.who);
       var xo = {date:xf.date, cat:xf.cat, sub:xf.sub, amt:round2(xa), from:xf.from, vat:round2(parseFloat(xf.vat) || 0), who:(xf.who || '').trim(), bill:(xf.bill || '').trim(), note:(xf.note || '').trim()};
       if (S.xedit){ var xe = byId(db.exp.items, S.xedit); if (xe){ var xold = Object.assign({}, xe); Object.assign(xe, xo); xe.editBy = curName(); queueEvent('expense_update', xe); audit('Expenses', 'Expense edited', xAudDesc(xold) + '  →  ' + xAudDesc(xe), {flag:1}); } S.xedit = null; toast('Expense updated'); }
       else { xo.id = uid('e'); xo.t = Date.now(); xo.by = curName(); db.exp.items.push(xo); audit('Expenses', 'Expense added', xAudDesc(xo)); queueEvent('expense', xo); toast('Expense added'); if (a === 'xsave') S.xview = xo.id; }
@@ -3695,6 +3713,7 @@ document.addEventListener('click', function(e){
       var sn = S.supf.name.trim(); if (!sn){ toast('Enter the supplier name'); return; }
       if (db.sup.some(function(s){ return s.name.toLowerCase() === sn.toLowerCase(); })){ toast('That supplier already exists'); return; }
       var ns = {id:uid('s'), name:sn, phone:S.supf.phone.trim(), active:true}; db.sup.push(ns); audit('Purchases', 'Supplier added', sn); queueEvent('sup_save', ns); S.supf = {name:'', phone:''}; S.psup = ns.id; S.supopen = false; toast('Supplier added'); break;
+    case 'xwsup': S.xf.who = xAddSup(S.xf.who); toast('Added to Suppliers'); save(); break;
     case 'supnew': S.supf = {name:'', phone:''}; S.supopen = true; break;
     case 'supcancel': S.supopen = false; break;
     case 'supnewpay': S.spopen = true; break;
