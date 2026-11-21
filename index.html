@@ -3557,7 +3557,7 @@ function voidPurchase(p, ap, quiet){
   p.lines.forEach(function(l){
     var it = whFind(l.key); if (!it) return;
     if (l.to === 'shop') shopAdd(it, -l.pcs, 'Purchase cancelled'); else db.wh.qty[l.key] = Math.max(0, num(whQty(l.key) - l.pcs));
-    whLog({key:l.key, name:it.name, q:l.pcs, unit:'pcs', type:'adjust', loc:l.to === 'shop' ? 'shop' : 'wh', dir:-1, reason:'Purchase cancelled', note:(p.inv || '')});
+    whLog({key:l.key, name:it.name, q:l.pcs, unit:it.g ? 'g' : 'pcs', type:'adjust', loc:l.to === 'shop' ? 'shop' : 'wh', dir:-1, reason:'Purchase cancelled', note:(p.inv || '')});
   });
   p.void = true; p.voidBy = ap.name; p.voidT = Date.now();
   if (!quiet) audit('Purchases', 'Purchase cancelled', p.date + ' · ' + supName(p.sup) + ' · AED ' + money(p.total) + (p.inv ? ' · inv ' + p.inv : ''), {ap:ap.name, flag:1}); queueEvent('pur_void', {id:p.id});
@@ -3574,17 +3574,29 @@ function vPurch(){
   var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="ptab" data-id="'+t[0]+'" aria-pressed="'+(S.pt === t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
   return '<div class="page"><div class="bar">'+seg+'</div>' + (S.pt === 'hist' ? vPurHist() : S.pt === 'sup' ? vSup() : S.pt === 'cost' ? vCost() : vPurHist()) + '</div>';
 }
+function plIsG(key){ var it = key && whFind(key); return !!(it && it.g); }
+function plDefUnit(key){ return plIsG(key) ? 'tub' : (whCtn(key) ? 'ctn' : 'pcs'); }
+function plUnitOpts(l){
+  var ctn = l.key && whCtn(l.key);
+  var o = plIsG(l.key) ? [['tub','Tub (' + num(gmTub() / 1000) + ' kg)'],['kg','Kilograms'],['g','Grams']] : [['pcs','Pieces']].concat(ctn ? [['ctn','Cartons (' + ctn + ' pcs)']] : []);
+  return o.map(function(x){ return '<option value="'+x[0]+'"'+(l.unit === x[0] ? ' selected' : '')+'>'+x[1]+'</option>'; }).join('');
+}
+function plPrev(l){
+  if (!(l.key && parseFloat(l.qty) > 0)) return '';
+  var pcs = toPcs(l.key, parseFloat(l.qty), l.unit), amt = parseFloat(l.amt);
+  if (plIsG(l.key)) return gmQty(pcs) + (amt >= 0 && pcs > 0 ? ' · AED ' + money(amt / pcs * 1000) + ' / kg' : '');
+  return num(pcs) + ' pcs' + (amt >= 0 && pcs > 0 ? ' · AED ' + money(amt / pcs) + ' each' : '');
+}
 function plRows(){
   var f = S.pf;
   return '<div class="plh"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost (AED)</span><span>Goes to</span><span></span><span></span></div>' + f.lines.map(function(l, i){
-    var ctn = l.key && whCtn(l.key), pcs = l.key && parseFloat(l.qty) > 0 ? num(toPcs(l.key, parseFloat(l.qty), l.unit)) : 0, per = pcs > 0 && parseFloat(l.amt) >= 0 ? parseFloat(l.amt) / pcs : null;
     return '<div class="plr">'
       + '<select class="inp" aria-label="Item" data-f="pls" data-i="'+i+'" data-k="key">'+itemOptions(l.key)+'</select>'
       + '<input class="inp" aria-label="Quantity" placeholder="Qty" type="number" min="0" step="any" inputmode="decimal" data-f="pl" data-i="'+i+'" data-k="qty" value="'+esc(l.qty)+'">'
-      + '<select class="inp" aria-label="Unit" data-f="pls" data-i="'+i+'" data-k="unit"><option value="pcs"'+(l.unit === 'pcs' ? ' selected' : '')+'>Pieces</option>'+(ctn ? '<option value="ctn"'+(l.unit === 'ctn' ? ' selected' : '')+'>Cartons ('+ctn+' pcs)</option>' : '')+'</select>'
+      + '<select class="inp" aria-label="Unit" data-f="pls" data-i="'+i+'" data-k="unit">'+plUnitOpts(l)+'</select>'
       + '<input class="inp" aria-label="Line cost (AED)" placeholder="AED" type="number" min="0" step="any" inputmode="decimal" data-f="pl" data-i="'+i+'" data-k="amt" value="'+esc(l.amt)+'">'
       + '<select class="inp" aria-label="Goes to" data-f="pls" data-i="'+i+'" data-k="to"><option value="wh"'+(l.to === 'wh' ? ' selected' : '')+'>Warehouse</option><option value="shop"'+(l.to === 'shop' ? ' selected' : '')+'>Shop (direct)</option></select>'
-      + '<small id="plp'+i+'">'+(pcs ? num(pcs)+' pcs' + (per !== null ? ' · AED '+money(per)+' each' : '') : '')+'</small>'
+      + '<small id="plp'+i+'">'+plPrev(l)+'</small>'
       + (f.lines.length > 1 ? '<button class="btn sm ghost plx" data-act="plrm" data-i="'+i+'" aria-label="Remove line" title="Remove line">&times;</button>' : '<span></span>') + '</div>';
   }).join('');
 }
@@ -3607,7 +3619,7 @@ function vPurNew(){
     + '<p style="color:var(--muted);margin:6px 0 0;font-size:13px">Saving adds the stock to the warehouse or shop, updates the average cost and records the payment. '+(f.pay === 'credit' ? 'This amount will be added to what you owe the supplier.' : 'The money goes out of the '+(f.pay === 'bank' ? 'bank' : 'counter drawer')+'.')+'</p>'
     + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="pformclose">Cancel</button><button class="btn primary" data-act="purchsave">'+(S.pedit ? 'Save changes' : 'Save purchase')+'</button></div></div></div>';
 }
-function purDesc(p){ return p.lines.map(function(l){ return l.name + ' ×' + num(l.qty) + (l.unit === 'ctn' ? ' ctn' : ''); }).join(', '); }
+function purDesc(p){ return p.lines.map(function(l){ return l.name + ' ×' + num(l.qty) + (l.unit === 'ctn' ? ' ctn' : (l.unit === 'tub' || l.unit === 'kg' || l.unit === 'g') ? ' ' + l.unit : ''); }).join(', '); }
 function pRef(p){ return 'PUR-' + String(p.id).replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase(); }
 function pVoucherRows(p){
   var rows = [['Date', xDate(p.date)], ['Supplier', supName(p.sup)]];
@@ -3716,14 +3728,14 @@ document.addEventListener('input', function(e){
 function plRefresh(){
   var T = purTotals(S.pf), g = function(id){ return document.getElementById(id); };
   if (g('ptsub')) g('ptsub').textContent = money(T.sub); if (g('ptvat')) g('ptvat').textContent = money(T.vat); if (g('ptot')) g('ptot').textContent = money(T.total);
-  S.pf.lines.forEach(function(l, i){ var e = g('plp' + i); if (!e) return; var pcs = l.key && parseFloat(l.qty) > 0 ? num(toPcs(l.key, parseFloat(l.qty), l.unit)) : 0, per = pcs > 0 && parseFloat(l.amt) >= 0 ? parseFloat(l.amt) / pcs : null; e.textContent = pcs ? num(pcs) + ' pcs' + (per !== null ? ' · AED ' + money(per) + ' each' : '') : ''; });
+  S.pf.lines.forEach(function(l, i){ var e = g('plp' + i); if (e) e.textContent = plPrev(l); });
 }
 document.addEventListener('change', function(e){
   var t = e.target, f = t.dataset && t.dataset.f; if (!f) return;
   if (f === 'pfs'){ S.pf[t.dataset.k] = t.value; render(); }
   else if (f === 'pls'){
     var l = S.pf.lines[+t.dataset.i]; l[t.dataset.k] = t.value;
-    if (t.dataset.k === 'key'){ l.unit = whCtn(t.value) ? 'ctn' : 'pcs'; l.to = whDirect(t.value) ? 'shop' : 'wh'; }
+    if (t.dataset.k === 'key'){ l.unit = plDefUnit(t.value); l.to = whDirect(t.value) ? 'shop' : 'wh'; }
     render();
   }
   else if (f === 'spfs'){ S.spf[t.dataset.k] = t.value; render(); }
@@ -3758,7 +3770,7 @@ document.addEventListener('click', function(e){
     case 'pnew': S.pedit = null; var pk = S.pf; S.pf = newPurForm(); S.pf.date = pk.date || today(); S.pf.sup = pk.sup || ''; S.pf.pay = pk.pay || 'cash'; S.popen = true; break;
     case 'pedit':
       var pe = byId(db.pur.list, d.id); if (!pe || pe.void) break;
-      S.pedit = pe.id; S.pf = {date:pe.date, sup:pe.sup || '', inv:pe.inv || '', pay:pe.pay, vat:pe.vat ? String(pe.vat) : '', note:pe.note || '', pin:'', lines:pe.lines.map(function(l){ return {key:l.key, qty:String(l.qty), unit:l.unit, amt:String(l.amt), to:l.to}; })}; S.popen = true; break;
+      S.pedit = pe.id; S.pf = {date:pe.date, sup:pe.sup || '', inv:pe.inv || '', pay:pe.pay, vat:pe.vat ? String(pe.vat) : '', note:pe.note || '', pin:'', lines:pe.lines.map(function(l){ return {key:l.key, qty:String(l.qty), unit:(l.unit === 'pcs' && plIsG(l.key)) ? 'g' : l.unit, amt:String(l.amt), to:l.to}; })}; S.popen = true; break;
     case 'pformclose': S.popen = false; S.pedit = null; S.pf = newPurForm(); break;
     case 'pcan': S.pcan = d.id; S.pcanpin = ''; break;
     case 'pcann': S.pcan = null; break;
