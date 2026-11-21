@@ -305,7 +305,7 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 .mat{max-width:none} .mat td.nm{width:42%} .mat th small{font-weight:400;font-size:10.5px} .mat .inp{width:76px!important} .mat td.nm .inp{width:100%!important} .mat td.c,.mat th.c{text-align:center;width:1%;white-space:nowrap} .mat .btn{min-height:26px;padding:0 10px}
 .recx{max-width:none} .rec{width:100%} .rec td{padding:6px 10px!important;border-bottom:1px solid var(--line)} .rec tr:last-child td{border-bottom:0} .rec td.n{width:1%;white-space:nowrap} .rec td.ra{width:1%;white-space:nowrap;text-align:right} .rec td.ra .btn{min-height:26px;padding:0 10px;font-size:12px;margin-left:4px} .rec td.ra .pill{margin-right:2px} .rec .inp{min-height:28px!important;height:28px!important;font-size:13px!important}
 .mvt td.tm{color:var(--muted);width:78px;white-space:nowrap;font-variant-numeric:tabular-nums} .mvt td.nm{width:auto} .mvt td.nt{color:var(--muted)} .mvt tr.dh td{background:var(--soft);font-weight:600;font-size:12px;padding:5px 10px!important;border-bottom:1px solid var(--line)} .mvt tr.dh small{color:var(--muted);font-weight:400;margin-left:6px}
-.mv{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap} .mv.in{background:var(--done-bg);color:#1e6b34} .mv.tr{background:#e8f0fb;color:#2257a8} .mv.ad{background:var(--warn-bg);color:#9a5b00}
+.mv{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap} .mv.in{background:var(--done-bg);color:#1e6b34} .mv.tr{background:#e8f0fb;color:#2257a8} .mv.ad{background:var(--warn-bg);color:#9a5b00} .mv.sl{background:#f3e8fb;color:#7a2fa0} html[data-theme=dark] .mv.sl{background:#35204a;color:#d6a8f0}
 .whtbl .inp{width:58px!important;text-align:center}
 .whtbl{width:100%;font-size:13px} .whtbl th{padding:5px 8px;font-size:11px} .whtbl td{padding:3px 8px;line-height:1.2} .whtbl td small{font-size:11px}
 .whtbl .inp{min-height:26px;height:26px;padding:0 6px;font-size:13px;width:64px;border-radius:7px} .whtbl input[type=checkbox]{width:16px!important;height:16px!important}
@@ -1751,9 +1751,9 @@ function whPrev(){
   return '';
 }
 function vStock(){
-  var tabs = [['over','Overview'],['in','Stock in'],['tr','Transfer'],['adj','Adjust'],['log','History'],['por','Portions']];
+  var tabs = [['over','Overview'],['in','Stock in'],['tr','Transfer'],['adj','Adjust'],['log','History'],['led','Ledger'],['por','Portions']];
   var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="whtab" data-id="'+t[0]+'" aria-pressed="'+(S.wt===t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
-  var body = (S.wt === 'in' || S.wt === 'tr' || S.wt === 'adj') ? whMove(S.wt) : S.wt === 'log' ? whLogView() : S.wt === 'por' ? whPortions() : whOver();
+  var body = (S.wt === 'in' || S.wt === 'tr' || S.wt === 'adj') ? whMove(S.wt) : S.wt === 'log' ? whLogView() : S.wt === 'led' ? ledView() : S.wt === 'por' ? whPortions() : whOver();
   return '<div class="page"><div class="bar">'+seg+'</div>'+body+'</div>';
 }
 function whOver(){
@@ -1826,6 +1826,60 @@ function whPortions(){
     + '<p style="margin:0 0 8px;color:var(--muted);font-size:12.5px">Every sale takes this much from the flavour stock. Cancelling a bill gives it back.</p>'
     + '<table class="whtbl pot"><thead><tr><th>Brand</th>'+labs.map(function(lb){ return '<th class="c">'+esc(lb)+'</th>'; }).join('')+'</tr></thead><tbody>'+rows+'</tbody></table>'
     + '<div class="pot-tub"><span>One tub holds</span><span class="gi"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="gmtub" value="'+gmTub()+'"><i>g</i></span><small>= '+num(gmTub() / 1000)+' kg</small></div></div></div>';
+}
+
+/* ---------- Stock ledger ---------- */
+function ledEntries(it){
+  var E = [], push = function(t, kind, label, ref, wh, sh){ E.push({t:t, kind:kind, label:label, ref:ref || '', wh:wh || 0, sh:sh || 0}); };
+  db.wh.log.forEach(function(l){
+    if (l.key !== it.key) return; var q = +l.q || 0, note = [l.reason, l.note].filter(Boolean).join(' · ');
+    if (l.type === 'in') push(l.t, 'in', 'Stock in', note || 'Added to ' + (l.loc === 'shop' ? 'shop' : 'warehouse'), l.loc === 'shop' ? 0 : q, l.loc === 'shop' ? q : 0);
+    else if (l.type === 'transfer'){ if (l.to === 'wh') push(l.t, 'tr', 'Transfer', 'Shop → Warehouse', q, -q); else push(l.t, 'tr', 'Transfer', 'Warehouse → Shop', -q, q); }
+    else if (l.type === 'adjust'){ var d = (l.dir > 0 ? 1 : -1) * q; push(l.t, 'ad', 'Adjust', note, l.loc === 'wh' ? d : 0, l.loc === 'wh' ? 0 : d); }
+  });
+  if (it.kind === 'i'){
+    db.sales.forEach(function(s){ s.lines.forEach(function(l){
+      if (skey(l.cat, l.name) !== it.sk) return; var q = gmAmt(l); if (!q) return;
+      push(s.t, 'sl', 'Sale', 'Bill #' + s.no + (l.size ? ' · ' + l.size : '') + ' × ' + l.qty, 0, -q);
+      if (s.void) push(s.voidT || s.t, 'ad', 'Bill cancelled', 'Bill #' + s.no + (s.voidReason ? ' · ' + s.voidReason : ''), 0, q);
+    }); });
+  } else {
+    var b = db.inv.base[it.mid] || {t:0, q:0};
+    db.inv.purchases.forEach(function(p){ if (p.m !== it.mid || p.t <= b.t) return; push(p.t, 'in', p.wh ? 'From warehouse' : 'Bought', p.supplier || '', 0, +p.q || 0); });
+    db.inv.waste.forEach(function(w){ if (w.m !== it.mid || w.t <= b.t) return; push(w.t, 'ad', w.wh ? 'Adjusted' : 'Waste', w.reason || '', 0, -(+w.q || 0)); });
+    db.sales.forEach(function(s){ if (s.void || s.t <= b.t) return; s.lines.forEach(function(l){ var r = db.inv.recipes[rkey(l.cat, l.size)]; if (!r) return; var q = 0; r.forEach(function(x){ if (x.m === it.mid) q += x.q * l.qty; }); if (q) push(s.t, 'sl', 'Used in sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty, 0, -q); }); });
+  }
+  E.sort(function(a, b){ return a.t - b.t; });
+  return E;
+}
+function ledView(){
+  var items = whItems(); if (!items.length) return '<div class="tbl"><p style="padding:14px">No stock items.</p></div>';
+  var L = S.led = S.led || {}; if (!L.key || !whFind(L.key)) L.key = items[0].key;
+  var d30 = new Date(Date.now() - 29 * 864e5); L.from = L.from || d30.toLocaleDateString('en-CA'); L.to = L.to || today(); L.loc = L.loc || 'all';
+  var it = whFind(L.key), tFrom = new Date(L.from + 'T00:00:00').getTime(), tTo = new Date(L.to + 'T23:59:59').getTime();
+  var fq = function(q){ return it.g ? gmQty(q) : num(q); }, E = ledEntries(it), pick = function(e){ return L.loc === 'wh' ? e.wh : L.loc === 'shop' ? e.sh : e.wh + e.sh; };
+  var close = L.loc === 'wh' ? whQty(it.key) : L.loc === 'shop' ? (shopQty(it) || 0) : whQty(it.key) + (shopQty(it) || 0);
+  var after = 0, inRange = [], tin = 0, tout = 0;
+  E.forEach(function(e){ var d = pick(e); if (e.t > tTo) after += d; else if (e.t >= tFrom) inRange.push({e:e, d:d}); });
+  var closeAt = num(close - after), net = inRange.reduce(function(a, r){ return a + r.d; }, 0), open = num(closeAt - net), bal = open;
+  var rows = inRange.map(function(r){
+    bal = num(bal + r.d); if (r.d > 0) tin += r.d; else tout -= r.d;
+    var tm = auditTime(r.e.t);
+    return '<tr><td class="tm">' + tm + '</td><td><span class="mv ' + (r.e.kind === 'sl' ? 'sl' : r.e.kind) + '">' + esc(r.e.label) + '</span></td><td class="nt">' + esc(r.e.ref) + '</td>'
+      + '<td class="n">' + (r.d > 0 ? '<b style="color:var(--done)">+' + fq(r.d) + '</b>' : '') + '</td><td class="n">' + (r.d < 0 ? '<b style="color:#d33">−' + fq(-r.d) + '</b>' : (r.d === 0 ? '<span class="mut">internal</span>' : '')) + '</td><td class="n"><b>' + fq(bal) + '</b></td></tr>';
+  }).join('');
+  var opt = ''; var gs = {}; items.forEach(function(x){ (gs[x.group] = gs[x.group] || []).push(x); });
+  Object.keys(gs).forEach(function(g){ opt += '<optgroup label="' + esc(g) + '">' + gs[g].map(function(x){ return '<option value="' + esc(x.key) + '"' + (x.key === L.key ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</optgroup>'; });
+  var ctl = '<div class="bar" style="gap:10px;flex-wrap:wrap;align-items:flex-end"><label class="fld" style="min-width:220px;flex:1">Item<select class="inp" data-f="led" data-k="key">' + opt + '</select></label>'
+    + '<label class="fld">Where<select class="inp" data-f="led" data-k="loc"><option value="all"' + (L.loc === 'all' ? ' selected' : '') + '>Shop + Warehouse</option><option value="wh"' + (L.loc === 'wh' ? ' selected' : '') + '>Warehouse</option><option value="shop"' + (L.loc === 'shop' ? ' selected' : '') + '>Shop</option></select></label>'
+    + '<label class="fld">From<input class="inp" type="date" data-f="led" data-k="from" value="' + esc(L.from) + '"></label><label class="fld">To<input class="inp" type="date" data-f="led" data-k="to" value="' + esc(L.to) + '"></label>'
+    + '<button class="btn ghost" data-act="ledprint">Print</button></div>';
+  var tl = L.loc === 'wh' ? 'Warehouse' : L.loc === 'shop' ? 'Shop' : 'Shop + Warehouse';
+  return ctl + '<div class="tbl" id="ledbox"><h3>' + esc(it.name) + ' <small>' + tl + ' · ' + esc(L.from) + ' to ' + esc(L.to) + '</small></h3><table class="whtbl mvt"><thead><tr><th>Date and time</th><th>Movement</th><th>Details</th><th class="n">In</th><th class="n">Out</th><th class="n">Balance</th></tr></thead><tbody>'
+    + '<tr class="dh"><td colspan="5">Opening balance</td><td class="n"><b>' + fq(open) + '</b></td></tr>'
+    + (rows || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:18px">No movement in this period.</td></tr>')
+    + '<tr class="dh"><td colspan="3">Closing balance <small>total in ' + fq(num(tin)) + ' · total out ' + fq(num(tout)) + '</small></td><td class="n"></td><td class="n"></td><td class="n"><b>' + fq(closeAt) + '</b></td></tr></tbody></table>'
+    + '<p style="margin:10px 4px 2px;color:var(--muted);font-size:12.5px">The opening balance is worked out backwards from the stock you have today and the movements recorded. Transfers between the shop and the warehouse show as internal when Shop + Warehouse is selected.</p></div>';
 }
 function whLogView(){
   var MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], lastDay = '', hasNote = false;
@@ -2285,6 +2339,7 @@ document.addEventListener('change', function(e){
     }; im.onerror = function(){ toast('That file is not a picture'); }; im.src = fr.result; }; fr.readAsDataURL(t.files[0]); t.value = ''; return;
   }
   if (t.id === 'cdate' && t.value){ S.closeDate = t.value; S.closeAsk = false; render(); return; }
+  if (t.dataset && t.dataset.f === 'led'){ S.led = S.led || {}; S.led[t.dataset.k] = t.value; render(); return; }
   if (t.dataset && t.dataset.f === 'xwho'){ var wv = t.value; if (wv === '__new' || wv === '__other'){ S.xf.wmode = wv; S.xf.who = ''; } else { S.xf.wmode = ''; S.xf.who = wv; } render(); return; }
   if (t.dataset && t.dataset.f === 'xfs'){ S.xf[t.dataset.k] = t.value; if (t.dataset.k === 'cat'){ var xc0 = xCat(t.value); S.xf.sub = (xc0 && xc0.subs[0]) ? xc0.subs[0].id : ''; } render(); return; }
   if (t.dataset && t.dataset.f === 'xfilter'){ S.xc = t.value; render(); return; }
@@ -2434,6 +2489,7 @@ document.addEventListener('click', function(e){
     case 'tgzero': db.settings.allowZero = !db.settings.allowZero; save(); break;
     case 'dayuse': S.dayUse = d.v === '0' ? today() : shiftDate(S.dayUse || today(), +d.v); break;
     case 'invtab': S.inv = d.id; S.matDel = null; break;
+    case 'ledprint': var lb = document.getElementById('ledbox'); if (lb) printHtml('<div style="color:var(--ink);padding:6mm"><div style="font-weight:700;font-size:16px;margin-bottom:8px">Stock ledger · ' + esc(setg().shop || '') + '</div>' + lb.innerHTML + '</div>'); return;
     case 'whtab': S.wt = d.id; break;
     case 'xtab': S.xt = d.id; S.xdel = null; S.xopen = false; S.ropen = false; S.xview = null; break;
     case 'xmonth': S.xm = d.v === '0' ? today().slice(0, 7) : shiftMonth(S.xm, +d.v); S.xdel = null; break;
