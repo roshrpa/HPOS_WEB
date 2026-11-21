@@ -3496,7 +3496,7 @@ function ownerSnap(){
   return {v:1, users:users, purch:plist, exp:xlist, t:Date.now(), day:t, shop:setg().shop, roles:roles, sales:S1, daily:daily, control:C, stock:K, money:M, wd:{lastWd:S1.lastWd.net}};
 }
 /* ---------- Owner mobile app access (set here, published to the tablet app) ---------- */
-var MOBP = [['home', 'Dashboard'], ['sales', 'Sales'], ['control', 'Audit'], ['stock', 'Stock'], ['purch', 'Purchases'], ['exp', 'Expenses'], ['money', 'Accounts']];
+var MOBP = [['home', 'Dashboard'], ['control', 'Audit'], ['stock', 'Stock'], ['purch', 'Purchases'], ['exp', 'Expenses'], ['money', 'Accounts']];
 function mobDef(r, x){
   if (r === 'Owner') return true; if (r === 'Cashier') return false;
   return x === 'home' ? (roleCan(r, 'sales') || roleCan(r, 'close')) : x === 'sales' ? roleCan(r, 'sales') : x === 'control' ? roleCan(r, 'audit') : x === 'stock' ? (roleCan(r, 'stock') || roleCan(r, 'inv') || roleCan(r, 'count')) : (roleCan(r, 'exp') || roleCan(r, 'close'));
