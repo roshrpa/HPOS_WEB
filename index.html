@@ -755,7 +755,7 @@ function queueEvent(type, payload, eid){
    Lists (expenses, purchases, customers ...) and settings are compared after each change; what changed is sent as
    "rec" / "recdel" events and the newest change wins. Stock quantities are sent as plus/minus amounts ("num") so two
    devices that sell at the same time both count. Each device applies the events the others sent. */
-var SYNC_ARR = ['exp.items','exp.cats','pur.list','pur.pays','sup','cust','cpay','cash.entries','inv.materials','inv.purchases','inv.waste','inv.counts','rec'];
+var SYNC_ARR = ['exp.items','exp.cats','pur.list','pur.pays','sup','cust','cpay','cash.entries','inv.materials','inv.purchases','inv.waste','inv.counts','rec','mobq'];
 var SYNC_MAP = ['days','avg','openStock','locks','perms','wh.carton','wh.direct','gm.use','gm.pack','cash.open','inv.recipes','inv.base','settings'];
 var SYNC_NUM = {'stock':'stock', 'whqty':'wh.qty'};
 var SYNC_SKIP = {settings:{pin:1, pinOn:1}};
@@ -1072,6 +1072,8 @@ function applyRemote(events){
       if (applyState(e.type, p)) changed = true;
     } else if (e.type === 'audit'){
       if (p && p.id && !byId(db.audit, p.id)){ db.audit.push(p); changed = true; }
+    } else if (e.type === 'mob_entry'){
+      db.mobq = db.mobq || []; if (p && p.id && p.kind && !byId(db.mobq, p.id)){ db.mobq.push(Object.assign({status:'new'}, p)); changed = true; }
     } else if (e.type === 'wh_move'){
       if (p && p.id && !byId(db.wh.log, p.id)){ db.wh.log.push(p); if (db.wh.log.length > 1000) db.wh.log.splice(0, db.wh.log.length - 1000); changed = true; }
     } else if (e.type === 'test_reset'){
@@ -2084,7 +2086,7 @@ function vExp(){
   var tabs = [['list','Expenses'],['rec','Recurring'],['sum','Summary and print'],['cat','Categories']];
   var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="xtab" data-id="'+t[0]+'" aria-pressed="'+(S.xt===t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
   var body = S.xt === 'sum' ? xSummary() : S.xt === 'cat' ? xCats() : S.xt === 'rec' ? xRec() : xList();
-  return '<div class="page"><div class="bar">'+seg+'</div>'+body+'</div>';
+  return '<div class="page"><div class="bar">'+seg+'</div>'+mobBanner('expense')+body+'</div>';
 }
 function monthSeg(act, m, isNow){
   return '<div class="seg"><button data-act="'+act+'" data-v="-1" aria-label="Previous month">◀</button><button data-act="'+act+'" data-v="0" aria-pressed="'+(m === today().slice(0, 7))+'">'+esc(monthLabel(m))+'</button><button data-act="'+act+'" data-v="1" aria-label="Next month">▶</button></div>';
@@ -3464,8 +3466,43 @@ function ownerSnap(){
   var roles = {}; allRoles().concat(['Owner']).forEach(function(r){
     roles[r] = {sales:roleCan(r, 'sales'), control:roleCan(r, 'audit'), stock:roleCan(r, 'stock') || roleCan(r, 'inv') || roleCan(r, 'count'), money:roleCan(r, 'exp') || roleCan(r, 'close'), cash:roleCan(r, 'close')};
   });
-  var devs = []; try { devs = []; } catch(er){}
-  return {v:1, t:Date.now(), day:t, shop:setg().shop, roles:roles, sales:S1, daily:daily, control:C, stock:K, money:M, wd:{lastWd:S1.lastWd.net}};
+  var users = (db.users || []).filter(function(u){ return u.active !== false; }).map(function(u){ return {name:u.name, role:u.role}; });
+  var forms = {xcats:db.exp.cats.map(function(c){ return {id:c.id, name:c.name, subs:(c.subs || []).map(function(x){ return {id:x.id, name:x.name}; })}; }),
+    sups:db.sup.map(function(x){ return {id:x.id, name:x.name}; }),
+    items:whItems().filter(function(it){ return it.kind === 'm'; }).map(function(it){ return {key:it.key, name:it.name, un:unitList(it, true).map(function(u){ return [u[0], u[1]]; })}; })};
+  return {v:1, users:users, forms:forms, t:Date.now(), day:t, shop:setg().shop, roles:roles, sales:S1, daily:daily, control:C, stock:K, money:M, wd:{lastWd:S1.lastWd.net}};
+}
+/* ---------- Entries typed in the owner mobile app wait here until someone approves them ---------- */
+function mobWait(kind){ return (db.mobq || []).filter(function(m){ return m.status === 'new' && m.kind === kind; }); }
+function mobDesc(m){
+  var d = m.data || {};
+  if (m.kind === 'expense'){ var c = xCat(d.cat); return d.date + ' · ' + (c ? c.name : '?') + ' · AED ' + money(+d.amt || 0) + ' · from ' + (d.from === 'bank' ? 'bank' : 'counter cash') + (d.who ? ' · ' + d.who : '') + (d.note ? ' · ' + d.note : ''); }
+  var tot = (d.lines || []).reduce(function(a, l){ return a + (+l.amt || 0); }, 0) + (+d.vat || 0);
+  return d.date + ' · ' + supName(d.sup) + ' · AED ' + money(round2(tot)) + ' · ' + (d.pay === 'credit' ? 'on credit' : 'paid ' + d.pay) + ' · ' + (d.lines || []).map(function(l){ var it = whFind(l.key); return (it ? it.name : '?') + ' ' + l.qty + ' ' + l.unit; }).join(', ');
+}
+function mobBanner(kind){
+  var w = mobWait(kind); if (!w.length) return '';
+  return '<div class="tbl" style="border:2px solid var(--pink)"><h3>From the mobile app, waiting for you (' + w.length + ')</h3>' + w.map(function(m){
+    return '<div style="padding:8px 0;border-top:1px solid var(--line)"><div style="font-size:13px;color:var(--muted)">' + esc(m.by || '') + ' · ' + fdate(m.t) + '</div><div style="margin:2px 0 8px">' + esc(mobDesc(m)) + '</div><div style="display:flex;gap:8px"><button class="btn primary sm" data-act="mobok" data-id="' + esc(m.id) + '">Approve and add</button><button class="btn ghost sm" data-act="mobno" data-id="' + esc(m.id) + '">Reject</button></div></div>';
+  }).join('') + '</div>';
+}
+function mobApprove(id){
+  var m = byId(db.mobq || [], id); if (!m || m.status !== 'new') return;
+  var me = curUser(), perm = m.kind === 'expense' ? 'exp' : 'purch';
+  if (!me || !can(perm)){ toast('You are not allowed to approve this'); return; }
+  var d = m.data || {}, by = (m.by || '') + ' (mobile)';
+  if (m.kind === 'expense'){
+    var c = xCat(d.cat), a = parseFloat(d.amt);
+    if (!c || !(a > 0) || !d.date){ toast('This entry is not complete. Reject it and type again.'); return; }
+    var xo = {id:uid('e'), t:Date.now(), by:by, date:d.date, cat:d.cat, sub:d.sub || (c.subs[0] ? c.subs[0].id : ''), amt:round2(a), from:d.from === 'bank' ? 'bank' : 'cash', vat:round2(parseFloat(d.vat) || 0), who:String(d.who || '').trim(), bill:String(d.bill || '').trim(), note:String(d.note || '').trim()};
+    db.exp.items.push(xo); queueEvent('expense', xo); audit('Expenses', 'Expense added from mobile', xAudDesc(xo) + ' · entered by ' + m.by + ' · approved by ' + me.name, {flag:1});
+  } else {
+    var f = {date:d.date, sup:d.sup || '', inv:String(d.inv || ''), pay:d.pay || 'cash', vat:d.vat ? String(d.vat) : '', note:String(d.note || ''), pin:'', lines:(d.lines || []).map(function(l){ return {key:l.key, qty:String(l.qty), unit:l.unit, amt:String(l.amt), to:'shop', rem:String(l.rem || '')}; })};
+    if (!f.date || !f.lines.length || f.lines.some(function(l){ return !whFind(l.key) || !lineOk(l); }) || (f.pay === 'credit' && !f.sup)){ toast('This entry is not complete. Reject it and type again.'); return; }
+    if (f.lines.some(function(l){ return l.unit === 'ctn' && !whCtn(l.key); })){ toast('Set pieces per carton in Stock first'); return; }
+    var pp = savePurchase({name:by}, true, f); audit('Purchases', 'Purchase added from mobile', f.date + ' · ' + supName(f.sup) + ' · AED ' + money(pp.total) + ' · entered by ' + m.by + ' · approved by ' + me.name, {flag:1});
+  }
+  m.status = 'done'; m.doneBy = me.name; m.doneT = Date.now(); save(); toast('Added');
 }
 function lowStockCount(){
   var n = 0, at = +setg().lowAt || 0;
@@ -3710,8 +3747,8 @@ function extLedger(acct){
 function purchCashNet(date){ var n = 0; extLedger('drawer').forEach(function(r){ if (r.date === date) n += r.amt; }); return n; }
 
 /* ----- save purchase ----- */
-function savePurchase(ap, quiet){
-  var f = S.pf, T = purTotals(f), lines = [], E = expectedMap(), pid = uid('p');
+function savePurchase(ap, quiet, fo){
+  var f = fo || S.pf, T = purTotals(f), lines = [], E = expectedMap(), pid = uid('p');
   f.lines.forEach(function(l){
     var it = whFind(l.key), q = parseFloat(l.qty), pcs = num(toPcs(l.key, q, l.unit)), amt = round2(parseFloat(l.amt));
     var onh = onHandPcs(it, E), old = unitCost(l.key);
@@ -3746,7 +3783,7 @@ function itemOptions(sel){
 function vPurch(){
   var tabs = [['hist', 'Purchases'], ['sup', 'Suppliers and payables'], ['cost', 'Item costs']];
   var seg = '<div class="seg" style="overflow-x:auto">' + tabs.map(function(t){ return '<button data-act="ptab" data-id="'+t[0]+'" aria-pressed="'+(S.pt === t[0])+'">'+t[1]+'</button>'; }).join('') + '</div>';
-  return '<div class="page"><div class="bar">'+seg+'</div>' + (S.pt === 'hist' ? vPurHist() : S.pt === 'sup' ? vSup() : S.pt === 'cost' ? vCost() : vPurHist()) + '</div>';
+  return '<div class="page"><div class="bar">'+seg+'</div>' + mobBanner('purchase') + (S.pt === 'hist' ? vPurHist() : S.pt === 'sup' ? vSup() : S.pt === 'cost' ? vCost() : vPurHist()) + '</div>';
 }
 function plIsG(key){ var it = key && whFind(key); return !!(it && it.g); }
 function plDefUnit(key){ return defUnit(key); }
@@ -3926,6 +3963,8 @@ document.addEventListener('click', function(e){
     case 'ptab': S.pview = null; S.pt = d.id; S.popen = false; S.pedit = null; break;
     case 'gopurch': S.tab = can('purch') ? 'purch' : S.tab; break;
     case 'pmonth': S.pm = d.v === '0' ? today().slice(0, 7) : shiftMonth(S.pm, +d.v); break;
+    case 'mobok': mobApprove(d.id); break;
+    case 'mobno': var mq = byId(db.mobq || [], d.id); if (mq && mq.status === 'new'){ mq.status = 'rejected'; mq.doneBy = curName(); mq.doneT = Date.now(); audit('Purchases', 'Mobile entry rejected', (mq.kind) + ' · ' + mobDesc(mq) + ' · entered by ' + mq.by, {flag:1}); save(); toast('Rejected'); } break;
     case 'pladd': S.pf.lines.push({key:'', qty:'', unit:'pcs', amt:'', to:'wh', rem:''}); break;
     case 'plrm': S.pf.lines.splice(+d.i, 1); break;
     case 'purchsave':
