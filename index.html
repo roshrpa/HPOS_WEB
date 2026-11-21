@@ -756,7 +756,7 @@ function queueEvent(type, payload, eid){
    "rec" / "recdel" events and the newest change wins. Stock quantities are sent as plus/minus amounts ("num") so two
    devices that sell at the same time both count. Each device applies the events the others sent. */
 var SYNC_ARR = ['exp.items','exp.cats','pur.list','pur.pays','sup','cust','cpay','cash.entries','inv.materials','inv.purchases','inv.waste','inv.counts','rec','mobq'];
-var SYNC_MAP = ['days','avg','openStock','locks','perms','wh.carton','wh.direct','gm.use','gm.pack','cash.open','inv.recipes','inv.base','settings'];
+var SYNC_MAP = ['mobacc','days','avg','openStock','locks','perms','wh.carton','wh.direct','gm.use','gm.pack','cash.open','inv.recipes','inv.base','settings'];
 var SYNC_NUM = {'stock':'stock', 'whqty':'wh.qty'};
 var SYNC_SKIP = {settings:{pin:1, pinOn:1}};
 function pget(path){ var o = db, a = path.split('.'); for (var i = 0; i < a.length; i++){ if (o === undefined || o === null) return undefined; o = o[a[i]]; } return o; }
@@ -911,6 +911,15 @@ async function cfgSync(){
         sync.cfg.shash = h; saveSync();
       } catch(e){ if (e.status === 401) throw e; }
     }
+    /* who may use the owner reports in the tablet app: set here, read by the tablets */
+    try {
+      var ao = mobAccOut(), ah = JSON.stringify(ao);
+      if (ah !== sync.cfg.ahash){
+        var ag = await syncApi('/config/owneracc');
+        await syncApi('/config/owneracc', {method:'PUT', body:{value:{roles:ao.roles, users:ao.users, t:Date.now()}, version:(ag && ag.version) || 0}});
+        sync.cfg.ahash = ah; saveSync();
+      }
+    } catch(e){ if (e.status === 401) throw e; }
     /* owner reports: published at most once a minute, only when something changed */
     if (Date.now() - (sync.cfg.otime || 0) > 60000){
       try {
@@ -2259,6 +2268,7 @@ function vSheets(){
   if (S.copopen && S.tab === 'cash') return copForm();
   if (S.uaopen && S.tab === 'users') return userForm();
   if (S.uedit && S.tab === 'users') return userEditForm();
+  if (S.maccopen && S.tab === 'users') return mobAccForm();
   if (S.permopen && S.tab === 'users') return permForm();
   if (S.custopen && S.tab === 'credit') return vCustNew();
   if (S.popen && S.tab === 'purch') return vPurNew();
@@ -2491,7 +2501,7 @@ document.addEventListener('click', function(e){
     case 'ntg': var nk = el.dataset.k; db.settings.notif = ncfg(); if (nk === 'on') db.settings.notif.on = !db.settings.notif.on; else if (nk === 'sound') db.settings.notif.sound = !db.settings.notif.sound; else db.settings.notif[nk].on = !db.settings.notif[nk].on; save(); break;
     case 'theme': setTheme(themeDark() ? 'light' : 'dark'); break;
     case 'sbtoggle': S.sbOpen = !S.sbOpen; break;
-    case 'tab': S.sbOpen = false; S.uedit = null; S.permopen = false; S.uaopen = S.supopen = S.spopen = S.rpopen = S.cfopen = S.copopen = S.custopen = S.popen = S.ropen = S.xopen = false; S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
+    case 'tab': S.sbOpen = false; S.uedit = null; S.permopen = false; S.maccopen = false; S.uaopen = S.supopen = S.spopen = S.rpopen = S.cfopen = S.copopen = S.custopen = S.popen = S.ropen = S.xopen = false; S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
     case 'cat': S.cat = d.id; S.catChanged = true; break;
     case 'chpay': S.cf.kind = 'agg'; S.cf.ch = d.id; S.cfopen = true; break;
     case 'chtoggle': var chy = chById(d.id); if (chy){ chy.on = chy.on === false; if (!chy.on && S.ch === chy.id) S.ch = ''; save(); if (typeof menuEdited === 'function') menuEdited(); } break;
@@ -3039,7 +3049,7 @@ function vUsers(){
       + '<td style="text-align:left">'+esc(u.role)+'</td>'
       + '<td style="text-align:left;color:'+(off ? 'var(--muted)' : 'var(--done)')+';font-weight:600">'+(off ? 'Inactive' : 'Active')+'</td><td style="text-align:right;color:var(--muted)">Edit ›</td></tr>';
   }).join('');
-  return '<div class="page"><div class="card"><div class="bar"><h3 style="margin:0">Users</h3><span class="sp"></span><button class="btn ghost sm" data-act="permopen">Role permissions</button> <button class="btn primary sm" data-act="unew">+ Add user</button></div>'
+  return '<div class="page"><div class="card"><div class="bar"><h3 style="margin:0">Users</h3><span class="sp"></span><button class="btn ghost sm" data-act="permopen">Role permissions</button> <button class="btn ghost sm" data-act="maccopen">Mobile app access</button> <button class="btn primary sm" data-act="unew">+ Add user</button></div>'
     + '<div class="tblwrap" style="margin-top:10px"><table class="tbl"><thead><tr><th style="text-align:left">Name</th><th style="text-align:left">Role</th><th style="text-align:left">Status</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div></div>';
 }
 
@@ -3129,6 +3139,13 @@ document.addEventListener('change', function(e){
   if (f === 'uar'){ S.uadd.role = t.value; return; }
   if (f === 'uedr' && S.ued){ S.ued.role = t.value; return; }
   if (f === 'ueda' && S.ued){ S.ued.active = t.value === '1'; return; }
+  if (f === 'mobck'){
+    if (!userPinCheck()){ render(); return; }
+    db.mobacc = db.mobacc || {}; var kd = t.dataset.kind, ky = t.dataset.key, px = t.dataset.p, on = t.checked;
+    if (kd === 'role'){ var rl = Object.assign({}, db.mobacc.roles || {}); var cur = {}; MOBP.forEach(function(q){ cur[q[0]] = mobRoleOn(ky, q[0]); }); cur[px] = on; rl[ky] = cur; db.mobacc.roles = rl; }
+    else { var uu = db.users.filter(function(x){ return x.name === ky; })[0]; if (!uu) return; var us2 = Object.assign({}, db.mobacc.users || {}), k2 = mobUserKey(uu), cu = {}; MOBP.forEach(function(q){ cu[q[0]] = mobUserOn(uu, q[0]); }); cu[px] = on; us2[k2] = cu; db.mobacc.users = us2; }
+    audit('Users and Security', 'Mobile app access changed', ky + ' · ' + px + ': ' + (on ? 'allowed' : 'not allowed'), {flag:1}); save(); render(); return;
+  }
   if (f === 'permck'){ if (!userPinCheck()){ render(); return; } var rr = t.dataset.role, pp = t.dataset.p; db.perms[rr] = db.perms[rr] || {}; db.perms[rr][pp] = t.checked; var pl = PERMS.filter(function(x){ return x[0] === pp; })[0]; audit('Users and Security', 'Permission changed', rr + ' · ' + (pl ? pl[1] : pp) + ': ' + (t.checked ? 'allowed' : 'not allowed'), {flag:1}); save(); render(); return; }
   auditDiffs();
 });
@@ -3204,6 +3221,9 @@ document.addEventListener('click', function(e){
       if (!userPinCheck()) break;
       if (!window.confirm('Remove the role ' + dr + '?')) break;
       delete db.perms[dr]; audit('Users and Security', 'Role removed', dr, {flag:1}); save(); break;
+    case 'maccopen': if (!userPinCheck()) break; S.maccopen = true; break;
+    case 'maccx': S.maccopen = false; break;
+    case 'mobreset': if (e && e.preventDefault) e.preventDefault(); if (!userPinCheck()) break; var mk = String(d.n).trim().toLowerCase(); if (db.mobacc && db.mobacc.users && db.mobacc.users[mk]){ var mu = Object.assign({}, db.mobacc.users); delete mu[mk]; db.mobacc.users = mu; audit('Users and Security', 'Mobile access reset to role', d.n, {flag:1}); save(); } break;
     case 'permopen': S.permopen = true; S.upc = ''; break;
     case 'permx': S.nropen = false; S.permopen = false; S.upc = ''; break;
     case 'uedsave':
@@ -3471,6 +3491,33 @@ function ownerSnap(){
     sups:db.sup.map(function(x){ return {id:x.id, name:x.name}; }),
     items:whItems().filter(function(it){ return it.kind === 'm'; }).map(function(it){ return {key:it.key, name:it.name, un:unitList(it, true).map(function(u){ return [u[0], u[1]]; })}; })};
   return {v:1, users:users, forms:forms, t:Date.now(), day:t, shop:setg().shop, roles:roles, sales:S1, daily:daily, control:C, stock:K, money:M, wd:{lastWd:S1.lastWd.net}};
+}
+/* ---------- Owner mobile app access (set here, published to the tablet app) ---------- */
+var MOBP = [['home', 'Home'], ['sales', 'Sales'], ['control', 'Control'], ['stock', 'Stock'], ['money', 'Money'], ['addexp', '+ Expense'], ['addpur', '+ Purchase']];
+function mobDef(r, x){
+  if (r === 'Owner') return true; if (r === 'Cashier' || x === 'addexp' || x === 'addpur') return false;
+  return x === 'home' ? (roleCan(r, 'sales') || roleCan(r, 'close')) : x === 'sales' ? roleCan(r, 'sales') : x === 'control' ? roleCan(r, 'audit') : x === 'stock' ? (roleCan(r, 'stock') || roleCan(r, 'inv') || roleCan(r, 'count')) : (roleCan(r, 'exp') || roleCan(r, 'close'));
+}
+function mobRoleOn(r, x){ var a = db.mobacc && db.mobacc.roles && db.mobacc.roles[r]; return a && a[x] !== undefined ? !!a[x] : mobDef(r, x); }
+function mobUserKey(u){ return String(u.name || '').trim().toLowerCase(); }
+function mobUserHas(u){ return !!(db.mobacc && db.mobacc.users && db.mobacc.users[mobUserKey(u)]); }
+function mobUserOn(u, x){ var o = db.mobacc && db.mobacc.users && db.mobacc.users[mobUserKey(u)]; return o && o[x] !== undefined ? !!o[x] : mobRoleOn(u.role, x); }
+function mobAccOut(){
+  var roles = {}, users = {};
+  allRoles().forEach(function(r){ if (r === 'Owner') return; roles[r] = {}; MOBP.forEach(function(q){ roles[r][q[0]] = mobRoleOn(r, q[0]); }); });
+  if (db.mobacc && db.mobacc.users) Object.keys(db.mobacc.users).forEach(function(k){ users[k] = db.mobacc.users[k]; });
+  return {roles:roles, users:users};
+}
+function mobAccForm(){
+  var RL = allRoles().filter(function(r){ return r !== 'Owner'; }), us = db.users.filter(function(u){ return u.role !== 'Owner' && u.active !== false; });
+  function th(){ return MOBP.map(function(q){ return '<th>' + q[1] + '</th>'; }).join(''); }
+  function ck(kind, key, x, on){ return '<td class="c"><input type="checkbox" data-f="mobck" data-kind="' + kind + '" data-key="' + esc(key) + '" data-p="' + x + '"' + (on ? ' checked' : '') + '></td>'; }
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Mobile app access" style="max-width:560px;max-height:92vh;overflow:auto;padding:14px 16px"><h3 style="margin:0 0 4px;font-size:17px">Owner mobile app: who can see what</h3>'
+    + '<p style="color:var(--muted);margin:0 0 10px;font-size:13px">Controls the Reports tab in the tablet app. The Owner always sees everything. "+ Expense" and "+ Purchase" let a person type an entry on the tablet; it is added to the books only after someone approves it here in the POS.</p>'
+    + '<b style="font-size:14px">By role</b><div style="overflow-x:auto;margin:6px 0 14px"><table class="pt"><thead><tr><th>Role</th>' + th() + '</tr></thead><tbody>' + RL.map(function(r){ return '<tr><td>' + esc(r) + '</td>' + MOBP.map(function(q){ return ck('role', r, q[0], mobRoleOn(r, q[0])); }).join('') + '</tr>'; }).join('') + '</tbody></table></div>'
+    + '<b style="font-size:14px">By person</b><p style="color:var(--muted);margin:2px 0 6px;font-size:13px">Tick here to give one person something different from his role. A dot means he has his own settings.</p>'
+    + (us.length ? '<div style="overflow-x:auto"><table class="pt"><thead><tr><th>Person</th>' + th() + '<th></th></tr></thead><tbody>' + us.map(function(u){ return '<tr><td>' + esc(u.name) + (mobUserHas(u) ? ' •' : '') + '<small style="display:block;color:var(--muted)">' + esc(u.role) + '</small></td>' + MOBP.map(function(q){ return ck('user', u.name, q[0], mobUserOn(u, q[0])); }).join('') + '<td>' + (mobUserHas(u) ? '<a href="#" data-act="mobreset" data-n="' + esc(u.name) + '" style="font-size:12px;color:var(--pink-dk)">use role</a>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<p style="color:var(--muted)">No other users yet.</p>')
+    + '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="maccx">Done</button></div></div></div>';
 }
 /* ---------- Entries typed in the owner mobile app wait here until someone approves them ---------- */
 function mobWait(kind){ return (db.mobq || []).filter(function(m){ return m.status === 'new' && m.kind === kind; }); }
