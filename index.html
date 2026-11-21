@@ -1540,8 +1540,26 @@ function headInfo(){
 
 /* ---------- Notifications: bell + reminder popup ---------- */
 var N_DEF = {on:true, every:30, count:{on:true, from:'08:00'}, close:{on:true, from:'22:00'}, low:{on:false}, backup:{on:true}, credit:{on:true}};
-function ncfg(){ var c = (db.settings && db.settings.notif) || {}, d = N_DEF, o = {on: c.on !== false, every: parseInt(c.every, 10) || d.every, tasks: Array.isArray(c.tasks) ? c.tasks : []};
+function ncfg(){ var c = (db.settings && db.settings.notif) || {}, d = N_DEF, o = {on: c.on !== false, every: parseInt(c.every, 10) || d.every, tasks: Array.isArray(c.tasks) ? c.tasks : [], sound: c.sound !== false, tone: ['bell','chime','beep'].indexOf(c.tone) >= 0 ? c.tone : 'bell', vol: ['low','med','high'].indexOf(c.vol) >= 0 ? c.vol : 'med'};
   ['count','close','low','backup','credit'].forEach(function(k){ o[k] = Object.assign({}, d[k], c[k] || {}); }); return o; }
+/* sound for the reminder popup (made in the browser, no sound files) */
+var nAC = null;
+function nBeep(tone, vol){
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    nAC = nAC || new AC(); if (nAC.state === 'suspended') nAC.resume();
+    var g = {low:0.12, med:0.3, high:0.6}[vol] || 0.3, t0 = nAC.currentTime + 0.02;
+    var seq = tone === 'beep' ? [[880,0,.16,'square'],[880,.25,.16,'square'],[880,.5,.16,'square']]
+      : tone === 'chime' ? [[523,0,.5,'sine'],[659,.18,.5,'sine'],[784,.36,.7,'sine']]
+      : [[988,0,.9,'sine'],[1319,.22,1.1,'sine']];
+    seq.forEach(function(n){
+      var o = nAC.createOscillator(), a = nAC.createGain(); o.type = n[3]; o.frequency.value = n[0];
+      var amp = n[3] === 'square' ? g * 0.5 : g;
+      a.gain.setValueAtTime(0.0001, t0 + n[1]); a.gain.exponentialRampToValueAtTime(amp, t0 + n[1] + 0.02); a.gain.exponentialRampToValueAtTime(0.0001, t0 + n[1] + n[2]);
+      o.connect(a); a.connect(nAC.destination); o.start(t0 + n[1]); o.stop(t0 + n[1] + n[2] + 0.05);
+    });
+  } catch(e){}
+}
 function nowHM(){ var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
 function nList(){
   var c = ncfg(), out = [], u = curUser(); if (!u || !c.on) return out;
@@ -1573,6 +1591,7 @@ function npopShow(items){
   d.innerHTML = '<div class="nph"><b>Reminder</b><button class="npx" aria-label="Close">×</button></div>' + items.map(function(x){ return '<div class="npi ' + x.tone + '"><div><b>' + esc(x.title) + '</b><small>' + esc(x.sub) + '</small></div><button class="btn primary sm" data-k="' + x.key + '">' + (x.task ? 'Done' : 'Open') + '</button></div>'; }).join('')
     + '<div class="npf"><button class="btn ghost sm" id="npsz">Remind me in ' + ncfg().every + ' min</button></div>';
   document.body.appendChild(d);
+  var nc = ncfg(); if (nc.sound) nBeep(nc.tone, nc.vol);
   var keys = items.map(function(x){ return x.key; });
   d.querySelector('.npx').onclick = d.querySelector('#npsz').onclick = function(){ nSetSnooze(keys, ncfg().every); npopClose(); };
   [].forEach.call(d.querySelectorAll('[data-k]'), function(b){ b.onclick = function(){ nGo(b.dataset.k); }; });
@@ -1600,6 +1619,11 @@ function nCard(){
   return '<div class="card" style="margin:0"><h3 style="margin:0 0 4px">Notifications</h3><p style="color:var(--muted);font-size:13px;margin:0 0 4px">Reminders show in the bell at the top and as a small popup on every screen, including Sale. If the job is still not done, the popup comes again after the repeat time.</p>'
     + sw(c.on, 'ntg', 'on', 'Reminders', 'Master switch for this shop.')
     + '<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)"><div style="flex:1"><b>Repeat every</b><div style="color:var(--muted);font-size:13px;margin-top:2px">Also the Snooze time on the popup.</div></div><select class="inp" style="width:130px" data-f="nset" data-k="every">' + [5,10,15,30,60,120,240].map(function(m){ return '<option value="' + m + '"' + (m === c.every ? ' selected' : '') + '>' + (m < 60 ? m + ' minutes' : (m / 60) + (m === 60 ? ' hour' : ' hours')) + '</option>'; }).join('') + '</select></div>'
+    + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:180px"><b>Sound</b><div style="color:var(--muted);font-size:13px;margin-top:2px">Plays when a reminder popup appears (and each time it comes back). Your browser may stay silent until you have tapped something on the page.</div></div>'
+    + '<select class="inp" style="width:110px" data-f="nset" data-k="tone" aria-label="Tone">' + [['bell','Bell'],['chime','Chime'],['beep','Beep']].map(function(o){ return '<option value="' + o[0] + '"' + (c.tone === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'
+    + '<select class="inp" style="width:110px" data-f="nset" data-k="vol" aria-label="Volume">' + [['low','Soft'],['med','Medium'],['high','Loud']].map(function(o){ return '<option value="' + o[0] + '"' + (c.vol === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'
+    + '<button class="btn ghost sm" data-act="ntest">Test</button>'
+    + '<button role="switch" aria-checked="' + c.sound + '" data-act="ntg" data-k="sound" class="btn ' + (c.sound ? 'good' : 'ghost') + ' sm" style="min-width:70px">' + (c.sound ? 'On' : 'Off') + '</button></div>'
     + sw(c.count.on, 'ntg', 'count', 'Morning cup count', 'Remind from this time until the count is done.', c.count.from)
     + sw(c.close.on, 'ntg', 'close', 'Close the day', 'Remind from this time if there were sales and the day is not closed.', c.close.from)
     + sw(c.low.on, 'ntg', 'low', 'Low stock', 'Remind while any item is low in the warehouse.')
@@ -2323,7 +2347,7 @@ document.addEventListener('input', function(e){
   if (f === 'dnote' && S.discForm){ S.discForm.note = t.value; discRefresh(); return; }
   if (f === 'sync'){ sync[t.dataset.k] = t.value.trim(); saveSync(); paintSync(); return; }
   if (f === 'nt'){ var nt = ncfg(); nt.tasks.forEach(function(x){ if (x.id === t.dataset.id) x[t.dataset.k] = t.value; }); db.settings.notif = nt; save(); nBadge(); return; }
-  if (f === 'nset'){ var nn = ncfg(), nk2 = t.dataset.k; if (t.dataset.p) nn[nk2][t.dataset.p] = t.value; else nn[nk2] = parseInt(t.value, 10) || 30; db.settings.notif = nn; save(); nBadge(); return; }
+  if (f === 'nset'){ var nn = ncfg(), nk2 = t.dataset.k; if (t.dataset.p) nn[nk2][t.dataset.p] = t.value; else if (nk2 === 'tone' || nk2 === 'vol'){ nn[nk2] = t.value; db.settings.notif = nn; save(); nBeep(nn.tone, nn.vol); return; } else nn[nk2] = parseInt(t.value, 10) || 30; db.settings.notif = nn; save(); nBadge(); return; }
   if (f === 'set'){ var kk = t.dataset.k; db.settings[kk] = (kk === 'rate' || kk === 'lowAt') ? (parseFloat(t.value) || 0) : t.value; save(); return; }
   if (t.id === 'whq'){ var wq0 = t.value.trim().toLowerCase(); document.querySelectorAll('tr[data-n]').forEach(function(r){ r.style.display = (!wq0 || r.dataset.n.indexOf(wq0) >= 0) ? '' : 'none'; }); return; }
   if ((f === 'cc' || f === 'oc' || f === 'ec') && (!S.cstart || Date.now() - S.cstart > 3600000)) S.cstart = Date.now();
@@ -2426,7 +2450,8 @@ document.addEventListener('click', function(e){
     case 'nbell': S.nopen = !S.nopen; break;
     case 'ngo': nGo(el.dataset.k); return;
     case 'nsettings': S.nopen = false; S.tab = 'rem'; break;
-    case 'ntg': var nk = el.dataset.k; db.settings.notif = ncfg(); if (nk === 'on') db.settings.notif.on = !db.settings.notif.on; else db.settings.notif[nk].on = !db.settings.notif[nk].on; save(); break;
+    case 'ntest': var tc = ncfg(); nBeep(tc.tone, tc.vol); return;
+    case 'ntg': var nk = el.dataset.k; db.settings.notif = ncfg(); if (nk === 'on') db.settings.notif.on = !db.settings.notif.on; else if (nk === 'sound') db.settings.notif.sound = !db.settings.notif.sound; else db.settings.notif[nk].on = !db.settings.notif[nk].on; save(); break;
     case 'theme': setTheme(themeDark() ? 'light' : 'dark'); break;
     case 'sbtoggle': S.sbOpen = !S.sbOpen; break;
     case 'tab': S.sbOpen = false; S.uedit = null; S.permopen = false; S.uaopen = S.supopen = S.spopen = S.rpopen = S.cfopen = S.copopen = S.custopen = S.popen = S.ropen = S.xopen = false; S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
