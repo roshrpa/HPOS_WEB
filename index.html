@@ -2235,6 +2235,12 @@ function vSheets(){
 
 function normalizeDisc(){ if (!S.cart.length){ S.disc = null; S.fromOrder = null; } }
 var SCR = ['.items', '.cats', '.rail', '.lines', '.page', '.ed .main', '.ed .list'], lastKey = '';
+/* the browser treats a text box above a PIN box as a username and fills in a saved name (e.g. in Note); stop that */
+function noAutofill(){
+  var app = document.getElementById('app'); if (!app) return;
+  Array.prototype.forEach.call(app.querySelectorAll('input[type=password]'), function(p){ p.setAttribute('autocomplete', 'new-password'); });
+  Array.prototype.forEach.call(app.querySelectorAll('input.inp:not([type]),input.inp[type=text]'), function(i){ i.setAttribute('autocomplete', 'off'); if (!i.name) i.setAttribute('name', 'f' + (i.dataset.f || 'x') + (i.dataset.k || '')); });
+}
 function render(){
   applyLogo(); normalizeDisc();
   var au = authScreen(); if (au){ document.getElementById('app').innerHTML = au; var lp0 = document.getElementById('lpin'); if (lp0) lp0.focus(); return; }
@@ -2244,6 +2250,7 @@ function render(){
   var key = S.tab;
   var body = S.tab === 'sale' ? vSale() : S.tab === 'sales' ? vSales() : S.tab === 'reports' ? vReports() : S.tab === 'credit' ? vCredit() : S.tab === 'purch' ? vPurch() : S.tab === 'cash' ? vCash() : S.tab === 'dash' ? vDash() : S.tab === 'audit' ? vAudit() : S.tab === 'users' ? vUsers() : S.tab === 'close' ? vClose() : S.tab === 'count' ? vCount() : S.tab === 'range' ? vRange() : S.tab === 'inv' ? vInv() : S.tab === 'stock' ? vStock() : S.tab === 'exp' ? vExp() : S.tab === 'rem' ? vRem() : S.tab === 'settings' ? vSettings() : vMenu();
   document.getElementById('app').innerHTML = '<div class="shell">' + vSide() + '<div class="mainc">' + vHeader() + licBanner() + '<main>' + body + '</main></div></div>' + vSheets();
+  noAutofill();
   paintSync();
   SCR.forEach(function(s){ var e = document.querySelector(s), k = keep[s]; if (e && k && key === lastKey && !(s === '.items' && S.catChanged)){ e.scrollTop = k[0]; e.scrollLeft = k[1]; } });
   S.catChanged = false; lastKey = key;
