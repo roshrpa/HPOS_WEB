@@ -3221,7 +3221,7 @@ document.addEventListener('click', function(e){
       delete db.perms[dr]; audit('Users and Security', 'Role removed', dr, {flag:1}); save(); break;
     case 'maccopen': if (!userPinCheck()) break; S.maccopen = true; break;
     case 'maccx': S.maccopen = false; break;
-    case 'mobreset': if (e && e.preventDefault) e.preventDefault(); if (!userPinCheck()) break; var mk = String(d.n).trim().toLowerCase(); if (db.mobacc && db.mobacc.users && db.mobacc.users[mk]){ var mu = Object.assign({}, db.mobacc.users); delete mu[mk]; db.mobacc.users = mu; audit('Users and Security', 'Mobile access reset to role', d.n, {flag:1}); save(); } break;
+    case 'mobreset': if (e && e.preventDefault) e.preventDefault(); if (!userPinCheck()) break; var mk = String(d.n).trim().toLowerCase(); if (db.mobacc && db.mobacc.users && db.mobacc.users[mk]){ var mu = Object.assign({}, db.mobacc.users); delete mu[mk]; db.mobacc.users = mu; audit('Users and Security', 'Mobile access cleared', d.n, {flag:1}); save(); } break;
     case 'permopen': S.permopen = true; S.upc = ''; break;
     case 'permx': S.nropen = false; S.permopen = false; S.upc = ''; break;
     case 'uedsave':
@@ -3496,22 +3496,20 @@ function mobDef(r, x){
 function mobRoleOn(r, x){ var a = db.mobacc && db.mobacc.roles && db.mobacc.roles[r]; return a && a[x] !== undefined ? !!a[x] : mobDef(r, x); }
 function mobUserKey(u){ return String(u.name || '').trim().toLowerCase(); }
 function mobUserHas(u){ return !!(db.mobacc && db.mobacc.users && db.mobacc.users[mobUserKey(u)]); }
-function mobUserOn(u, x){ var o = db.mobacc && db.mobacc.users && db.mobacc.users[mobUserKey(u)]; return o && o[x] !== undefined ? !!o[x] : mobRoleOn(u.role, x); }
+function mobUserOn(u, x){ var o = db.mobacc && db.mobacc.users && db.mobacc.users[mobUserKey(u)]; return !!(o && o[x]); }
 function mobAccOut(){
   var roles = {}, users = {};
-  allRoles().forEach(function(r){ if (r === 'Owner') return; roles[r] = {}; MOBP.forEach(function(q){ roles[r][q[0]] = mobRoleOn(r, q[0]); }); });
   if (db.mobacc && db.mobacc.users) Object.keys(db.mobacc.users).forEach(function(k){ users[k] = db.mobacc.users[k]; });
   return {roles:roles, users:users};
 }
 function mobAccForm(){
-  var RL = allRoles().filter(function(r){ return r !== 'Owner'; }), us = db.users.filter(function(u){ return u.role !== 'Owner' && u.active !== false; });
+  var RL = allRoles().filter(function(r){ return r !== 'Owner'; }), us = db.users.filter(function(u){ return u.active !== false; });
   function th(){ return MOBP.map(function(q){ return '<th>' + q[1] + '</th>'; }).join(''); }
   function ck(kind, key, x, on){ return '<td class="c"><input type="checkbox" data-f="mobck" data-kind="' + kind + '" data-key="' + esc(key) + '" data-p="' + x + '"' + (on ? ' checked' : '') + '></td>'; }
   return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Mobile app access" style="width:94vw;max-width:980px;max-height:94vh;overflow:auto;padding:24px 28px"><style>.macc .pt{font-size:17px}.macc .pt th{font-size:14px;padding:10px 10px}.macc .pt td{padding:12px 10px;border-bottom:1px solid var(--line)}.macc .pt input[type=checkbox]{width:30px;height:30px}.macc small{font-size:13px}</style><div class="macc"><h3 style="margin:0 0 6px;font-size:24px">Owner mobile app: who can see what</h3>'
-    + '<p style="color:var(--muted);margin:0 0 16px;font-size:16px">Controls the Reports tab in the tablet app. The Owner always sees everything. The tablet app only shows reports; nothing can be changed from it.</p>'
-    + '<b style="font-size:19px">By role</b><div style="overflow-x:auto;margin:6px 0 14px"><table class="pt"><thead><tr><th>Role</th>' + th() + '</tr></thead><tbody>' + RL.map(function(r){ return '<tr><td>' + esc(r) + '</td>' + MOBP.map(function(q){ return ck('role', r, q[0], mobRoleOn(r, q[0])); }).join('') + '</tr>'; }).join('') + '</tbody></table></div>'
-    + '<b style="font-size:19px">By person</b><p style="color:var(--muted);margin:4px 0 10px;font-size:16px">Tick here to give one person something different from his role. A dot means he has his own settings.</p>'
-    + (us.length ? '<div style="overflow-x:auto"><table class="pt"><thead><tr><th>Person</th>' + th() + '<th></th></tr></thead><tbody>' + us.map(function(u){ return '<tr><td>' + esc(u.name) + (mobUserHas(u) ? ' •' : '') + '<small style="display:block;color:var(--muted)">' + esc(u.role) + '</small></td>' + MOBP.map(function(q){ return ck('user', u.name, q[0], mobUserOn(u, q[0])); }).join('') + '<td>' + (mobUserHas(u) ? '<a href="#" data-act="mobreset" data-n="' + esc(u.name) + '" style="font-size:12px;color:var(--pink-dk)">use role</a>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<p style="color:var(--muted)">No other users yet.</p>')
+    + '<p style="color:var(--muted);margin:0 0 16px;font-size:16px">Controls the Reports tab in the tablet app, person by person. The Owner always sees everything. The tablet app only shows reports; nothing can be changed from it.</p>'
+    + '<b style="font-size:19px">Who can see which reports</b><p style="color:var(--muted);margin:4px 0 10px;font-size:16px">Tick what each person may open. Nothing ticked means he sees no reports. Owners always see everything.</p>'
+    + (us.length ? '<div style="overflow-x:auto"><table class="pt"><thead><tr><th>Person</th>' + th() + '<th></th></tr></thead><tbody>' + us.map(function(u){ return '<tr><td>' + esc(u.name) + (mobUserHas(u) ? ' •' : '') + '<small style="display:block;color:var(--muted)">' + esc(u.role) + '</small></td>' + MOBP.map(function(q){ return u.role === 'Owner' ? '<td class="c"><input type="checkbox" checked disabled></td>' : ck('user', u.name, q[0], mobUserOn(u, q[0])); }).join('') + '<td>' + (u.role !== 'Owner' && mobUserHas(u) ? '<a href="#" data-act="mobreset" data-n="' + esc(u.name) + '" style="font-size:12px;color:var(--pink-dk)">clear</a>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<p style="color:var(--muted)">No other users yet.</p>')
     + '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="maccx" style="min-height:52px;font-size:18px;padding:0 36px">Done</button></div></div></div></div>';
 }
 function lowStockCount(){
