@@ -1428,7 +1428,8 @@ function paperIs80(){ try { return localStorage.getItem('hpos_paper') !== 'a4'; 
 function printHtml(h){
   var w = document.getElementById('xprint'); if (!w){ w = document.createElement('div'); w.id = 'xprint'; document.body.appendChild(w); }
   var ps = document.getElementById('pgsz'); if (!ps){ ps = document.createElement('style'); ps.id = 'pgsz'; document.head.appendChild(ps); }
-  var p80 = paperIs80(); ps.textContent = p80 ? '@page{size:80mm auto;margin:0}' : ''; w.className = p80 ? 'p80' : '';
+  var p80 = paperIs80() && String(h).indexOf('<svg') < 0;   // reports with graphs print on A4
+  ps.textContent = p80 ? '@page{size:80mm auto;margin:0}' : ''; w.className = p80 ? 'p80' : '';
   w.innerHTML = h; document.body.classList.add('px');
   try { window.print(); } catch(err){ toast('Printing is not available here'); }
   document.body.classList.remove('px');
