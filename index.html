@@ -1034,7 +1034,7 @@ function tabSale(o){
     var sl = {id:want, tord:o.id, ck:ck, auto:1, no:tOrderLabel(o), dev:'', t:o.t, day:day, lines:o.lines.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty}; }),
       subtotal:tot, discount:0, discReason:'', discNote:'', discBy:'', total:tot, pay:o.pay, ch:o.pay === 'agg' ? o.ch : '', ref:o.pay === 'agg' ? (o.ref || '') : '', tendered:o.pay === 'cash' ? tot : 0, void:false, vat:vatOf(tot), vatRate:setg().vat ? setg().rate : 0, by:o.by || 'Tablet',
       cust:cu ? cu.id : '', custName:cu ? cu.name : '', custPhone:cu ? cu.phone : '', givenBy:(o.credit && o.credit.by) || '', due:cu ? addDays(day, creditDays()) : ''};
-    stockMove(sl.lines, -1); db.sales.push(sl); ch = true; autoPrintSale(sl);
+    stockMove(sl.lines, -1); db.sales.push(sl); ch = true;
     queueEvent('sale', {id:sl.id, tord:o.id, ck:ck, no:sl.no, day:sl.day, t:sl.t, pay:sl.pay, ch:sl.ch, ref:sl.ref, subtotal:sl.subtotal, discount:0, discReason:'', discNote:'', total:sl.total, vat:sl.vat, vatRate:sl.vatRate, tendered:sl.tendered,
       cust:sl.cust, custName:sl.custName, custPhone:sl.custPhone, givenBy:sl.givenBy, due:sl.due, by:sl.by, discBy:'', lines:sl.lines}, detUuid(sl.id + '|sale'));
   }
@@ -1247,10 +1247,6 @@ function vSettings(){
     + sw(G.allowZero, 'tgzero', 'Allow sale when item stock is 0', G.allowZero ? 'Staff can keep selling even if the stock count was not updated. Stock goes below zero so you can see it.' : 'An item with 0 stock shows Sold out and cannot be sold.')
     + sw(!!G.showSale, 'tgsale', 'Show the Sale tab in this POS', G.showSale ? 'The Sale screen is available in the menu. The Windows counter app always has it.' : 'Off: orders are taken on the tablet and appear here as bills. Turn on to bill from this screen.')
     + '</div>';
-  var prn = '<div class="card" style="margin:0"><h3 style="margin:0 0 4px">Printing</h3>'
-    + sw(paperIs80(), 'tgpaper', 'Paper: 80mm receipt roll (Rongta RP332A)', paperIs80() ? 'Customer bill and Day close report print narrow on the 80mm roll. All other reports print on A4. Only on this device.' : 'Off: the bill and Day close report also print on A4. Only on this device.')
-    + sw(autoPrintOn(), 'tgautoprint', 'Counter printer: print tablet bills here', autoPrintOn() ? 'Each new tablet order prints its customer bill here by itself, and the Print button on a tablet prints here too (no kitchen ticket). Only on this device.' : 'Off. Turn on at the counter PC that has the printer. Bills can still be printed by hand with the Print button. Only on this device.')
-    + '<p style="color:var(--muted);font-size:13px;margin:10px 0 0">'+(window.hposPrint ? 'Windows counter app: prints without a print window to the Windows default printer. Set the Rongta printer as the default printer in Windows.' : 'In a browser a print window opens for each bill. For automatic printing without the window, use the Windows counter app.')+'</p></div>';
   var shop = '<div class="card" style="margin:0"><h3>Shop and receipt</h3><div style="display:flex;gap:14px;align-items:center;padding:4px 0 14px;flex-wrap:wrap"><div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px"><img src="'+LOGO+'" alt="Shop logo" style="height:56px;max-width:180px;object-fit:contain;display:block"></div><div style="flex:1;min-width:200px"><b>Shop logo</b><div style="color:var(--muted);font-size:13px;margin:2px 0 8px">Shown on the sidebar, receipts, vouchers and reports. A PNG with a transparent background looks best.</div><div class="btns"><label class="btn ghost sm" style="cursor:pointer;display:inline-flex;align-items:center">Change logo<input type="file" accept="image/*" data-f="logo" style="display:none"></label>'+(G.logo ? '<button class="btn ghost sm" data-act="logoreset">Use default</button>' : '')+'</div></div></div><div class="fgrid">'+inp('Shop name','shop',G.shop)+inp('Phone on receipt','tel',G.tel)+inp('Instagram on receipt','insta',G.insta)+inp('Low stock warning at (items)','lowAt',G.lowAt,'number')+'</div>'
     + '<p style="color:var(--muted);font-size:13px;margin:12px 0 0">Changes apply to new bills. Bills already made keep the VAT they were made with.</p>'
     + '<p style="color:var(--muted);font-size:13px;margin:8px 0 0">Logins, PINs and permissions are managed in the Users tab (Owner only).</p></div>';
@@ -1261,7 +1257,7 @@ function vSettings(){
       + '<button class="btn '+(x.on !== false ? 'good' : 'ghost')+' sm" data-act="chtoggle" data-id="'+x.id+'" style="min-width:70px">'+(x.on !== false ? 'On' : 'Off')+'</button></div>'; }).join('');
   var chCard = '<div class="card" style="margin:0"><h3 style="margin:0 0 4px">Online channels</h3><p style="color:var(--muted);font-size:13px;margin:0 0 6px">Talabat, Keeta, Noon and others. Each has its own prices (Menu tab) and is paid later. The commission % is only an estimate for the profit report. The real amount is taken from each payout you record in Cash.</p>'+chRows
     + '<div class="btns" style="margin-top:10px"><button class="btn ghost sm" data-act="chadd">+ Add channel</button></div></div>';
-  return '<div class="page"><div style="'+g2+'">'+billing+'<div style="display:grid;gap:14px">'+prn+shop+chCard+backupCard()+'</div></div><div style="'+g2+'">'+syncCard()+'</div></div>';
+  return '<div class="page"><div style="'+g2+'">'+billing+'<div style="display:grid;gap:14px">'+shop+chCard+backupCard()+'</div></div><div style="'+g2+'">'+syncCard()+'</div></div>';
 }
 
 /* ---------- Day close ---------- */
@@ -1426,7 +1422,7 @@ function vOpenCheck(date){
     + '<table class="whtbl cnt"><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+countInputRows(null)+'</tbody></table>'
     + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap">'+nameBox+'<button class="btn primary sm" data-act="ocsave">Save count</button></div></div>';
 }
-function paperIs80(){ try { return localStorage.getItem('hpos_paper') !== 'a4'; } catch(e){ return true; } }
+function paperIs80(){ return true; }   // the Rongta RP332A is an 80mm printer
 function printHtml(h, narrow){   // narrow = true only for prints made for the 80mm roll (bill, day report); everything else prints on A4
   var w = document.getElementById('xprint'); if (!w){ w = document.createElement('div'); w.id = 'xprint'; document.body.appendChild(w); }
   var ps = document.getElementById('pgsz'); if (!ps){ ps = document.createElement('style'); ps.id = 'pgsz'; document.head.appendChild(ps); }
@@ -2259,7 +2255,6 @@ function receiptText(s){
 }
 /* Customer bill printing. Windows counter app: prints silently to the Windows default printer (the Rongta thermal printer).
    Browser: opens the normal print window. Auto-print (this device only) prints tablet orders as they arrive. */
-function autoPrintOn(){ try { return localStorage.getItem('hpos_autoprint') === '1'; } catch(e){ return false; } }
 function printedSet(){ try { return JSON.parse(localStorage.getItem('hpos_printed') || '[]'); } catch(e){ return []; } }
 function markPrinted(id){ try { var a = printedSet(); a.push(id); localStorage.setItem('hpos_printed', JSON.stringify(a.slice(-400))); } catch(e){} }
 function billPageHtml(s){
@@ -2276,7 +2271,7 @@ function printBill(s){
   }
 }
 function printRequest(p, e){   // a tablet asked this counter printer to print a customer bill
-  if (!autoPrintOn() || !p || !p.id || !p.ord) return;
+  if (!window.hposPrint || !p || !p.id || !p.ord) return;   // only the counter PC (Windows app, with the printer) prints tablet requests
   var at = p.t || (e && e.t) || 0; if (Date.now() - at > 30*60*1000) return;
   var key = 'rq' + p.id; if (printedSet().indexOf(key) >= 0) return; markPrinted(key);
   var sl = db.sales.filter(function(x){ return x.tord === p.ord && !x.void; })[0];
@@ -2284,15 +2279,10 @@ function printRequest(p, e){   // a tablet asked this counter printer to print a
     var o = (db.tOrders || []).filter(function(x){ return String(x.id) === String(p.ord); })[0]; if (!o || !o.lines || !o.lines.length) return;
     var tot = round2(o.lines.reduce(function(a, l){ return a + l.qty * l.price; }, 0));
     sl = {id:'t-' + o.id, no:tOrderLabel(o), t:o.t, lines:o.lines, subtotal:tot, discount:0, total:tot, vat:vatOf(tot), vatRate:setg().vat ? setg().rate : 0, pay:o.pay || '', ch:o.ch || '', ref:o.ref || '', tendered:o.pay === 'cash' ? tot : 0, void:false, custName:(o.credit && o.credit.name) || '', custPhone:(o.credit && o.credit.phone) || ''};
-  } else if (p.first && printedSet().indexOf(sl.id) >= 0) return;   // already printed automatically when the order arrived
+  }
   setTimeout(function(){ printBill(sl); }, 300);
 }
 function salePrintOn(){ try { return localStorage.getItem('hpos_saleprint') === '1'; } catch(e){ return false; } }
-function autoPrintSale(sl){
-  if (!sl || sl.void || !autoPrintOn() || Date.now() - sl.t > 20*60*1000 || printedSet().indexOf(sl.id) >= 0) return;
-  markPrinted(sl.id);
-  setTimeout(function(){ printBill(sl); }, 400);
-}
 
 function cwaMeta(k){ var R = (db.days || {})[today()] || {}; return k === 'open' ? R.openCheck : R.closeCount; }
 function cwaUnshared(){ var o = []; ['open'].forEach(function(k){ var m = cwaMeta(k); if (m && !m.shared) o.push(k); }); return o; }
@@ -2650,9 +2640,7 @@ document.addEventListener('click', function(e){
       if (!setg().pinOn && String(setg().pin || '').length < 4){ toast('Set a PIN of at least 4 digits first'); break; }
       setg().pinOn = !setg().pinOn; S.unlocked = true; save(); break;
     case 'tgvat': db.settings.vat = !db.settings.vat; save(); break;
-    case 'tgpaper': try { localStorage.setItem('hpos_paper', paperIs80() ? 'a4' : '80'); } catch(e){} break;
     case 'tgsaleprint': try { localStorage.setItem('hpos_saleprint', salePrintOn() ? '0' : '1'); } catch(e){} break;
-    case 'tgautoprint': try { localStorage.setItem('hpos_autoprint', autoPrintOn() ? '0' : '1'); } catch(e){} break;
     case 'tgsale': db.settings.showSale = !db.settings.showSale; if (!db.settings.showSale && S.tab === 'sale') S.tab = 'dash'; save(); break;
     case 'tgcarry': db.settings.carryOpen = !db.settings.carryOpen; save(); break;
     case 'tgwhall': db.settings.whAll = db.settings.whAll === false; save(); break;
