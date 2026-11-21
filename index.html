@@ -251,7 +251,20 @@ td .inp{width:90px;text-align:right}
   .tbl,.card{overflow-x:auto}
 }
 #xprint{display:none}
-@media print{.rlogo{filter:grayscale(1) contrast(1.6)}@page{margin:5mm}body.pr #app{display:block}body.pr #app>header,body.pr #app>main{display:none}body.px{background:var(--card)}body.px #xprint{display:block}body.px #xprint tr{page-break-inside:avoid}body{overflow:visible}#app,#toast{display:none}.scrim{position:static;background:none;padding:0}.sheet{box-shadow:none;width:100%}.btns,.sheet h3,.sheet p{display:none}}
+@media print{body.px #xprint.p80{width:72mm;margin:0 auto;padding:1mm 0;font-size:10.5px;line-height:1.3;overflow:hidden;color:#000}
+body.px #xprint.p80 *{max-width:100%!important;box-sizing:border-box;color:#000!important;background:transparent!important}
+body.px #xprint.p80 div{padding-left:0!important;padding-right:0!important;margin-left:0!important;margin-right:0!important}
+body.px #xprint.p80 table{width:100%!important;min-width:0!important;table-layout:auto!important;border-collapse:collapse}
+body.px #xprint.p80 td,body.px #xprint.p80 th{padding:2px 2px!important;font-size:9.5px!important;white-space:normal!important;word-break:break-word;vertical-align:top}
+body.px #xprint.p80 [style*="display:flex"]{flex-wrap:wrap!important}
+body.px #xprint.p80 [style*="grid"]{display:block!important}
+body.px #xprint.p80 img{max-width:34mm!important;height:auto}
+body.px #xprint.p80 .mggrid,body.px #xprint.p80 .mgwrap{display:block!important}
+body.px #xprint.p80 .mgcard{width:100%!important;min-width:0!important;margin:0 0 6px!important;padding:5px 4px!important;border:1px solid #000!important;border-radius:6px!important;break-inside:avoid}
+body.px #xprint.p80 [style*="min-width"]{min-width:0!important}
+body.px #xprint.p80 svg{max-width:100%!important;height:auto}
+body.px #xprint.p80 [style*="border-left:4px"]{flex:1 1 100%!important;min-width:100%!important;margin:0 0 4px!important}
+.rlogo{filter:grayscale(1) contrast(1.6)}@page{margin:5mm}body.pr #app{display:block}body.pr #app>header,body.pr #app>main{display:none}body.px{background:var(--card)}body.px #xprint{display:block}body.px #xprint tr{page-break-inside:avoid}body{overflow:visible}#app,#toast{display:none}.scrim{position:static;background:none;padding:0}.sheet{box-shadow:none;width:100%}.btns,.sheet h3,.sheet p{display:none}}
 
 /* ---- calm, neutral look (inspired by the shared reference) ---- */
 body{font-weight:400;letter-spacing:-.005em}
@@ -1233,6 +1246,7 @@ function vSettings(){
     + sw(!!G.showSale, 'tgsale', 'Show the Sale tab in this POS', G.showSale ? 'The Sale screen is available in the menu. The Windows counter app always has it.' : 'Off: orders are taken on the tablet and appear here as bills. Turn on to bill from this screen.')
     + '</div>';
   var prn = '<div class="card" style="margin:0"><h3 style="margin:0 0 4px">Printing</h3>'
+    + sw(paperIs80(), 'tgpaper', 'Paper: 80mm receipt roll (Rongta RP332A)', paperIs80() ? 'Bills and all reports print narrow to fit the 80mm roll. Only on this device.' : 'Off: reports print on A4 size. Turn on for the thermal printer. Only on this device.')
     + sw(autoPrintOn(), 'tgautoprint', 'Auto-print customer bill for tablet orders', autoPrintOn() ? 'Each new tablet order prints its customer bill here by itself (no kitchen ticket). Only on this device.' : 'Off. Turn on at the counter PC that has the printer. Bills can still be printed by hand with the Print button. Only on this device.')
     + '<p style="color:var(--muted);font-size:13px;margin:10px 0 0">'+(window.hposPrint ? 'Windows counter app: prints without a print window to the Windows default printer. Set the Rongta printer as the default printer in Windows.' : 'In a browser a print window opens for each bill. For automatic printing without the window, use the Windows counter app.')+'</p></div>';
   var shop = '<div class="card" style="margin:0"><h3>Shop and receipt</h3><div style="display:flex;gap:14px;align-items:center;padding:4px 0 14px;flex-wrap:wrap"><div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px"><img src="'+LOGO+'" alt="Shop logo" style="height:56px;max-width:180px;object-fit:contain;display:block"></div><div style="flex:1;min-width:200px"><b>Shop logo</b><div style="color:var(--muted);font-size:13px;margin:2px 0 8px">Shown on the sidebar, receipts, vouchers and reports. A PNG with a transparent background looks best.</div><div class="btns"><label class="btn ghost sm" style="cursor:pointer;display:inline-flex;align-items:center">Change logo<input type="file" accept="image/*" data-f="logo" style="display:none"></label>'+(G.logo ? '<button class="btn ghost sm" data-act="logoreset">Use default</button>' : '')+'</div></div></div><div class="fgrid">'+inp('Shop name','shop',G.shop)+inp('Phone on receipt','tel',G.tel)+inp('Instagram on receipt','insta',G.insta)+inp('Low stock warning at (items)','lowAt',G.lowAt,'number')+'</div>'
@@ -1410,8 +1424,11 @@ function vOpenCheck(date){
     + '<table class="whtbl cnt"><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+countInputRows(null)+'</tbody></table>'
     + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap">'+nameBox+'<button class="btn primary sm" data-act="ocsave">Save count</button></div></div>';
 }
+function paperIs80(){ try { return localStorage.getItem('hpos_paper') !== 'a4'; } catch(e){ return true; } }
 function printHtml(h){
   var w = document.getElementById('xprint'); if (!w){ w = document.createElement('div'); w.id = 'xprint'; document.body.appendChild(w); }
+  var ps = document.getElementById('pgsz'); if (!ps){ ps = document.createElement('style'); ps.id = 'pgsz'; document.head.appendChild(ps); }
+  var p80 = paperIs80(); ps.textContent = p80 ? '@page{size:80mm auto;margin:0}' : ''; w.className = p80 ? 'p80' : '';
   w.innerHTML = h; document.body.classList.add('px');
   try { window.print(); } catch(err){ toast('Printing is not available here'); }
   document.body.classList.remove('px');
@@ -2615,6 +2632,7 @@ document.addEventListener('click', function(e){
       if (!setg().pinOn && String(setg().pin || '').length < 4){ toast('Set a PIN of at least 4 digits first'); break; }
       setg().pinOn = !setg().pinOn; S.unlocked = true; save(); break;
     case 'tgvat': db.settings.vat = !db.settings.vat; save(); break;
+    case 'tgpaper': try { localStorage.setItem('hpos_paper', paperIs80() ? 'a4' : '80'); } catch(e){} break;
     case 'tgautoprint': try { localStorage.setItem('hpos_autoprint', autoPrintOn() ? '0' : '1'); } catch(e){} break;
     case 'tgsale': db.settings.showSale = !db.settings.showSale; if (!db.settings.showSale && S.tab === 'sale') S.tab = 'dash'; save(); break;
     case 'tgcarry': db.settings.carryOpen = !db.settings.carryOpen; save(); break;
