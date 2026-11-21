@@ -298,6 +298,7 @@ header.top .ht1{min-width:0} header.top .ptitle{font-size:20px;font-weight:600;l
 .whtbl td{padding:7px 10px!important;border-bottom:1px solid var(--line);vertical-align:middle;line-height:1.25} .whtbl tr:last-child td{border-bottom:0} .whtbl tbody tr:hover{background:var(--soft)}
 .whtbl td.nm{font-weight:500;width:34%} .whtbl td.n{white-space:nowrap;font-variant-numeric:tabular-nums} .whtbl td.n small{color:var(--muted);font-size:11.5px;margin-left:5px;font-weight:400} .whtbl td.n b{font-weight:600} .whtbl td.tt{color:var(--muted)} .whtbl td.st,.whtbl th.st{min-width:52px;white-space:nowrap} .whtbl .mut{color:#bdb8b0}
 .pot{max-width:520px} .pot th.c,.pot td.c{width:auto;text-align:center} .pot td.nm{width:auto} .gi{display:inline-flex;align-items:center;gap:4px} .gi i{font-style:normal;color:var(--muted);font-size:12px} .pot .inp,.pot-tub .inp{width:84px!important;min-height:26px!important;height:26px!important;padding:0 8px!important;font-size:13px!important} .pot-tub{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-size:13px} .pot-tub small{color:var(--muted)}
+.lrow{cursor:pointer}.lrow:hover td{background:var(--soft)}
 .recv{display:grid;grid-template-columns:230px minmax(0,1fr);gap:14px;align-items:start}
 .recv .rl{display:flex;flex-direction:column;gap:6px;position:sticky;top:8px;max-height:calc(100vh - 150px);overflow-y:auto;padding-right:4px}
 .recv .rl .cat{width:100%;justify-content:flex-start;text-align:left;min-height:42px;flex:none}
@@ -1791,7 +1792,7 @@ function shopAdd(it, delta, why){
   else db.inv.waste.push({id:now, t:now, m:it.mid, q:-delta, reason:why || 'Adjusted', wh:true});
 }
 function whLog(o){
-  o.id = Date.now() + '-' + Math.random().toString(36).slice(2, 6); o.t = Date.now();
+  o.id = Date.now() + '-' + Math.random().toString(36).slice(2, 6); o.t = Date.now(); try { var cu0 = curUser(); if (cu0 && !o.by) o.by = cu0.name; } catch(e){}
   db.wh.log.push(o); if (db.wh.log.length > 1000) db.wh.log.splice(0, db.wh.log.length - 1000);
   queueEvent('wh_move', o);
 }
@@ -1881,27 +1882,46 @@ function whPortions(){
 
 /* ---------- Stock ledger ---------- */
 function ledEntries(it){
-  var E = [], push = function(t, kind, label, ref, wh, sh){ E.push({t:t, kind:kind, label:label, ref:ref || '', wh:wh || 0, sh:sh || 0}); };
+  var E = [], push = function(t, kind, label, ref, wh, sh, src, raw){ E.push({t:t, kind:kind, label:label, ref:ref || '', wh:wh || 0, sh:sh || 0, src:src || null, raw:raw || null}); };
   db.wh.log.forEach(function(l){
     if (l.key !== it.key) return; var q = +l.q || 0, note = [l.reason, l.note].filter(Boolean).join(' · ');
-    if (l.type === 'in') push(l.t, 'in', 'Stock in', note || 'Added to ' + (l.loc === 'shop' ? 'shop' : 'warehouse'), l.loc === 'shop' ? 0 : q, l.loc === 'shop' ? q : 0);
-    else if (l.type === 'transfer'){ if (l.to === 'wh') push(l.t, 'tr', 'Transfer', 'Shop → Warehouse', q, -q); else push(l.t, 'tr', 'Transfer', 'Warehouse → Shop', -q, q); }
-    else if (l.type === 'adjust'){ var d = (l.dir > 0 ? 1 : -1) * q; push(l.t, 'ad', 'Adjust', note, l.loc === 'wh' ? d : 0, l.loc === 'wh' ? 0 : d); }
+    var pid0 = l.pid || (l.type === 'in' && /^Purchase/.test(l.note || '') ? ((db.pur.list.filter(function(p){ return Math.abs(p.t - l.t) < 5000 && p.lines.some(function(x){ return x.key === l.key; }); })[0] || {}).id) : '');
+    if (l.type === 'in') push(l.t, 'in', 'Stock in', note || 'Added to ' + (l.loc === 'shop' ? 'shop' : 'warehouse'), l.loc === 'shop' ? 0 : q, l.loc === 'shop' ? q : 0, pid0 ? {p:pid0} : null, l);
+    else if (l.type === 'transfer'){ if (l.to === 'wh') push(l.t, 'tr', 'Transfer', 'Shop → Warehouse', q, -q, null, l); else push(l.t, 'tr', 'Transfer', 'Warehouse → Shop', -q, q, null, l); }
+    else if (l.type === 'adjust'){ var d = (l.dir > 0 ? 1 : -1) * q; push(l.t, 'ad', 'Adjust', note, l.loc === 'wh' ? d : 0, l.loc === 'wh' ? 0 : d, null, l); }
   });
   if (it.kind === 'i'){
     db.sales.forEach(function(s){ s.lines.forEach(function(l){
       if (skey(l.cat, l.name) !== it.sk) return; var q = gmAmt(l); if (!q) return;
-      push(s.t, 'sl', 'Sale', 'Bill #' + s.no + (l.size ? ' · ' + l.size : '') + ' × ' + l.qty, 0, -q);
-      if (s.void) push(s.voidT || s.t, 'ad', 'Bill cancelled', 'Bill #' + s.no + (s.voidReason ? ' · ' + s.voidReason : ''), 0, q);
+      push(s.t, 'sl', 'Sale', 'Bill #' + s.no + (l.size ? ' · ' + l.size : '') + ' × ' + l.qty, 0, -q, {s:s.id});
+      if (s.void) push(s.voidT || s.t, 'ad', 'Bill cancelled', 'Bill #' + s.no + (s.voidReason ? ' · ' + s.voidReason : ''), 0, q, {s:s.id, x:1});
     }); });
   } else {
     var b = db.inv.base[it.mid] || {t:0, q:0};
-    db.inv.purchases.forEach(function(p){ if (p.m !== it.mid || p.t <= b.t || p.wh) return; push(p.t, 'in', 'Bought', p.supplier || '', 0, +p.q || 0); });
-    db.inv.waste.forEach(function(w){ if (w.m !== it.mid || w.t <= b.t || w.wh) return; push(w.t, 'ad', 'Waste', w.reason || '', 0, -(+w.q || 0)); });
-    db.sales.forEach(function(s){ if (s.void || s.t <= b.t) return; s.lines.forEach(function(l){ var r = db.inv.recipes[rkey(l.cat, l.size)]; if (!r) return; var q = 0; r.forEach(function(x){ if (x.m === it.mid) q += x.q * l.qty; }); if (q) push(s.t, 'sl', 'Used in sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty, 0, -q); }); });
+    db.inv.purchases.forEach(function(p){ if (p.m !== it.mid || p.t <= b.t || p.wh) return; push(p.t, 'in', 'Bought', p.supplier || '', 0, +p.q || 0, null, p); });
+    db.inv.waste.forEach(function(w){ if (w.m !== it.mid || w.t <= b.t || w.wh) return; push(w.t, 'ad', 'Waste', w.reason || '', 0, -(+w.q || 0), null, w); });
+    db.sales.forEach(function(s){ if (s.void || s.t <= b.t) return; s.lines.forEach(function(l){ var r = db.inv.recipes[rkey(l.cat, l.size)]; if (!r) return; var q = 0; r.forEach(function(x){ if (x.m === it.mid) q += x.q * l.qty; }); if (q) push(s.t, 'sl', 'Used in sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty, 0, -q, {s:s.id}); }); });
   }
   E.sort(function(a, b){ return a.t - b.t; });
   return E;
+}
+function ledPopup(){
+  var e = (S.ledRows || [])[S.ledx]; if (!e){ S.ledx = null; return ''; }
+  var it = whFind((S.led || {}).key) || {}, fq = function(q){ return it.g ? gmQty(q, itTub(it)) : num(q) + ' ' + (it.un || 'pcs'); };
+  var raw = e.raw || {}, sale = e.src && e.src.s ? byId(db.sales, e.src.s) : null;
+  var L = [['Date and time', fdate(e.t)], ['Movement', e.label], ['Item', it.name || '']];
+  L.push([e.d > 0 ? 'Quantity in' : e.d < 0 ? 'Quantity out' : 'Quantity', e.d === 0 ? 'Moved between shop and warehouse' : (e.d > 0 ? '+' : '−') + fq(Math.abs(e.d))]);
+  if (e.kind === 'tr' && raw.q) L[L.length - 1] = ['Quantity', fq(raw.q) + ' · ' + e.ref];
+  L.push(['Balance after', fq(e.bal)]);
+  if (e.ref && e.kind !== 'tr') L.push(['Details', e.ref]);
+  if (sale){ L.push(['Bill', '#' + sale.no + ' · AED ' + money(sale.total) + ' · ' + (sale.pay || '')]); if (e.src.x){ L.push(['Cancelled by', sale.voidBy || '-']); if (sale.voidReason) L.push(['Reason', sale.voidReason + (sale.voidNote ? ' – ' + sale.voidNote : '')]); } }
+  if (raw.reason) L.push(['Reason', raw.reason]);
+  if (raw.note && raw.note !== e.ref) L.push(['Note', raw.note]);
+  if (raw.entered && raw.unit && raw.unit !== 'pcs' && raw.unit !== 'g') L.push(['Entered as', num(raw.entered) + ' ' + raw.unit]);
+  if (raw.by) L.push(['Entered by', raw.by]);
+  var rows = L.map(function(r){ return '<div style="display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--line)"><span style="color:var(--muted);white-space:nowrap">' + esc(r[0]) + '</span><b style="text-align:right">' + esc(r[1]) + '</b></div>'; }).join('');
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Movement details" style="max-width:460px"><h3 style="margin:0 0 4px">Movement details</h3>' + rows
+    + '<div class="btns" style="margin-top:14px"><button class="btn ghost" data-act="ledxclose">Close</button>' + (sale ? '<button class="btn primary" data-act="ledbill" data-id="' + sale.id + '">Open bill</button>' : '') + '</div></div></div>';
 }
 function ledView(){
   var items = whItems(); if (!items.length) return '<div class="tbl"><p style="padding:14px">No stock items.</p></div>';
@@ -1913,12 +1933,14 @@ function ledView(){
   var after = 0, inRange = [], tin = 0, tout = 0;
   E.forEach(function(e){ var d = pick(e); if (e.t > tTo) after += d; else if (e.t >= tFrom) inRange.push({e:e, d:d}); });
   var closeAt = num(close - after), net = inRange.reduce(function(a, r){ return a + r.d; }, 0), open = num(closeAt - net), bal = open;
+  var rowsE = [];
   var rows = inRange.map(function(r){
     bal = num(bal + r.d); if (r.d > 0) tin += r.d; else tout -= r.d;
-    var tm = auditTime(r.e.t);
-    return '<tr><td class="tm">' + tm + '</td><td><span class="mv ' + (r.e.kind === 'sl' ? 'sl' : r.e.kind) + '">' + esc(r.e.label) + '</span></td><td class="nt">' + esc(r.e.ref) + '</td>'
+    var tm = auditTime(r.e.t); r.e.bal = bal; r.e.d = r.d; r.e.i = rowsE.length; rowsE.push(r.e);
+    return '<tr class="lrow" data-act="ledrow" data-i="' + r.e.i + '" title="Click for details"><td class="tm">' + tm + '</td><td><span class="mv ' + (r.e.kind === 'sl' ? 'sl' : r.e.kind) + '">' + esc(r.e.label) + '</span></td><td class="nt">' + esc(r.e.ref) + '</td>'
       + '<td class="n">' + (r.d > 0 ? '<b style="color:var(--done)">+' + fq(r.d) + '</b>' : '') + '</td><td class="n">' + (r.d < 0 ? '<b style="color:#d33">−' + fq(-r.d) + '</b>' : (r.d === 0 ? '<span class="mut">internal</span>' : '')) + '</td><td class="n"><b>' + fq(bal) + '</b></td></tr>';
   }).join('');
+  S.ledRows = rowsE;
   var opt = ''; var gs = {}; items.forEach(function(x){ (gs[x.group] = gs[x.group] || []).push(x); });
   Object.keys(gs).forEach(function(g){ opt += '<optgroup label="' + esc(g) + '">' + gs[g].map(function(x){ return '<option value="' + esc(x.key) + '"' + (x.key === L.key ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</optgroup>'; });
   var ctl = '<div class="bar" style="gap:10px;flex-wrap:wrap;align-items:flex-end"><label class="fld" style="min-width:220px;flex:1">Item<select class="inp" data-f="led" data-k="key">' + opt + '</select></label>'
@@ -2214,7 +2236,8 @@ function vSheets(){
   if (S.cwa && S.tab === 'count') return cwaSheet();
   if (S.chist && S.tab === 'count') return histSheet();
   if (S.xview && S.tab === 'exp') return xVoucher();
-  if (S.pview && S.tab === 'purch') return pVoucher();
+  if (S.pview && (S.tab === 'purch' || S.tab === 'stock')) return pVoucher();
+  if (S.ledx != null && S.tab === 'stock') return ledPopup();
   if (S.supopen && S.tab === 'purch') return supForm();
   if (S.spopen && S.tab === 'purch' && S.psup) return supPayForm();
   if (S.rpopen && S.tab === 'credit' && S.cc) return crPayForm();
@@ -2567,6 +2590,13 @@ document.addEventListener('click', function(e){
     case 'xedit': var xe2 = byId(db.exp.items, d.id); if (xe2){ S.xedit = xe2.id; S.xf = {date:xe2.date, cat:xe2.cat, sub:xe2.sub, amt:String(xe2.amt), from:xe2.from, vat:xe2.vat ? String(xe2.vat) : '', who:xe2.who || '', bill:xe2.bill || '', note:xe2.note || ''}; S.xt = 'list'; S.xopen = true; } break;
     case 'xview': S.xview = d.id; break;
     case 'xviewclose': S.xview = null; break;
+    case 'ledrow':
+      var le = (S.ledRows || [])[+d.i]; if (!le) break;
+      if (le.src && le.src.p && !le.src.x && byId(db.pur.list, le.src.p)){ S.pview = le.src.p; break; }
+      if (le.src && le.src.s && !le.src.x && byId(db.sales, le.src.s)){ S.receipt = le.src.s; break; }
+      S.ledx = +d.i; break;
+    case 'ledxclose': S.ledx = null; break;
+    case 'ledbill': S.ledx = null; S.receipt = d.id; break;
     case 'pview': S.pview = d.id; break;
     case 'pviewclose': S.pview = null; break;
     case 'pvprint': var pvp = byId(db.pur.list, S.pview); if (pvp){ var pvb = document.getElementById('pvbox'); printHtml('<div style="color:var(--ink);padding:8mm;max-width:130mm">' + (pvb ? pvb.innerHTML : '') + '</div>'); } return;
@@ -3598,7 +3628,7 @@ function purchCashNet(date){ var n = 0; extLedger('drawer').forEach(function(r){
 
 /* ----- save purchase ----- */
 function savePurchase(ap, quiet){
-  var f = S.pf, T = purTotals(f), lines = [], E = expectedMap();
+  var f = S.pf, T = purTotals(f), lines = [], E = expectedMap(), pid = uid('p');
   f.lines.forEach(function(l){
     var it = whFind(l.key), q = parseFloat(l.qty), pcs = num(toPcs(l.key, q, l.unit)), amt = round2(parseFloat(l.amt));
     var onh = onHandPcs(it, E), old = unitCost(l.key);
@@ -3606,10 +3636,10 @@ function savePurchase(ap, quiet){
     db.avg[l.key] = Math.round(avg * 10000) / 10000;
     if (it.kind === 'm'){ var mm = mat(it.mid); if (mm) mm.cost = Math.round(avg * 1000) / 1000; }
     if (l.to === 'shop') shopAdd(it, pcs, 'Purchase' + (f.inv ? ' ' + f.inv : '')); else db.wh.qty[l.key] = num(whQty(l.key) + pcs);
-    whLog({key:l.key, name:it.name, q:pcs, unit:l.unit, entered:q, type:'in', loc:l.to === 'shop' ? 'shop' : 'wh', note:'Purchase' + (f.inv ? ' ' + f.inv : '') + (f.sup ? ' · ' + supName(f.sup) : '') + ((l.rem || '').trim() ? ' · ' + l.rem.trim() : '')});
+    whLog({pid:pid, key:l.key, name:it.name, q:pcs, unit:l.unit, entered:q, type:'in', loc:l.to === 'shop' ? 'shop' : 'wh', note:'Purchase' + (f.inv ? ' ' + f.inv : '') + (f.sup ? ' · ' + supName(f.sup) : '') + ((l.rem || '').trim() ? ' · ' + l.rem.trim() : '')});
     lines.push({key:l.key, name:it.name, qty:q, unit:l.unit, pcs:pcs, amt:amt, to:l.to, rem:(l.rem || '').trim()});
   });
-  var p = {id:uid('p'), t:Date.now(), date:f.date, sup:f.sup, inv:f.inv.trim(), pay:f.pay, lines:lines, sub:T.sub, vat:T.vat, total:T.total, note:f.note.trim(), by:ap.name};
+  var p = {id:pid, t:Date.now(), date:f.date, sup:f.sup, inv:f.inv.trim(), pay:f.pay, lines:lines, sub:T.sub, vat:T.vat, total:T.total, note:f.note.trim(), by:ap.name};
   db.pur.list.push(p); queueEvent('pur_new', p);
   if (!quiet) audit('Purchases', 'Purchase added', f.date + ' · ' + supName(f.sup) + (p.inv ? ' · inv ' + p.inv : '') + ' · AED ' + money(p.total) + ' · ' + (p.pay === 'credit' ? 'on credit' : 'paid ' + p.pay) + ' · ' + lines.length + ' item(s)', {ap:ap.name});
   return p;
