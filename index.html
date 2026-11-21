@@ -1567,10 +1567,11 @@ function nTick(){
   if (cur) return;      /* one popup at a time; it stays until the person acts */
   npopShow(due);
 }
+document.addEventListener('click', function(e){ if (S.nopen && !e.target.closest('.npanel') && !e.target.closest('.nbell')){ S.nopen = false; if (!e.target.closest('[data-act]')) render(); } }, true);
 setInterval(nTick, 20000); setTimeout(nTick, 2500);
 function nPanel(){
   var l = nList(), sn = nSnooze(), now = Date.now();
-  return '<div class="npanel"><div class="nph"><b>Notifications</b><button class="btn ghost sm" data-act="nsettings">Settings</button></div>'
+  return '<div class="npanel"><div class="nph"><b>Notifications</b><span style="display:flex;gap:6px"><button class="btn ghost sm" data-act="nsettings">Settings</button><button class="btn ghost sm" data-act="nbell" aria-label="Close" style="width:34px;padding:0">×</button></span></div>'
     + (l.length ? l.map(function(x){ return '<div class="npi ' + x.tone + '"><div><b>' + esc(x.title) + '</b><small>' + esc(x.sub) + (sn[x.key] > now ? ' · snoozed' : '') + '</small></div><button class="btn primary sm" data-act="ngo" data-k="' + x.key + '">' + (x.task ? 'Done' : 'Open') + '</button></div>'; }).join('') : '<div class="npe">All clear. Nothing needs you right now.</div>') + '</div>';
 }
 function nCard(){
@@ -2310,14 +2311,14 @@ document.addEventListener('click', function(e){
     case 'liccheck': licCheck(); break;
     case 'licdis': try { sessionStorage.setItem('hp_licdis_' + today(), '1'); } catch(er){} render(); break;
     case 'ntadd': var na = ncfg(); na.tasks.push({id:uid('n'), title:'', from:'09:00', days:[0,1,2,3,4,5,6], on:true}); db.settings.notif = na; save(); break;
-    case 'ntdel': var nd = ncfg(); nd.tasks = nd.tasks.filter(function(x){ return x.id !== t.dataset.id; }); db.settings.notif = nd; save(); break;
-    case 'nttog': var ng = ncfg(); ng.tasks.forEach(function(x){ if (x.id === t.dataset.id) x.on = x.on === false; }); db.settings.notif = ng; save(); break;
-    case 'ntday': var ny = ncfg(), di = +t.dataset.d; ny.tasks.forEach(function(x){ if (x.id !== t.dataset.id) return; var a = (x.days && x.days.length) ? x.days.slice() : [0,1,2,3,4,5,6]; var p = a.indexOf(di); if (p >= 0) a.splice(p, 1); else a.push(di); x.days = a.length ? a : [di]; }); db.settings.notif = ny; save(); break;
+    case 'ntdel': var nd = ncfg(); nd.tasks = nd.tasks.filter(function(x){ return x.id !== el.dataset.id; }); db.settings.notif = nd; save(); break;
+    case 'nttog': var ng = ncfg(); ng.tasks.forEach(function(x){ if (x.id === el.dataset.id) x.on = x.on === false; }); db.settings.notif = ng; save(); break;
+    case 'ntday': var ny = ncfg(), di = +el.dataset.d; ny.tasks.forEach(function(x){ if (x.id !== el.dataset.id) return; var a = (x.days && x.days.length) ? x.days.slice() : [0,1,2,3,4,5,6]; var p = a.indexOf(di); if (p >= 0) a.splice(p, 1); else a.push(di); x.days = a.length ? a : [di]; }); db.settings.notif = ny; save(); break;
     case 'logoreset': delete db.settings.logo; audit('Settings', 'Shop logo changed', 'Back to the default logo'); save(); applyLogo(); break;
     case 'nbell': S.nopen = !S.nopen; break;
-    case 'ngo': nGo(t.dataset.k); return;
+    case 'ngo': nGo(el.dataset.k); return;
     case 'nsettings': S.nopen = false; S.tab = 'rem'; break;
-    case 'ntg': var nk = t.dataset.k; db.settings.notif = ncfg(); if (nk === 'on') db.settings.notif.on = !db.settings.notif.on; else db.settings.notif[nk].on = !db.settings.notif[nk].on; save(); break;
+    case 'ntg': var nk = el.dataset.k; db.settings.notif = ncfg(); if (nk === 'on') db.settings.notif.on = !db.settings.notif.on; else db.settings.notif[nk].on = !db.settings.notif[nk].on; save(); break;
     case 'theme': setTheme(themeDark() ? 'light' : 'dark'); break;
     case 'sbtoggle': S.sbOpen = !S.sbOpen; break;
     case 'tab': S.sbOpen = false; S.uedit = null; S.permopen = false; S.uaopen = S.supopen = S.spopen = S.rpopen = S.cfopen = S.copopen = S.custopen = S.popen = S.ropen = S.xopen = false; S.closeAsk = false; if (d.v !== 'settings' && d.v !== 'menu' && d.v !== 'exp'){ S.unlocked = false; S.gateTry = ''; S.gateErr = false; } S.lastCount = null; S.tab = d.v; S.voidAsk = null; S.del = null; S.resetAsk = false; if (d.v === 'menu' && !S.edCat) S.edCat = menu[0].id; break;
