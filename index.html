@@ -911,6 +911,18 @@ async function cfgSync(){
         sync.cfg.shash = h; saveSync();
       } catch(e){ if (e.status === 401) throw e; }
     }
+    /* owner reports: published at most once a minute, only when something changed */
+    if (Date.now() - (sync.cfg.otime || 0) > 60000){
+      try {
+        var os = ownerSnap(), ot = os.t; os.t = 0; var oh = JSON.stringify(os); os.t = ot;
+        if (oh !== sync.cfg.ohash){
+          var og = await syncApi('/config/ownerrep');
+          await syncApi('/config/ownerrep', {method:'PUT', body:{value:os, version:(og && og.version) || 0}});
+          sync.cfg.ohash = oh;
+        }
+        sync.cfg.otime = Date.now(); saveSync();
+      } catch(e){ if (e.status === 401) throw e; sync.cfg.otime = Date.now(); }
+    }
   } else {
     try {
       var s2 = await syncApi('/config/stock');
@@ -3384,6 +3396,77 @@ function ledgerPrintHtml(acct, m){
 }
 
 /* ----- Dashboard ----- */
+/* ---------- Owner reports: a summary the POS publishes for the tablet app (read only) ---------- */
+function ownerSnap(){
+  var t = today(), y = addDays(t, -1), wd = addDays(t, -7), r2 = round2;
+  function rs(a, b){
+    var ok = dSales(a, b), o = {net:0, bills:ok.length, disc:0, vat:0, pay:{cash:0, card:0, credit:0, agg:0}, cat:{}, items:{}, staff:{}, hours:[], chan:{}};
+    for (var h = 0; h < 24; h++) o.hours.push(0);
+    ok.forEach(function(s){
+      o.net += s.total; o.disc += s.discount || 0; o.vat += s.vat || 0; o.pay[s.pay] = (o.pay[s.pay] || 0) + s.total;
+      var st = s.by || '-'; o.staff[st] = o.staff[st] || {amt:0, n:0}; o.staff[st].amt += s.total; o.staff[st].n++;
+      o.hours[new Date(s.t).getHours()] += s.total;
+      if (s.pay === 'agg'){ var c = chName(s.ch); o.chan[c] = o.chan[c] || {amt:0, n:0}; o.chan[c].amt += s.total; o.chan[c].n++; }
+      s.lines.forEach(function(l){
+        var a = l.qty * l.price; o.cat[l.cat] = o.cat[l.cat] || {amt:0, qty:0}; o.cat[l.cat].amt += a; o.cat[l.cat].qty += l.qty;
+        var k = l.name + ' · ' + l.cat; o.items[k] = o.items[k] || {amt:0, qty:0}; o.items[k].amt += a; o.items[k].qty += l.qty;
+      });
+    });
+    function arr(m, n){ return Object.keys(m).map(function(k){ return [k, r2(m[k].amt), m[k].qty !== undefined ? m[k].qty : m[k].n]; }).sort(function(x, y){ return y[1] - x[1]; }).slice(0, n); }
+    return {net:r2(o.net), bills:o.bills, disc:r2(o.disc), vat:r2(o.vat), pay:{cash:r2(o.pay.cash), card:r2(o.pay.card), credit:r2(o.pay.credit), agg:r2(o.pay.agg)},
+      cat:arr(o.cat, 12), items:arr(o.items, 15), staff:arr(o.staff, 10), chan:arr(o.chan, 6), hours:o.hours.map(r2)};
+  }
+  var mo = t.slice(0, 7), lm = shiftMonth(mo, -1), S1 = {};
+  S1.today = rs(t, t); S1.yesterday = rs(y, y); S1.week = rs(addDays(t, -6), t); S1.month = rs(mo + '-01', t); S1.last = rs(lm + '-01', monthEnd(lm));
+  S1.lastWd = rs(wd, wd);
+  var daily = []; for (var i = 29; i >= 0; i--){ var dd = addDays(t, -i); daily.push([dd.slice(5), r2(dSum(dSales(dd, dd)))]); }
+  /* control, last 14 days */
+  var from = addDays(t, -13), voids = [], discs = [], edits = [], drawer = [];
+  db.sales.forEach(function(s){
+    var d = s.day || new Date(s.t).toLocaleDateString('en-CA'); if (d < from) return;
+    if (s.void && !superseded(s)) voids.push({no:s.no, d:d, tot:r2(s.total), why:(s.voidReason || '') + (s.voidNote ? ' (' + s.voidNote + ')' : ''), by:s.voidBy || s.by || '', at:s.voidT || s.t});
+    if (!s.void && s.discount > 0) discs.push({no:s.no, d:d, amt:r2(s.discount), why:(s.discReason || '') + (s.discNote ? ' (' + s.discNote + ')' : ''), by:s.discBy || s.by || ''});
+    if (wasEdited(s)) edits.push({no:s.no, d:d, tot:r2(s.total), by:s.by || ''});
+  });
+  voids.sort(function(a, b){ return b.at - a.at; }); discs.sort(function(a, b){ return a.d < b.d ? 1 : -1; });
+  Object.keys(db.days || {}).sort().reverse().forEach(function(k){
+    var c = db.days[k] && db.days[k].closed; if (k < from || !c) return;
+    drawer.push({d:k, cash:c.cashDiff === undefined ? null : c.cashDiff, card:c.cardDiff === undefined ? null : c.cardDiff, by:c.by || '', net:r2(c.net || 0)});
+  });
+  var cups = [];
+  Object.keys(db.days || {}).sort().reverse().slice(0, 14).forEach(function(k){
+    var dv = db.days[k]; if (!dv) return;
+    ['closeCount', 'openCheck'].forEach(function(w){
+      var c = dv[w]; if (!c) return; var rec = countRec(c.id);
+      cups.push({d:k, kind:w === 'closeCount' ? 'Closing' : 'Morning', by:c.by || '', short:rec ? countShort(rec) : 0, loss:rec ? r2(countLoss(rec)) : 0, edited:!!(rec && rec.edits && rec.edits.length), items:rec ? rec.lines.filter(function(l){ return num(l.diff) !== 0; }).map(function(l){ var m = mat(l.m); return [m ? m.name : l.m, num(l.diff)]; }).slice(0, 8) : []});
+    });
+  });
+  var flags = db.audit.filter(function(r){ return isFlag(r) && r.t >= Date.now() - 14 * 864e5; }).slice(-40).reverse().map(function(r){ return {t:r.t, u:r.u, cat:r.cat, act:r.act, d:String(r.d || '').slice(0, 140)}; });
+  var waste = (db.inv.waste || []).filter(function(w){ return w.t >= Date.now() - 14 * 864e5; }).slice(-30).reverse().map(function(w){ var m = mat(w.m); return {t:w.t, m:m ? m.name : w.m, q:w.q, u:m ? m.unit : '', by:w.by || '', why:String(w.reason || w.note || '').slice(0, 80)}; });
+  var todayOpen = (db.days && db.days[t] && db.days[t].openCheck) ? true : false;
+  var C = {voids:voids.slice(0, 40), discs:discs.slice(0, 40), edits:edits.slice(0, 40), drawer:drawer.slice(0, 14), cups:cups, flags:flags, waste:waste, morningDone:todayOpen};
+  /* stock */
+  var em = {}; try { em = expectedMap(); } catch(er){}
+  var mats = db.inv.materials.map(function(m){ var e = em[m.id] ? em[m.id].exp : 0; return {n:m.name, u:m.unit, q:r2(e), min:+m.min || 0, raw:!!m.raw, cup:!!m.cup, tub:+m.tub || 0, low:!!(m.min > 0 && e < m.min)}; });
+  var du = dayData(t).use, yu = dayData(y).use;
+  var used = db.inv.materials.filter(function(m){ return m.cup; }).map(function(m){ return {n:m.name, today:r2(du[m.id] || 0), yest:r2(yu[m.id] || 0), q:em[m.id] ? r2(em[m.id].exp) : 0}; });
+  var K = {mats:mats, used:used, low:mats.filter(function(m){ return m.low; }).length, value:(function(){ try { return r2(stockValue().value); } catch(er){ return 0; } })()};
+  /* money */
+  var cs = creditStats(), ag = (db.channels || []).filter(function(c){ return aggSold(c.id) || aggGot(c.id); }).map(function(c){ return {n:c.name, recv:aggToReceive(c.id)}; });
+  var pn = pnlOf(mo), pl = pnlOf(lm), months = [];
+  for (var j = 5; j >= 0; j--){ var mm = shiftMonth(mo, -j), P = pnlOf(mm); months.push({m:mm, rev:P.rev, cogs:P.cogs, opex:P.opex, np:P.np}); }
+  var D1 = monthData(mo), D0 = monthData(lm);
+  function ec(D){ return Object.keys(D.exp.cat).map(function(k){ return [catName(k), D.exp.cat[k]]; }).sort(function(a, b){ return b[1] - a[1]; }).slice(0, 12); }
+  var sups = db.sup.map(function(s){ return [s.name, supBalance(s.id)]; }).filter(function(x){ return x[1] > 0; }).sort(function(a, b){ return b[1] - a[1]; }).slice(0, 12);
+  var M = {exp:{month:D1.exp.total, last:D0.exp.total, cat:ec(D1), lastCat:ec(D0)}, payables:payablesTotal(), sups:sups, credit:cs, agg:ag, card:cardToReceive(), drawer:cashBal('drawer'), bank:cashBal('bank'),
+    months:months, pnl:{rev:pn.rev, cogs:pn.cogs, gp:pn.gp, opex:pn.opex, np:pn.np, method:pn.method}, pnlLast:{rev:pl.rev, cogs:pl.cogs, gp:pl.gp, opex:pl.opex, np:pl.np}};
+  /* what each role may see */
+  var roles = {}; allRoles().concat(['Owner']).forEach(function(r){
+    roles[r] = {sales:roleCan(r, 'sales'), control:roleCan(r, 'audit'), stock:roleCan(r, 'stock') || roleCan(r, 'inv') || roleCan(r, 'count'), money:roleCan(r, 'exp') || roleCan(r, 'close'), cash:roleCan(r, 'close')};
+  });
+  var devs = []; try { devs = []; } catch(er){}
+  return {v:1, t:Date.now(), day:t, shop:setg().shop, roles:roles, sales:S1, daily:daily, control:C, stock:K, money:M, wd:{lastWd:S1.lastWd.net}};
+}
 function lowStockCount(){
   var n = 0, at = +setg().lowAt || 0;
   Object.keys(db.stock || {}).forEach(function(k){ var v = db.stock[k]; if (v !== undefined && v !== null && v !== '' && +v <= at) n++; });
