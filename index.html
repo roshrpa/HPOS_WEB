@@ -3407,14 +3407,14 @@ function ledgerView(acct, m){
 }
 function cashForm(){
   var f = S.cf, needAcct = f.kind === 'cap' || f.kind === 'draw';
-  return '<div class="scrim"><div class="sheet" role="dialog" style="max-height:92vh;overflow:auto"><h3>Add a cash entry</h3><div class="fgrid">'
+  return '<div class="scrim"><div class="sheet" role="dialog" style="max-height:92vh;overflow:auto;max-width:720px;width:94vw;font-size:16px"><h3 style="font-size:22px">Add a cash entry</h3><div class="fgrid" style="grid-template-columns:1fr 1fr;gap:14px">'
     + '<label class="fld">Type<select class="inp" data-f="cfs" data-k="kind">'+CASH_KINDS.map(function(k){ return '<option value="'+k[0]+'"'+(k[0] === f.kind ? ' selected' : '')+'>'+k[1]+'</option>'; }).join('')+'</select></label>'
     + '<label class="fld">Date<input class="inp" type="date" data-f="cf" data-k="date" value="'+esc(f.date)+'"></label>'
     + (needAcct ? '<label class="fld">'+(f.kind === 'cap' ? 'Put into' : 'Taken from')+'<select class="inp" data-f="cfs" data-k="acct"><option value="drawer"'+(f.acct === 'drawer' ? ' selected' : '')+'>Counter drawer</option><option value="bank"'+(f.acct === 'bank' ? ' selected' : '')+'>Bank</option></select></label>' : '')
     + (f.kind === 'agg' ? '<label class="fld">Channel<select class="inp" data-f="cfs" data-k="ch">'+(db.channels || []).map(function(x){ return '<option value="'+x.id+'"'+(x.id === f.ch ? ' selected' : '')+'>'+esc(x.name)+'</option>'; }).join('')+'</select></label>' : '')
     + (f.kind === 'agg' ? '<label class="fld">Amount received in bank (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cf" data-k="recv" value="'+esc(f.recv)+'"></label>' : '<label class="fld">'+(f.kind === 'settle' ? 'Gross card amount (AED)' : 'Amount (AED)')+'<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cf" data-k="amt" value="'+esc(f.amt)+'"></label>')
     + (f.kind === 'settle' ? '<label class="fld">Bank / machine fee (AED)<input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cf" data-k="fee" value="'+esc(f.fee)+'"></label>' : '')
-    + '<label class="fld">Reason / note'+((f.kind === 'dep' || f.kind === 'wd' || f.kind === 'settle') ? ' (optional)' : ' (required)')+'<input class="inp" data-f="cf" data-k="note" value="'+esc(f.note)+'" autocomplete="off"></label>'
+    + '<label class="fld" style="grid-column:1/-1">Reason / note'+((f.kind === 'dep' || f.kind === 'wd' || f.kind === 'settle') ? ' (optional)' : ' (required)')+'<textarea class="inp" data-f="cf" data-k="note" rows="4" style="min-height:110px;font-size:16px;resize:vertical" autocomplete="off">'+esc(f.note)+'</textarea></label>'
     + pinOpen('cash','')+'<input class="inp" type="password" inputmode="numeric" data-f="cf" data-k="pin" value="'+esc(f.pin)+'" autocomplete="off"></label></div>'
     + (f.kind === 'agg' ? '<p style="color:var(--muted);margin:8px 0 0;font-size:13px">'+esc(chName(f.ch))+' still owes AED '+money(Math.max(aggToReceive(f.ch), 0))+'. Any small difference stays in the balance and carries over to the next month.</p>' : '')
     + (f.kind === 'settle' ? '<p style="color:var(--muted);margin:8px 0 0;font-size:13px">Enter what the bank paid before the fee. The bank balance goes up by the amount minus the fee, and "Card to receive" goes down by the amount.</p>' : '')
