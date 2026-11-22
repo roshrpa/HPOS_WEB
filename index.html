@@ -1628,7 +1628,6 @@ function nList(){
   var c = ncfg(), out = [], u = curUser(); if (!u || !c.on) return out;
   var hm = nowHM();
   if (c.count.on && can('count') && openCheckPending() && hm >= c.count.from) out.push({key:'count', ic:'inv', title:'Morning cup count not done', sub:'Count the cups and plates for today.', tone:'warn', go:function(){ S.tab = 'count'; S.closeDate = today(); }});
-  if (c.close.on && can('close') && hm >= c.close.from && !(dayRec(today()).closed) && db.sales.some(function(x){ return !x.void && (x.day || new Date(x.t).toLocaleDateString('en-CA')) === today(); })) out.push({key:'close', ic:'audit', title:'Day is not closed yet', sub:'Count the drawer and close today.', tone:'warn', go:function(){ S.tab = 'close'; S.closeDate = today(); }});
   var ls = c.low.on && can('stock') ? lowStockCount() : 0;
   if (ls > 0) out.push({key:'low', ic:'stock', title:ls + ' item' + (ls > 1 ? 's' : '') + ' low on stock', sub:'Open the warehouse.', tone:'warn', go:function(){ S.tab = 'stock'; }});
   if (c.backup.on && u.role === 'Owner'){ var age = db.lastBackup ? Math.floor((Date.now() - db.lastBackup) / 864e5) : 999;
@@ -1688,7 +1687,6 @@ function nCard(){
     + '<button class="btn ghost sm" data-act="ntest">Test</button>'
     + '<button role="switch" aria-checked="' + c.sound + '" data-act="ntg" data-k="sound" class="btn ' + (c.sound ? 'good' : 'ghost') + ' sm" style="min-width:70px">' + (c.sound ? 'On' : 'Off') + '</button></div>'
     + sw(c.count.on, 'ntg', 'count', 'Morning cup count', 'Remind from this time until the count is done.', c.count.from)
-    + sw(c.close.on, 'ntg', 'close', 'Close the day', 'Remind from this time if there were sales and the day is not closed.', c.close.from)
     + sw(c.low.on, 'ntg', 'low', 'Low stock', 'Remind while any item is low in the warehouse.')
     + sw(c.backup.on, 'ntg', 'backup', 'Backup', 'Owner only. Remind when there is no backup for 7 days.')
     + sw(c.credit.on, 'ntg', 'credit', 'Credit overdue', 'Remind while any customer is overdue.')
