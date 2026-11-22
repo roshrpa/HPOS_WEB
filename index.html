@@ -610,7 +610,7 @@ function invDaily(){
   function lab(d){ return d === today() ? 'Today' : d === shiftDate(today(), -1) ? 'Yesterday' : d; }
   function block(title, cup){
     var rows = db.inv.materials.filter(function(m){ return !!m.cup === cup; }).map(function(m){
-      var e = E[m.id], low = e.exp <= m.min;
+      var e = E[m.id], low = e.exp + whQty('m:' + m.id) <= m.min;   /* low = shop + warehouse together */
       var z = function(v){ return v ? num(v) : '<span class="zr">\u2013</span>'; };
       return '<tr><td class="nm">'+esc(m.name)+'</td><td class="n">'+z(P[m.id] || 0)+'</td><td class="n td">'+(U[m.id] ? '<b>'+num(U[m.id])+'</b>' : '<span class="zr">\u2013</span>')+'</td><td class="n">'+(low ? '<span class="pill void">Low</span> ' : '')+'<b>'+num(e.exp)+'</b></td></tr>';
     }).join('');
@@ -628,7 +628,7 @@ function invOver(){
     var list = db.inv.materials.filter(function(m){ return !!m.cup === cup; });
     var rows = list.map(function(m){
       var e = E[m.id], b = db.inv.base[m.id] || {t:0};
-      var pill = e.exp <= 0 ? '<span class="pill void">Out</span> ' : (e.exp <= m.min ? '<span class="pill void">Low</span> ' : '');
+      var pill = e.exp <= 0 ? '<span class="pill void">Out</span> ' : (e.exp + whQty('m:' + m.id) <= m.min ? '<span class="pill void">Low</span> ' : '');
       return '<tr><td class="nm">'+esc(m.name)+'</td><td class="n">'+pill+'<b>'+num(e.exp)+'</b> <small>'+esc(m.unit)+'</small></td><td class="n">'+(e.used ? num(e.used) : '<span class="zr">–</span>')+'</td><td class="n lc">'+(b.t ? fdate(b.t) : '<span class="zr">–</span>')+'</td></tr>';
     }).join('');
     return '<div class="tbl"><h3>'+title+' <small>'+list.length+' items</small></h3><table class="whtbl dut"><thead><tr><th>Material</th><th class="n">On hand</th><th class="n">Used since count</th><th class="n">Last count</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
@@ -1889,7 +1889,7 @@ function whOver(){
     var rows = groups[g].map(function(it){
       var w = whQty(it.key), s = shopQty(it, E), m = it.kind === 'm' ? mat(it.mid) : null, lim = m ? m.min : low, ct = it.g ? '' : ctnText(w, it.key);
       var fv = function(q){ return it.g ? gmQtyH(q, itTub(it)) : '<b>'+num(q)+'</b>'; };
-      var pill = s === null ? '' : (s <= 0 ? '<span class="pill void">Out</span>' : (s <= lim ? '<span class="pill void">Low</span>' : ''));
+      var tot = (s || 0) + w, pill = s === null ? '' : (tot <= 0 ? '<span class="pill void">Out</span>' : (tot <= lim ? '<span class="pill void">Low</span>' : ''));   /* Out / Low go by shop + warehouse together */
       return '<tr data-n="'+esc((it.name + ' ' + g).toLowerCase())+'"><td class="nm">'+esc(it.name)+'</td>'
         + '<td class="n">'+((whDirect(it.key) && !w) ? dash : fv(w))+(ct ? ' <small>'+ct+'</small>' : '')+'</td>'
         + '<td class="n">'+(pill ? pill + ' ' : '')+(s === null ? dash : fv(s))+'</td>'
@@ -3674,9 +3674,17 @@ function mobAccForm(){
     + '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="maccx" style="min-height:52px;font-size:18px;padding:0 36px">Done</button></div></div></div></div>';
 }
 function lowStockCount(){
+  /* an item is low only when shop + warehouse together are low */
   var n = 0, at = +setg().lowAt || 0;
-  Object.keys(db.stock || {}).forEach(function(k){ var v = db.stock[k]; if (v !== undefined && v !== null && v !== '' && +v <= at) n++; });
-  try { var em = expectedMap(); db.inv.materials.forEach(function(mm){ if (mm.min > 0 && em[mm.id] && em[mm.id].exp < mm.min) n++; }); } catch(er){}
+  try {
+    var em = expectedMap();
+    whItems().forEach(function(it){
+      var s = shopQty(it, em); if (s === null) return;
+      var tot = s + whQty(it.key);
+      if (it.kind === 'm'){ var mm = mat(it.mid); if (mm && mm.min > 0 && tot < mm.min) n++; }
+      else if (tot <= at) n++;
+    });
+  } catch(er){}
   return n;
 }
 var DASH_EXT = [];
