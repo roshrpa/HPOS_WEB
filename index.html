@@ -168,6 +168,7 @@ tr.void td{color:var(--muted);text-decoration:line-through}
 .pill.cash{background:var(--done-bg);color:var(--done)}
 .pill.card{background:var(--tint);color:var(--plum)}
 .pill.credit{background:var(--warn-bg);color:#8a5a00}
+.pill.delivery{background:#e3f0ff;color:#0b4f9c}
 .pill.void{background:var(--warn-bg);color:var(--warn)}
 .pill.agg{background:#ffe6d2;color:#8a3d00}
 .chseg{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}.chseg button{border:2px solid var(--line,var(--line));background:var(--card);border-radius:99px;padding:8px 16px;font-weight:700;font-size:14px;cursor:pointer}.chseg button[aria-pressed=true]{background:#8a3d00;border-color:#8a3d00;color:#fff}.chseg button:first-child[aria-pressed=true]{background:var(--plum);border-color:var(--plum)}
@@ -1022,10 +1023,10 @@ function tabCust(c){
 function tabSale(o){
   if (!o || o.legacy) return false;
   var ch = false, want = null, ck = '';
-  var okPay = o.pay === 'cash' || o.pay === 'card' || (o.pay === 'credit' && o.credit) || (o.pay === 'agg' && o.ch);
+  var okPay = o.pay === 'cash' || o.pay === 'card' || (o.pay === 'credit' && o.credit) || (o.pay === 'agg' && o.ch) || (o.pay === 'delivery' && o.dlv);
   var mine = db.sales.filter(function(s){ return s.tord === o.id; });
   if (o.status === 'new' && okPay && o.lines && o.lines.length){
-    ck = detUuid(JSON.stringify([o.lines.map(function(l){ return [l.cat, l.name, l.size, l.price, l.qty]; }), o.pay, o.credit ? [o.credit.name, o.credit.phone] : 0, o.ch || '', o.ref || '']));
+    ck = detUuid(JSON.stringify([o.lines.map(function(l){ return [l.cat, l.name, l.size, l.price, l.qty]; }), o.pay, o.credit ? [o.credit.name, o.credit.phone] : 0, o.ch || '', o.ref || '', o.dlv ? [o.dlv.phone, o.dlv.addr] : 0]));
     var cur = mine.filter(function(s){ return !s.void && s.ck === ck; })[0];
     want = cur ? cur.id : detUuid(o.id + '|' + mine.length + '|' + ck);
   }
@@ -1033,10 +1034,10 @@ function tabSale(o){
   if (want && !byId(db.sales, want)){
     var tot = round2(o.lines.reduce(function(a, l){ return a + l.qty * l.price; }, 0)), cu = o.pay === 'credit' ? tabCust(o.credit) : null, day = o.day || new Date(o.t).toLocaleDateString('en-CA');
     var sl = {id:want, tord:o.id, ck:ck, auto:1, no:tOrderLabel(o), dev:'', t:o.t, day:day, lines:o.lines.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty}; }),
-      subtotal:tot, discount:0, discReason:'', discNote:'', discBy:'', total:tot, pay:o.pay, ch:o.pay === 'agg' ? o.ch : '', ref:o.pay === 'agg' ? (o.ref || '') : '', tendered:o.pay === 'cash' ? tot : 0, void:false, vat:vatOf(tot), vatRate:setg().vat ? setg().rate : 0, by:o.by || 'Tablet',
+      subtotal:tot, discount:0, discReason:'', discNote:'', discBy:'', total:tot, pay:o.pay, ch:o.pay === 'agg' ? o.ch : '', ref:o.pay === 'agg' ? (o.ref || '') : '', tendered:o.pay === 'cash' ? tot : 0, void:false, vat:vatOf(tot), vatRate:setg().vat ? setg().rate : 0, by:o.by || 'Tablet', dlv:o.pay === 'delivery' && o.dlv ? {phone:o.dlv.phone || '', addr:o.dlv.addr || '', staff:o.dlv.staff || '', st:'out'} : null,
       cust:cu ? cu.id : '', custName:cu ? cu.name : '', custPhone:cu ? cu.phone : '', givenBy:(o.credit && o.credit.by) || '', due:cu ? addDays(day, creditDays()) : ''};
     stockMove(sl.lines, -1); db.sales.push(sl); ch = true;
-    queueEvent('sale', {id:sl.id, tord:o.id, ck:ck, no:sl.no, day:sl.day, t:sl.t, pay:sl.pay, ch:sl.ch, ref:sl.ref, subtotal:sl.subtotal, discount:0, discReason:'', discNote:'', total:sl.total, vat:sl.vat, vatRate:sl.vatRate, tendered:sl.tendered,
+    queueEvent('sale', {dlv:sl.dlv, id:sl.id, tord:o.id, ck:ck, no:sl.no, day:sl.day, t:sl.t, pay:sl.pay, ch:sl.ch, ref:sl.ref, subtotal:sl.subtotal, discount:0, discReason:'', discNote:'', total:sl.total, vat:sl.vat, vatRate:sl.vatRate, tendered:sl.tendered,
       cust:sl.cust, custName:sl.custName, custPhone:sl.custPhone, givenBy:sl.givenBy, due:sl.due, by:sl.by, discBy:'', lines:sl.lines}, detUuid(sl.id + '|sale'));
   }
   return ch;
@@ -1049,7 +1050,7 @@ function tabCatchUp(){   // tablet orders that came in before this version: bill
 /* Testing period: sales, tablet orders and stock go back to the starting point (stock 100 in the shop and the warehouse) */
 /* Go-live reset (from the Super Admin): everything about trading goes back to zero. Kept: users, their roles and permissions,
    menu and prices, settings, expense categories, materials, recipes, portions, channels, suppliers and customers. */
-var RESET_GONE = {sale:1, sale_cancel:1, order:1, order_update:1, order_pay:1, order_cancel:1, order_done:1, order_delivered:1, num:1, wh_move:1, audit:1,
+var RESET_GONE = {sale:1, sale_deliver:1, sale_cancel:1, order:1, order_update:1, order_pay:1, order_cancel:1, order_done:1, order_delivered:1, num:1, wh_move:1, audit:1,
   expense:1, expense_update:1, expense_delete:1, purchase:1, pur_new:1, pur_void:1, waste:1, stock_count:1, stock_count_edit:1, credit_pay:1, cash_entry:1, cash_delete:1, cash_out:1, day_close:1, sup_pay:1};
 var RESET_COLLS = ['exp.items','pur.list','pur.pays','cpay','cash.entries','inv.purchases','inv.waste','inv.counts','days','locks','openStock','avg','cash.open','inv.base'];
 function applyTestReset(p){
@@ -1083,18 +1084,21 @@ function applyRemote(events){
     if (e.type === 'sale'){
       if (isUuid(p.id) && !byId(db.sales, p.id)){
         db.sales.push({id:p.id, no:p.no, t:p.t || e.t, day:p.day || new Date(p.t || e.t).toLocaleDateString('en-CA'), lines:p.lines || [], subtotal:p.subtotal != null ? p.subtotal : p.total, discount:p.discount || 0,
-          discReason:p.discReason || '', discNote:p.discNote || '', total:p.total, pay:p.pay, ch:p.ch || '', ref:p.ref || '', tendered:p.tendered || 0, void:false, tord:p.tord || '', ck:p.ck || '', auto:p.tord ? 1 : 0, vat:p.vat || 0, vatRate:p.vatRate || 0, remote:true, cust:p.cust || '', custName:p.custName || '', custPhone:p.custPhone || '', givenBy:p.givenBy || '', due:p.due || '', by:p.by || '', discBy:p.discBy || ''});
+          discReason:p.discReason || '', discNote:p.discNote || '', total:p.total, pay:p.pay, ch:p.ch || '', ref:p.ref || '', tendered:p.tendered || 0, void:false, tord:p.tord || '', ck:p.ck || '', auto:p.tord ? 1 : 0, vat:p.vat || 0, vatRate:p.vatRate || 0, remote:true, dlv:p.dlv || null, cust:p.cust || '', custName:p.custName || '', custPhone:p.custPhone || '', givenBy:p.givenBy || '', due:p.due || '', by:p.by || '', discBy:p.discBy || ''});
         stockMove(p.lines || [], -1); changed = true;
       }
+    } else if (e.type === 'sale_deliver'){
+      var sd = byId(db.sales, p.id);
+      if (sd && sd.dlv && sd.pay === 'delivery' && (p.pay === 'cash' || p.pay === 'card')){ sd.pay = p.pay; sd.tendered = p.pay === 'cash' ? sd.total : 0; sd.dlv.st = 'done'; sd.dlv.doneT = p.t || e.t; sd.dlv.doneBy = p.by || ''; changed = true; }
     } else if (e.type === 'sale_cancel'){
       var s = byId(db.sales, p.id);
       if (s && !s.void){ s.void = true; s.voidReason = p.reason || ''; s.voidNote = p.note || ''; s.voidT = e.t; stockMove(s.lines, +1); changed = true; }
     } else if (e.type === 'order'){
-      if (isUuid(p.id) && !tord(p.id)){ var no1 = {id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, day:p.day || '', by:p.by || '', lines:p.lines || [], note:p.note || '', pay:p.pay || '', ch:p.ch || '', ref:p.ref || '', credit:p.credit || null, status:'new'}; db.tOrders.push(no1); if (db.tOrphans) delete db.tOrphans[p.id]; tabSale(no1); changed = true; if ((no1.t || 0) >= APP_T0 - 60000) counterBeep(false); }
+      if (isUuid(p.id) && !tord(p.id)){ var no1 = {id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, day:p.day || '', by:p.by || '', lines:p.lines || [], note:p.note || '', pay:p.pay || '', ch:p.ch || '', ref:p.ref || '', credit:p.credit || null, dlv:p.dlv || null, status:'new'}; db.tOrders.push(no1); if (db.tOrphans) delete db.tOrphans[p.id]; tabSale(no1); changed = true; if ((no1.t || 0) >= APP_T0 - 60000) counterBeep(false); }
     } else if (e.type === 'order_update' || e.type === 'order_pay' || e.type === 'order_delivered'){
       if (isUuid(p.id) && !tord(p.id)){ db.tOrphans = db.tOrphans || {}; if (!db.tOrphans[p.id]){ db.tOrphans[p.id] = {t:e.t || Date.now(), pay:p.pay || ''}; changed = true; } }
       if (e.type === 'order_delivered') return;
-      var o = tord(p.id); if (o && o.status === 'new'){ if (e.type === 'order_update'){ o.lines = p.lines || o.lines; o.note = p.note || ''; if (p.pay !== undefined) o.pay = p.pay || ''; if (p.ch !== undefined) o.ch = p.ch || ''; if (p.ref !== undefined) o.ref = p.ref || ''; if (p.credit !== undefined) o.credit = p.credit || null; } else { o.pay = p.pay || ''; if (p.ch !== undefined) o.ch = p.ch || ''; if (p.ref !== undefined) o.ref = p.ref || ''; } tabSale(o); changed = true; }
+      var o = tord(p.id); if (o && o.status === 'new'){ if (e.type === 'order_update'){ o.lines = p.lines || o.lines; o.note = p.note || ''; if (p.pay !== undefined) o.pay = p.pay || ''; if (p.ch !== undefined) o.ch = p.ch || ''; if (p.ref !== undefined) o.ref = p.ref || ''; if (p.credit !== undefined) o.credit = p.credit || null; if (p.dlv !== undefined) o.dlv = p.dlv || null; } else { o.pay = p.pay || ''; if (p.ch !== undefined) o.ch = p.ch || ''; if (p.ref !== undefined) o.ref = p.ref || ''; } tabSale(o); changed = true; }
     } else if (e.type === 'rec' || e.type === 'recdel' || e.type === 'num'){
       if (applyState(e.type, p)) changed = true;
     } else if (e.type === 'print_req'){
@@ -1131,7 +1135,15 @@ function chPct(id){ var c = chById(id); return c ? (+c.pct || 0) : 0; }
 function chPrice(item, size, ch){ if (!ch) return priceOf(item, size); var o = item.chp && item.chp[ch] && item.chp[ch][size.id]; return (o != null && o !== '' && !isNaN(+o)) ? +o : priceOf(item, size); }
 function chHidden(item, ch){ return !!(ch && item.chOff && item.chOff[ch]); }
 function onlineSplit(arr){ var o = {}; arr.forEach(function(x){ if (x.void || x.pay !== 'agg') return; var k = x.ch || '?'; o[k] = o[k] || {ch:k, name:chName(k), amt:0, n:0}; o[k].amt = round2(o[k].amt + x.total); o[k].n++; }); return Object.keys(o).map(function(k){ return o[k]; }); }
-function payLabel(s){ return s.pay === 'agg' ? chName(s.ch) : s.pay === 'card' ? 'Card' : s.pay === 'credit' ? 'Credit' : 'Cash'; }
+function wrap(t, W, pre){ var w = String(t).replace(/\s+/g, ' ').trim().split(' '), out = [], l = pre || ''; w.forEach(function(x){ if (l.trim() && (l + ' ' + x).length > W){ out.push(l); l = x; } else l = l ? (l.slice(-1) === ' ' ? l + x : l + ' ' + x) : x; }); if (l) out.push(l); return out; }
+function dlvOut(){ return db.sales.filter(function(x){ return !x.void && x.dlv && x.pay === 'delivery'; }).sort(function(a, b){ return a.t - b.t; }); }
+function dlvSettle(id, pay){
+  var s = byId(db.sales, id); if (!s || s.void || !s.dlv || s.pay !== 'delivery') return;
+  s.pay = pay; s.tendered = pay === 'cash' ? s.total : 0; s.dlv.st = 'done'; s.dlv.doneT = Date.now(); s.dlv.doneBy = curName();
+  audit('Sales', 'Delivery completed', 'Bill #' + s.no + ' · AED ' + money(s.total) + ' · ' + pay);
+  queueEvent('sale_deliver', {id:s.id, pay:pay, t:s.dlv.doneT, by:s.dlv.doneBy}); save();
+}
+function payLabel(s){ if (s.dlv) return s.pay === 'delivery' ? 'Delivery (out)' : 'Delivery · ' + (s.pay === 'card' ? 'Card' : 'Cash'); return s.pay === 'agg' ? chName(s.ch) : s.pay === 'card' ? 'Card' : s.pay === 'credit' ? 'Credit' : 'Cash'; }
 function aggSold(ch, end){ return round2(db.sales.filter(function(x){ return !x.void && x.pay === 'agg' && x.ch === ch && (!end || (x.day || '') <= end); }).reduce(function(a, x){ return a + x.total; }, 0)); }
 function aggGot(ch, end){ return round2(db.cash.entries.filter(function(e){ return e.kind === 'agg' && e.ch === ch && (!end || e.date <= end); }).reduce(function(a, e){ return a + e.amt; }, 0)); }
 function aggToReceive(ch, end){ return round2(aggSold(ch, end) - aggGot(ch, end)); }
@@ -1728,8 +1740,11 @@ function vSale(){
       + '<div class="amt">'+money(l.qty*l.price)+'</div><button class="rm" data-act="rm" data-i="'+i+'" aria-label="Remove">×</button></div>';
   }).join('') : '<div class="empty">Bill is empty.<br>Tap an item to add it.</div>';
   var has = S.cart.length > 0;
-  var chips = chans().length ? '<div class="chseg"><button data-act="chsel" data-ch="" aria-pressed="'+(!S.ch)+'">Counter</button>'+chans().map(function(x){ return '<button data-act="chsel" data-ch="'+x.id+'" aria-pressed="'+(S.ch === x.id)+'">'+esc(x.name)+'</button>'; }).join('')+'</div>' : '';
-  var payRow = S.ch ? '<label class="fld" style="margin:0 0 8px">'+esc(chName(S.ch))+' order number<input class="inp" data-f="ref" value="'+esc(S.ref || '')+'" placeholder="Order number from the app" autocomplete="off"></label><div class="row2" style="grid-template-columns:1fr"><button class="btn primary" data-act="payagg"'+(has?'':' disabled')+'>Save '+esc(chName(S.ch))+' bill</button></div><p style="margin:6px 0 0;font-size:12px;color:var(--muted)">Paid later by '+esc(chName(S.ch))+'. Not counted in cash or card.</p>'
+  var BIKE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h3l-3 11.5M5.5 17.5L9 9h6M9 9L7 6H5"/></svg>';
+  var chips = '<div class="chseg"><button data-act="chsel" data-ch="" aria-pressed="'+(!S.ch && !S.dv)+'">Counter</button>'+chans().map(function(x){ return '<button data-act="chsel" data-ch="'+x.id+'" aria-pressed="'+(S.ch === x.id)+'">'+esc(x.name)+'</button>'; }).join('')+'<button data-act="dvsel" aria-pressed="'+(!!S.dv)+'">'+BIKE+'Delivery</button></div>';
+  var dvN = dlvOut().length;
+  var payRow = S.dv ? '<label class="fld" style="margin:0 0 8px">Phone<input class="inp" data-f="dvphone" inputmode="tel" value="'+esc(S.dvPhone || '')+'" placeholder="Customer phone" autocomplete="off"></label><label class="fld" style="margin:0 0 8px">Address / location<input class="inp" data-f="dvaddr" value="'+esc(S.dvAddr || '')+'" placeholder="Building, area, landmark" autocomplete="off"></label><label class="fld" style="margin:0 0 8px">Delivery by<select class="inp" data-f="dvstaff"><option value="">Choose staff</option>'+db.users.filter(function(u){ return u.active !== false; }).map(function(u){ return '<option value="'+esc(u.name)+'"'+(S.dvStaff === u.name ? ' selected' : '')+'>'+esc(u.name)+'</option>'; }).join('')+'</select></label><div class="row2"><button class="btn primary" data-act="dvsave" data-pr="0"'+(has?'':' disabled')+'>Confirm</button><button class="btn plum" data-act="dvsave" data-pr="1"'+(has?'':' disabled')+'>Confirm &amp; print</button></div><p style="margin:6px 0 0;font-size:12px;color:var(--muted)">Cash or card is chosen when the delivery boy comes back. Type a phone or an address.</p>'
+    : S.ch ? '<label class="fld" style="margin:0 0 8px">'+esc(chName(S.ch))+' order number<input class="inp" data-f="ref" value="'+esc(S.ref || '')+'" placeholder="Order number from the app" autocomplete="off"></label><div class="row2" style="grid-template-columns:1fr"><button class="btn primary" data-act="payagg"'+(has?'':' disabled')+'>Save '+esc(chName(S.ch))+' bill</button></div><p style="margin:6px 0 0;font-size:12px;color:var(--muted)">Paid later by '+esc(chName(S.ch))+'. Not counted in cash or card.</p>'
     : '<div class="row2" style="grid-template-columns:1fr 1fr 1fr"><button class="btn primary" data-act="pay" data-m="cash"'+(has?'':' disabled')+'>Cash</button><button class="btn plum" data-act="pay" data-m="card"'+(has?'':' disabled')+'>Card</button><button class="btn ghost" data-act="pay" data-m="credit"'+(has?'':' disabled')+'>Credit</button></div>';
   return '<div class="sale"><nav class="rail" aria-label="Categories">'+cats+'</nav><section class="menu">'+chips+'<div class="items">'+items+'</div></section>'
     + '<aside class="panel"><h2>Bill #'+nextNo()+'<small>'+S.cart.reduce(function(a,l){return a+l.qty;},0)+' items</small></h2>'
@@ -1751,7 +1766,8 @@ function vSales(){
   var tot = ok.reduce(function(a,s){ return a + s.total; }, 0), cash = ok.filter(function(s){ return s.pay==='cash'; }).reduce(function(a,s){ return a + s.total; }, 0);
   var discTot = ok.reduce(function(a,s){ return a + (s.discount || 0); }, 0), voids = list.filter(function(s){ return s.void; }), voidTot = voids.reduce(function(a,s){ return a + s.total; }, 0);
   var vatTot = ok.reduce(function(a,s){ return a + (s.vat || 0); }, 0);
-  var tiles = [['Bills', ok.length], ['Sales (AED)', money(tot)]].concat(vatTot > 0 ? [['VAT (AED)', money(vatTot)]] : []).concat([ ['Cash', money(cash)], ['Card', money(ok.filter(function(s){ return s.pay === 'card'; }).reduce(function(a, s){ return a + s.total; }, 0))]]).concat(onlineSplit(ok).map(function(o){ return [o.name, money(o.amt)]; })).concat(discTot > 0 ? [['Discounts (AED)', money(discTot)]] : []).concat(voids.length ? [['Cancelled bills', voids.length + ' · ' + money(voidTot)]] : [])
+  var dOut = dlvOut(), dAll = ok.filter(function(s){ return s.dlv; });
+  var tiles = [['Bills', ok.length], ['Sales (AED)', money(tot)]].concat(dAll.length || dOut.length ? [['Deliveries', dAll.length + ' · ' + dOut.length + ' out now']] : []).concat(vatTot > 0 ? [['VAT (AED)', money(vatTot)]] : []).concat([ ['Cash', money(cash)], ['Card', money(ok.filter(function(s){ return s.pay === 'card'; }).reduce(function(a, s){ return a + s.total; }, 0))]]).concat(onlineSplit(ok).map(function(o){ return [o.name, money(o.amt)]; })).concat(discTot > 0 ? [['Discounts (AED)', money(discTot)]] : []).concat(voids.length ? [['Cancelled bills', voids.length + ' · ' + money(voidTot)]] : [])
     .map(function(t){ return '<div class="tile"><small>'+t[0]+'</small><b>'+t[1]+'</b></div>'; }).join('');
   var top = {}; ok.forEach(function(s){ s.lines.forEach(function(l){ var k = l.name + (l.size ? ' ('+l.size+')' : '') + ' · ' + l.cat; top[k] = (top[k]||0) + l.qty; }); });
   var topRows = Object.keys(top).sort(function(a,b){ return top[b]-top[a]; }).slice(0,8).map(function(k){ return '<tr><td>'+esc(k)+'</td><td class="n">'+top[k]+'</td></tr>'; }).join('');
@@ -1759,12 +1775,13 @@ function vSales(){
     var t = new Date(s.t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
     var q = s.lines.reduce(function(a,l){ return a+l.qty; }, 0);
     var ask = S.voidAsk === s.id;
-    return '<tr class="'+(s.void?'void':'')+'"><td>#'+s.no+(wasEdited(s) ? ' <span class="pill edt">Edited</span>' : '')+'</td><td>'+t+'</td><td>'+q+' items</td><td>'+(s.void?'<span class="pill void">Cancelled</span><div style="font-size:12px;color:var(--muted);text-decoration:none;margin-top:2px">'+esc(s.voidReason||'')+'</div>':'<span class="pill '+s.pay+'">'+(s.pay === 'agg' ? esc(chName(s.ch)) : s.pay)+'</span>'+(s.pay === 'agg' && s.ref ? '<div style="font-size:12px;color:var(--muted)">#'+esc(s.ref)+'</div>' : '')+(s.pay === 'credit' ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.custName || '')+'</div>' : ''))+'</td><td class="n">'+money(s.total)+'</td>'
+    return '<tr class="'+(s.void?'void':'')+'"><td>#'+s.no+(wasEdited(s) ? ' <span class="pill edt">Edited</span>' : '')+'</td><td>'+t+'</td><td>'+q+' items</td><td>'+(s.void?'<span class="pill void">Cancelled</span><div style="font-size:12px;color:var(--muted);text-decoration:none;margin-top:2px">'+esc(s.voidReason||'')+'</div>':'<span class="pill '+(s.dlv && s.pay !== 'delivery' ? 'delivery' : s.pay)+'">'+(s.pay === 'agg' ? esc(chName(s.ch)) : s.dlv ? esc(payLabel(s)) : s.pay)+'</span>'+(s.dlv && s.dlv.staff ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.dlv.staff)+(s.dlv.phone ? ' · '+esc(s.dlv.phone) : '')+'</div>' : '')+(s.pay === 'agg' && s.ref ? '<div style="font-size:12px;color:var(--muted)">#'+esc(s.ref)+'</div>' : '')+(s.pay === 'credit' ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.custName || '')+'</div>' : ''))+'</td><td class="n">'+money(s.total)+'</td>'
       + '<td class="n"><button class="btn ghost sm" data-act="view" data-id="'+s.id+'">Receipt</button> '
       + (s.void ? '' : '<button class="btn danger sm" data-act="voidopen" data-id="'+s.id+'">Cancel bill</button>') + '</td></tr>';
   }).join('');
   function seg(id, label){ return '<button data-act="range" data-id="'+id+'" aria-pressed="'+(S.range===id)+'">'+label+'</button>'; }
   return '<div class="page"><div class="bar"><div class="seg">'+seg('today','Today')+seg('all','All')+'</div></div><div class="tiles">'+tiles+'</div>'
+    + (dOut.length ? '<div class="tbl"><h3>Out for delivery ('+dOut.length+')</h3><table><thead><tr><th>No.</th><th>Time</th><th>Customer</th><th>By</th><th class="n">AED</th><th></th></tr></thead><tbody>'+dOut.map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+fdate(s.t)+'</td><td>'+esc(s.dlv.phone || '')+'<div style="font-size:12px;color:var(--muted)">'+esc(s.dlv.addr || '')+'</div></td><td>'+esc(s.dlv.staff || '')+'</td><td class="n">'+money(s.total)+'</td><td class="n"><button class="btn primary sm" data-act="dvcash" data-id="'+esc(s.id)+'">Cash</button> <button class="btn plum sm" data-act="dvcard" data-id="'+esc(s.id)+'">Card</button></td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + '<div class="tbl"><h3>Top items</h3><table><tbody>'+(topRows||'<tr><td>No sales yet.</td></tr>')+'</tbody></table></div>'
     + (voids.length ? '<div class="tbl"><h3>Cancelled bills</h3><table><thead><tr><th>No.</th><th>Time</th><th>Reason</th><th class="n">AED</th></tr></thead><tbody>'+voids.slice().reverse().map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+fdate(s.voidT || s.t)+'</td><td>'+esc(s.voidReason||'')+(s.voidNote?' <span style="color:var(--muted)">· '+esc(s.voidNote)+'</span>':'')+'</td><td class="n">'+money(s.total)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + (ok.some(function(s){ return s.discount > 0; }) ? '<div class="tbl"><h3>Discounts given</h3><table><thead><tr><th>No.</th><th>Time</th><th>Reason</th><th class="n">Before</th><th class="n">Discount</th></tr></thead><tbody>'+ok.filter(function(s){ return s.discount > 0; }).reverse().map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+fdate(s.t)+'</td><td>'+esc(s.discReason||'')+(s.discNote?' <span style="color:var(--muted)">· '+esc(s.discNote)+'</span>':'')+'</td><td class="n">'+money(s.subtotal)+'</td><td class="n">'+money(s.discount)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '')
@@ -2282,8 +2299,8 @@ function receiptText(s){
   if (s.discount > 0) L.push(lr('Subtotal', money(s.subtotal)), lr('Discount', '-' + money(s.discount)));
   if (hasVat) L.push(lr('Subtotal excl. VAT', money(s.total - s.vat)), lr('VAT ' + num(s.vatRate) + '%', money(s.vat)));
   L.push(lr('TOTAL AED', money(s.total)), '');
-  if (s.pay === 'credit'){ L.push(lr('ON CREDIT', money(s.total)), 'Customer: ' + (s.custName || ''), 'Phone: ' + (s.custPhone || ''), lr('Due date', s.due || ''), 'Given by: ' + (s.givenBy || '')); if (s.credBal !== undefined) L.push(Array(W+1).join('-'), lr('TOTAL DUE FROM YOU', 'AED ' + money(s.credBal)), c('(including this bill)')); } else if (s.pay === 'agg'){ L.push(lr('Sold via ' + chName(s.ch), money(s.total))); if (s.ref) L.push('Order no: ' + s.ref); } else L.push(lr('Paid by ' + s.pay, money(s.pay === 'cash' ? s.tendered : s.total)));
-  if (s.pay === 'cash') L.push(lr('Change', money(s.tendered - s.total)));
+  if (s.dlv){ L.push(c('*** DELIVERY ***')); if (s.dlv.phone) L.push('Phone: ' + s.dlv.phone); if (s.dlv.addr) wrap(s.dlv.addr, W, 'Address: ').forEach(function(x){ L.push(x); }); if (s.dlv.staff) L.push('Delivery by: ' + s.dlv.staff); L.push(s.pay === 'delivery' ? lr('TO COLLECT', 'AED ' + money(s.total)) : lr('Paid by ' + s.pay, money(s.total))); } else if (s.pay === 'credit'){ L.push(lr('ON CREDIT', money(s.total)), 'Customer: ' + (s.custName || ''), 'Phone: ' + (s.custPhone || ''), lr('Due date', s.due || ''), 'Given by: ' + (s.givenBy || '')); if (s.credBal !== undefined) L.push(Array(W+1).join('-'), lr('TOTAL DUE FROM YOU', 'AED ' + money(s.credBal)), c('(including this bill)')); } else if (s.pay === 'agg'){ L.push(lr('Sold via ' + chName(s.ch), money(s.total))); if (s.ref) L.push('Order no: ' + s.ref); } else L.push(lr('Paid by ' + s.pay, money(s.pay === 'cash' ? s.tendered : s.total)));
+  if (s.pay === 'cash' && !s.dlv) L.push(lr('Change', money(s.tendered - s.total)));
   L.push('', c('Thank you!' + (G.insta ? ' ' + G.insta : '')));
   if (s.void) L.unshift(c('*** VOID ***'));
   return L.join('\n');
@@ -2411,7 +2428,8 @@ function vSheets(){
   }
   if (S.receipt){
     var s = byId(db.sales, S.receipt);
-    if (s) return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Receipt"><h3>Bill #'+s.no+'</h3><p>'+(s.void?'This bill was cancelled. Reason: '+esc(voidWhy(s))+(s.voidBy?' · by '+esc(s.voidBy):''):'Paid. Hand the receipt to the customer.')+'</p><div class="receipt"><img class="rlogo" src="'+LOGO+'" alt="">'+esc(receiptText(s))+'</div>'
+    if (s) return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Receipt"><h3>Bill #'+s.no+'</h3><p>'+(s.void?'This bill was cancelled. Reason: '+esc(voidWhy(s))+(s.voidBy?' · by '+esc(s.voidBy):''):(s.pay === 'delivery' ? 'Out for delivery. Collect AED '+money(s.total)+' from the customer.' : 'Paid. Hand the receipt to the customer.'))+'</p><div class="receipt"><img class="rlogo" src="'+LOGO+'" alt="">'+esc(receiptText(s))+'</div>'
+      + (s.pay === 'delivery' && !s.void ? '<div class="btns"><button class="btn primary" data-act="dvcash" data-id="'+esc(s.id)+'">Delivered · Cash</button><button class="btn plum" data-act="dvcard" data-id="'+esc(s.id)+'">Delivered · Card</button></div>' : '')
       + '<div class="btns"><button class="btn ghost" data-act="print">Print</button><button class="btn primary" data-act="closerec">Close</button></div></div></div>';
   }
   return '';
@@ -2452,15 +2470,15 @@ function addLine(c, item, size){
 function finishSale(mode){   // mode: 'confirm' (just save) or 'print' (save and print); neither opens the receipt preview
   if (db.day !== today()){ db.day = today(); db.counter = 0; }
   db.counter++;
-  var cs = S.creditSel || {}, s = {cust:cs.cust || '', custName:cs.name || '', custPhone:cs.phone || '', givenBy:cs.givenBy || '', due:cs.due || '', by:curName(), uid:S.uid, id:uuid(), dev:sync.dev || '', no:db.counter, t:Date.now(), day:today(), lines:S.cart.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty, orig:l.orig, mod:l.mod, modBy:l.modBy, modWhy:l.modWhy}; }), subtotal:totalOf(S.cart), discount:discAmt(), discReason:S.disc ? S.disc.reason : '', discNote:S.disc ? S.disc.note : '', discBy:S.disc ? S.disc.by : '', total:billTotal(), pay:S.pay, ch:S.pay === 'agg' ? S.ch : '', ref:S.pay === 'agg' ? String(S.ref || '').trim() : '', tendered:S.pay==='cash'?parseFloat(S.tendered):0, void:false, vat:vatOf(billTotal()), vatRate:setg().vat ? setg().rate : 0};
+  var cs = S.creditSel || {}, s = {cust:cs.cust || '', custName:cs.name || '', custPhone:cs.phone || '', givenBy:cs.givenBy || '', due:cs.due || '', by:curName(), uid:S.uid, id:uuid(), dev:sync.dev || '', no:db.counter, t:Date.now(), day:today(), lines:S.cart.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty, orig:l.orig, mod:l.mod, modBy:l.modBy, modWhy:l.modWhy}; }), subtotal:totalOf(S.cart), discount:discAmt(), discReason:S.disc ? S.disc.reason : '', discNote:S.disc ? S.disc.note : '', discBy:S.disc ? S.disc.by : '', total:billTotal(), pay:S.pay, ch:S.pay === 'agg' ? S.ch : '', ref:S.pay === 'agg' ? String(S.ref || '').trim() : '', dlv:S.pay === 'delivery' ? {phone:String(S.dvPhone || '').trim(), addr:String(S.dvAddr || '').trim(), staff:S.dvStaff || '', st:'out'} : null, tendered:S.pay==='cash'?parseFloat(S.tendered):0, void:false, vat:vatOf(billTotal()), vatRate:setg().vat ? setg().rate : 0};
   stockMove(s.lines, -1);
   db.sales.push(s);
   if (s.pay === 'credit' && s.cust){ try { s.credBal = custBal(s.cust); } catch(e){} }   // what the customer owes after this bill, kept on the receipt
   save();
   s.lines.forEach(function(l){ if (l.mod) audit('Sales', 'Price changed at sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty + ': AED ' + money(l.orig) + ' to AED ' + money(l.price) + '. Reason: ' + l.modWhy, {ap:l.modBy, flag:1}); });
   if (s.discount > 0) audit('Sales', 'Discount given', 'Bill #' + s.no + ' · AED ' + money(s.discount) + '. Reason: ' + s.discReason + (s.discNote ? ' – ' + s.discNote : ''), {ap:s.discBy, flag:1});
-  queueEvent('sale', {cust:s.cust, custName:s.custName, custPhone:s.custPhone, givenBy:s.givenBy, due:s.due, by:s.by, discBy:s.discBy, id:s.id, no:(s.dev ? s.dev + '-' : '') + s.no, day:s.day, t:s.t, pay:s.pay, ch:s.ch, ref:s.ref, subtotal:s.subtotal, discount:s.discount, discReason:s.discReason, discNote:s.discNote, total:s.total, vat:s.vat, vatRate:s.vatRate, tendered:s.tendered, lines:s.lines});
-  S.disc = null; S.cart = []; S.pay = null; S.tendered = ''; S.ch = ''; S.ref = ''; S.receipt = mode ? null : s.id;
+  queueEvent('sale', {dlv:s.dlv, cust:s.cust, custName:s.custName, custPhone:s.custPhone, givenBy:s.givenBy, due:s.due, by:s.by, discBy:s.discBy, id:s.id, no:(s.dev ? s.dev + '-' : '') + s.no, day:s.day, t:s.t, pay:s.pay, ch:s.ch, ref:s.ref, subtotal:s.subtotal, discount:s.discount, discReason:s.discReason, discNote:s.discNote, total:s.total, vat:s.vat, vatRate:s.vatRate, tendered:s.tendered, lines:s.lines});
+  S.disc = null; S.cart = []; S.pay = null; S.tendered = ''; S.ch = ''; S.ref = ''; S.dv = false; S.dvPhone = ''; S.dvAddr = ''; S.dvStaff = ''; S.receipt = mode ? null : s.id;
   if (mode === 'print') setTimeout(function(){ printBill(s); }, 300);
   if (mode) toast(mode === 'print' ? 'Bill #' + s.no + ' saved. Printing…' : 'Bill #' + s.no + ' saved');
 }
@@ -2472,6 +2490,9 @@ document.addEventListener('input', function(e){
     if (ch) ch.textContent = 'AED ' + ((!isNaN(v) && v >= total) ? money(v - total) : '-'); oks.forEach(function(ok){ ok.disabled = isNaN(v) || v < total; }); return; }
   var f = t.dataset && t.dataset.f;
   if (f === 'ref'){ S.ref = t.value; return; }
+  if (f === 'dvphone'){ S.dvPhone = t.value; return; }
+  if (f === 'dvaddr'){ S.dvAddr = t.value; return; }
+  if (f === 'dvstaff'){ S.dvStaff = t.value; return; }
   if (f === 'chset'){ var chx = chById(t.dataset.id); if (chx){ chx[t.dataset.k] = t.dataset.k === 'pct' ? (parseFloat(t.value) || 0) : t.value; save(); if (typeof menuEdited === 'function') menuEdited(); } return; }
   if (f === 'chpx'){ var cc0 = edCat(), it0 = byId(cc0.items, t.dataset.id), ce0 = S.chedit || (chans()[0] || {}).id; if (it0 && ce0){ it0.chp = it0.chp || {}; it0.chp[ce0] = it0.chp[ce0] || {}; if (t.value === '') delete it0.chp[ce0][t.dataset.sid]; else it0.chp[ce0][t.dataset.sid] = +t.value; saveMenu(); } return; }
   if (f === 'chpct'){ S.chpct = t.value; return; }
@@ -2604,7 +2625,17 @@ document.addEventListener('click', function(e){
       saveMenu(); toast('Prices filled for ' + chName(cf)); break;
     case 'chsel':
       if (S.cart.length && (d.ch || '') !== (S.ch || '')){ toast('Finish or clear this bill before changing the channel'); return; }
-      S.ch = d.ch || ''; S.ref = ''; break;
+      S.ch = d.ch || ''; S.ref = ''; S.dv = false; break;
+    case 'dvsel':
+      if (S.cart.length && S.ch){ toast('Finish or clear this bill before changing the channel'); return; }
+      S.dv = true; S.ch = ''; S.ref = ''; break;
+    case 'dvsave':
+      if (!S.cart.length) break;
+      if (!String(S.dvPhone || '').trim() && !String(S.dvAddr || '').trim()){ toast('Type a phone number or an address'); return; }
+      if (!S.dvStaff){ toast('Choose who is delivering'); return; }
+      S.pay = 'delivery'; finishSale(d.pr === '1' ? 'print' : 'confirm'); break;
+    case 'dvcash': dlvSettle(d.id, 'cash'); toast('Delivery done · cash'); break;
+    case 'dvcard': dlvSettle(d.id, 'card'); toast('Delivery done · card'); break;
     case 'payagg':
       if (!S.cart.length) break;
       if (!String(S.ref || '').trim()){ toast('Type the ' + chName(S.ch) + ' order number'); return; }
@@ -3744,7 +3775,7 @@ function vDash(){
     dKpi('range', 'Bank', money1(cashBal('bank')), '', '&nbsp;', can('cash') ? 'gocash' : ''),
     dKpi('credit', 'Card to receive', money1(cardToReceive()), '', 'from the card machine', can('cash') ? 'gocash' : '')
   ].concat(chans().map(function(x){ return dKpi('credit', x.name + ' to receive', money1(aggToReceive(x.id)), '', aggToReceive(x.id) > 0.005 ? 'not yet paid out' : 'no pending sales', can('cash') ? 'gocash' : ''); })).concat(st ? [dKpi('credit', 'Credit outstanding', money1(st.out), '', st.n + ' customer' + (st.n === 1 ? '' : 's'), 'gocredit')] : []).concat(can('purch') ? [dKpi('purch', 'Supplier payables', money1(pb), '', 'we owe suppliers', 'gopurch')] : []);
-  var pays = [{k:'Cash', v:pay.cash, c:'#00838f'}, {k:'Card', v:pay.card, c:'#df3d8a'}, {k:'Credit', v:pay.credit, c:'#ffc300'}];
+  var pays = [{k:'Cash', v:pay.cash, c:'#00838f'}, {k:'Card', v:pay.card, c:'#df3d8a'}, {k:'Credit', v:pay.credit, c:'#ffc300'}]; if (pay.delivery > 0) pays.push({k:'Delivery (out)', v:pay.delivery, c:'#3b82c4'});
   onlineSplit(cur).forEach(function(o, ix){ pays.push({k:o.name, v:o.amt, c:['#d6501a', '#8a3d00', '#a0527c', '#555'][ix % 4]}); });
   var payTot = pay.cash + pay.card + pay.credit; pays.forEach(function(x, ix){ if (ix > 2) payTot += x.v; });
   var legend = pays.map(function(p){ return '<div class="lg"><i style="background:'+p.c+'"></i><span>'+p.k+'</span><b>'+money(p.v)+'</b><em>'+(payTot ? Math.round(p.v / payTot * 100) : 0)+'%</em></div>'; }).join('');
@@ -4825,10 +4856,10 @@ function rgNums(){
   for (var t = d.getTime(), n = 0; t <= b && n < 400; t += 86400000, n++){ man += cashManualNet(new Date(t).toLocaleDateString('en-CA')); }
   man = round2(man);
   var open = cashBal('drawer', addDays(da, -1));
-  var cash = by('cash'), card = by('card'), credit = by('credit');
+  var cash = by('cash'), card = by('card'), credit = by('credit'), dlv = by('delivery');
   var expected = cashBal('drawer', db2), other = round2(expected - open - cash + expOut);
   var hasC = g.counted !== '' && !isNaN(parseFloat(g.counted)), hasK = g.card !== '' && !isNaN(parseFloat(g.card));
-  return {g:g, ok:ok, voids:voids, net:net, disc:disc, gross:net + disc, vat:sum(ok, function(s){ return s.vat; }), cash:cash, card:card, credit:credit, online:onlineSplit(ok), cat:cat, units:units, exps:exps, expOut:expOut, cpCash:cpCash, cpCard:cpCard, man:man, open:open, other:other, expected:expected,
+  return {g:g, ok:ok, voids:voids, net:net, disc:disc, gross:net + disc, vat:sum(ok, function(s){ return s.vat; }), cash:cash, card:card, credit:credit, dlv:dlv, online:onlineSplit(ok), cat:cat, units:units, exps:exps, expOut:expOut, cpCash:cpCash, cpCard:cpCard, man:man, open:open, other:other, expected:expected,
     diff:hasC ? round2(parseFloat(g.counted) - expected) : null, cardDiff:hasK ? round2(parseFloat(g.card) - (card + cpCard)) : null, voidTot:sum(voids, function(s){ return s.total; })};
 }
 function vtime(t){ return new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
@@ -4837,7 +4868,7 @@ function rgText(N){
   var L = ['Report ' + fdate(new Date(N.g.from).getTime()) + ' to ' + fdate(new Date(N.g.to).getTime()) + ' - ' + setg().shop, ''];
   L.push('Bills: ' + N.ok.length + '   Items: ' + N.units, 'Gross sales: AED ' + money(N.gross), 'Discounts: AED ' + money(N.disc), 'Net sales: AED ' + money(N.net));
   if (N.vat > 0) L.push('VAT: AED ' + money(N.vat));
-  L.push('Cash sales: AED ' + money(N.cash), 'Card sales: AED ' + money(N.card)); if (N.credit > 0) L.push('Credit sales: AED ' + money(N.credit)); N.online.forEach(function(o){ L.push(o.name + ' sales (paid later): AED ' + money(o.amt)); });
+  L.push('Cash sales: AED ' + money(N.cash), 'Card sales: AED ' + money(N.card)); if (N.credit > 0) L.push('Credit sales: AED ' + money(N.credit)); if (N.dlv > 0) L.push('Delivery, cash not yet collected: AED ' + money(N.dlv)); N.online.forEach(function(o){ L.push(o.name + ' sales (paid later): AED ' + money(o.amt)); });
   L.push('', 'Cash in the drawer at the start: ' + money(N.open), 'Cash sales: ' + money(N.cash)); if (N.other) L.push('Other cash in / out: ' + money(N.other)); L.push('Cash expenses: ' + money(N.expOut), 'Cash that should be in the drawer: ' + money(N.expected));
   if (N.diff !== null) L.push('Cash counted: ' + money(parseFloat(N.g.counted)) + ' (' + diffText(N.diff) + ')');
   if (N.cardDiff !== null) L.push('Card machine total: ' + money(parseFloat(N.g.card)) + ' (' + diffText(N.cardDiff) + ')');
@@ -4899,7 +4930,7 @@ function vRange(){
     + '<span class="sp"></span><div class="rgact"><button class="btn primary sm" data-act="rgprint">Print / PDF</button></div></div></div>'
     + '<div class="rgwrap">'
     + '<div class="card"><h3>Sales</h3><table class="tbl" style="width:100%">' + row('Bills', N.ok.length + ' · ' + N.units + ' items') + row('Gross sales', money(N.gross)) + (N.disc ? row('Discounts', money(N.disc)) : '') + row('<b>Net sales</b>', '<b>' + money(N.net) + '</b>') + (N.vat > 0 ? row('VAT included', money(N.vat)) : '')
-    + row('Cash', money(N.cash)) + row('Card', money(N.card)) + (N.credit ? row('Credit', money(N.credit)) : '') + N.online.map(function(o){ return row(esc(o.name) + ' (paid later)', money(o.amt)); }).join('') + (N.voids.length ? row('Cancelled bills', N.voids.length + ' · ' + money(N.voidTot)) : '') + '</table></div>'
+    + row('Cash', money(N.cash)) + row('Card', money(N.card)) + (N.credit ? row('Credit', money(N.credit)) : '') + (N.dlv ? row('Delivery (to collect)', money(N.dlv)) : '') + N.online.map(function(o){ return row(esc(o.name) + ' (paid later)', money(o.amt)); }).join('') + (N.voids.length ? row('Cancelled bills', N.voids.length + ' · ' + money(N.voidTot)) : '') + '</table></div>'
     + '<div class="card"><h3>Drawer cash check</h3><label class="fld" style="display:block;margin:2px 0 4px"><span style="display:block;font-size:14px;font-weight:700;margin-bottom:6px">Cash counted in the drawer now (AED)</span><input class="inp" type="number" inputmode="decimal" min="0" step="0.5" data-f="rg" data-k="counted" value="' + esc(g.counted) + '" placeholder="Amount" style="width:100%;height:50px;min-height:50px;font-size:22px;font-weight:700;padding:0 14px;border-width:2px"></label>'
     + '<table class="tbl" style="width:100%;margin-top:10px">' + row('Cash in the drawer at the start <span style="color:var(--muted)">(' + esc(fdate(new Date(g.from).getTime())) + ')</span>', money(N.open)) + row('+ Cash sales', money(N.cash)) + (N.other ? row('+/− Other cash in / out', money(N.other)) : '') + row('− Cash expenses', money(N.expOut)) + row('<b>Should be in the drawer now</b>', '<b>' + money(N.expected) + '</b>') + (N.diff !== null ? row('Counted', money(parseFloat(g.counted))) : '') + '</table>'
     + (N.diff !== null ? mmBox('Cash', N.diff) : '<p style="margin:10px 0 0;color:var(--muted);font-size:13px">Type the cash you counted to see if it matches.</p>')
