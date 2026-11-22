@@ -2405,7 +2405,7 @@ function vSheets(){
   }
   if (S.receipt){
     var s = byId(db.sales, S.receipt);
-    if (s) return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Receipt"><h3>Bill #'+s.no+'</h3><p>'+(s.void?'This bill is void.':'Paid. Hand the receipt to the customer.')+'</p><div class="receipt"><img class="rlogo" src="'+LOGO+'" alt="">'+esc(receiptText(s))+'</div>'
+    if (s) return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Receipt"><h3>Bill #'+s.no+'</h3><p>'+(s.void?'This bill was cancelled. Reason: '+esc(voidWhy(s))+(s.voidBy?' · by '+esc(s.voidBy):''):'Paid. Hand the receipt to the customer.')+'</p><div class="receipt"><img class="rlogo" src="'+LOGO+'" alt="">'+esc(receiptText(s))+'</div>'
       + '<div class="btns"><button class="btn ghost" data-act="print">Print</button><button class="btn primary" data-act="closerec">Close</button></div></div></div>';
   }
   return '';
@@ -3670,9 +3670,9 @@ function dHBars(rows, color, fmt){
 function recentBills(){
   var L = db.sales.filter(function(s){ return !superseded(s); }).sort(function(a, b){ return b.t - a.t; }).slice(0, 8);
   if (!L.length) return '<div class="empty">No bills yet.</div>';
-  return '<div class="tblwrap"><table class="dtbl"><thead><tr><th>Bill</th><th>Time</th><th>Items</th><th>Payment</th><th>Status</th><th class="n">Total</th></tr></thead><tbody>' + L.map(function(s){
+  return '<div class="tblwrap"><table class="dtbl"><thead><tr><th>Bill</th><th>Time</th><th>Items</th><th>Payment</th><th>Status</th><th class="n">Total</th><th></th></tr></thead><tbody>' + L.map(function(s){
     var q = s.lines.reduce(function(a, l){ return a + l.qty; }, 0), pay = payLabel(s);
-    return '<tr><td><b>#'+esc(String(s.dev ? s.dev + '-' + s.no : s.no))+'</b></td><td>'+new Date(s.t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'})+'</td><td>'+q+' item'+(q === 1 ? '' : 's')+'</td><td>'+pay+(s.custName ? ' · '+esc(s.custName) : '')+'</td><td>'+(s.void ? '<span class="st bad"><i></i>Cancelled</span>' : '<span class="st ok"><i></i>Paid</span>')+'</td><td class="n">'+money(s.total)+'</td></tr>';
+    return '<tr><td><b>#'+esc(String(s.dev ? s.dev + '-' + s.no : s.no))+'</b></td><td>'+new Date(s.t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'})+'</td><td>'+q+' item'+(q === 1 ? '' : 's')+'</td><td>'+pay+(s.custName ? ' · '+esc(s.custName) : '')+'</td><td>'+(s.void ? '<span class="st bad"><i></i>Cancelled</span>' : '<span class="st ok"><i></i>Paid</span>')+'</td><td class="n">'+money(s.total)+'</td><td class="n"><button class="btn sm ghost" data-act="view" data-id="'+esc(s.id)+'">View</button></td></tr>';
   }).join('') + '</tbody></table></div>';
 }
 function vDash(){
