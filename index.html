@@ -1071,6 +1071,10 @@ function applyTestReset(p){
   saveSync(); save();
   return true;
 }
+function counterBeep(force){   // one sound for a new tablet order or a bill sent to print (not twice for the same order)
+  var n = Date.now(); if (n - (window.__lb || 0) < 4000) return;
+  try { var c = ncfg(); if (!force && !c.sound) return; window.__lb = n; nBeep(c.tone, c.vol); } catch(e){}
+}
 function applyRemote(events){
   var changed = false; db.tOrders = db.tOrders || [];
   function tord(id){ return db.tOrders.filter(function(x){ return String(x.id) === String(id); })[0]; }
@@ -1086,7 +1090,7 @@ function applyRemote(events){
       var s = byId(db.sales, p.id);
       if (s && !s.void){ s.void = true; s.voidReason = p.reason || ''; s.voidNote = p.note || ''; s.voidT = e.t; stockMove(s.lines, +1); changed = true; }
     } else if (e.type === 'order'){
-      if (isUuid(p.id) && !tord(p.id)){ var no1 = {id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, day:p.day || '', by:p.by || '', lines:p.lines || [], note:p.note || '', pay:p.pay || '', ch:p.ch || '', ref:p.ref || '', credit:p.credit || null, status:'new'}; db.tOrders.push(no1); if (db.tOrphans) delete db.tOrphans[p.id]; tabSale(no1); changed = true; }
+      if (isUuid(p.id) && !tord(p.id)){ var no1 = {id:p.id, no:p.no, dev:p.dev || '', t:p.t || e.t, day:p.day || '', by:p.by || '', lines:p.lines || [], note:p.note || '', pay:p.pay || '', ch:p.ch || '', ref:p.ref || '', credit:p.credit || null, status:'new'}; db.tOrders.push(no1); if (db.tOrphans) delete db.tOrphans[p.id]; tabSale(no1); changed = true; if ((no1.t || 0) >= APP_T0 - 60000) counterBeep(false); }
     } else if (e.type === 'order_update' || e.type === 'order_pay' || e.type === 'order_delivered'){
       if (isUuid(p.id) && !tord(p.id)){ db.tOrphans = db.tOrphans || {}; if (!db.tOrphans[p.id]){ db.tOrphans[p.id] = {t:e.t || Date.now(), pay:p.pay || ''}; changed = true; } }
       if (e.type === 'order_delivered') return;
@@ -2312,7 +2316,7 @@ function printRequest(p, e){   // a tablet asked this counter printer to print a
     var tot = round2(o.lines.reduce(function(a, l){ return a + l.qty * l.price; }, 0));
     sl = {id:'t-' + o.id, no:tOrderLabel(o), t:o.t, lines:o.lines, subtotal:tot, discount:0, total:tot, vat:vatOf(tot), vatRate:setg().vat ? setg().rate : 0, pay:o.pay || '', ch:o.ch || '', ref:o.ref || '', tendered:o.pay === 'cash' ? tot : 0, void:false, custName:(o.credit && o.credit.name) || '', custPhone:(o.credit && o.credit.phone) || ''};
   }
-  try { var pnc = ncfg(); nBeep(pnc.tone, pnc.vol); } catch(e){}   // a bill is being printed for a tablet: let the counter hear it
+  counterBeep(true);   // a bill is being printed for a tablet: let the counter hear it
   setTimeout(function(){ printBill(sl); }, 300);
 }
 function salePrintOn(){ try { return localStorage.getItem('hpos_saleprint') === '1'; } catch(e){ return false; } }
