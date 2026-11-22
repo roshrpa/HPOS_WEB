@@ -699,6 +699,13 @@ function invRec(){
   }).join('');
   return '<p style="color:var(--muted);margin:0 0 10px">What is used up each time one of these is sold (the same for every flavour in the category; Catering Boxes have one recipe for each box). Ice cream, powder and packets are raw materials: put the grams (or packs) used per sale. Cups and lids count in pieces.</p><div class="recv"><div class="rl">'+chips+'</div><div class="recg">'+cards+'</div></div>';
 }
+function matUsedIn(id){
+  var out = []; Object.keys(db.inv.recipes || {}).forEach(function(k){ if ((db.inv.recipes[k] || []).some(function(x){ return x.m === id; })) out.push(k.split('|').filter(function(x, i){ return x || i === 0; }).join(' · ')); }); return out;
+}
+function matUseText(id){
+  var u = matUsedIn(id);
+  return u.length ? '<b style="color:var(--bad,#c0392b)">Used in '+u.length+' recipe'+(u.length > 1 ? 's' : '')+':</b> '+u.map(esc).join(', ')+'. Deleting removes it from these recipes, so it is no longer taken off the stock when they are sold.' : 'Not used in any recipe.';
+}
 function invMat(){
   var rows = db.inv.materials.filter(function(m){ return m.raw; }).concat(db.inv.materials.filter(function(m){ return !m.raw; })).map(function(m){
     return '<tr><td class="nm"><input class="inp" style="width:100%;text-align:left" data-f="mname" data-m="'+m.id+'" value="'+esc(m.name)+'" aria-label="Name"></td>'
@@ -708,7 +715,7 @@ function invMat(){
       + '<td class="c"><input type="checkbox" data-f="mraw" data-m="'+m.id+'"'+(m.raw?' checked':'')+' aria-label="Raw material"></td>'
       + '<td class="n">'+(String(m.unit).toLowerCase() === 'g' ? '<input class="inp" type="number" min="0" step="any" data-f="mtub" data-m="'+m.id+'" value="'+(m.tub || '')+'" placeholder="none" aria-label="Tub size in grams">' : '<span style="color:var(--muted)">–</span>')+'</td>'
       + '<td class="c"><input type="checkbox" data-f="mcup" data-m="'+m.id+'"'+(m.cup?' checked':'')+' aria-label="Cup or plate, counted daily"></td>'
-      + '<td class="n">'+(S.matDel===m.id?'<button class="btn primary sm" data-act="matdelyes" data-id="'+m.id+'">Delete</button> <button class="btn ghost sm" data-act="matdelno">Keep</button>':'<button class="btn ghost sm" data-act="matdel" data-id="'+m.id+'">Delete</button>')+'</td></tr>';
+      + '<td class="n">'+(S.matDel===m.id?'<div style="text-align:left;font-size:12px;max-width:260px;margin:0 0 6px;white-space:normal">'+matUseText(m.id)+'</div><button class="btn primary sm" data-act="matdelyes" data-id="'+m.id+'">'+(matUsedIn(m.id).length ? 'Remove from recipes and delete' : 'Delete')+'</button> <button class="btn ghost sm" data-act="matdelno">Keep</button>':'<button class="btn ghost sm" data-act="matdel" data-id="'+m.id+'">Delete</button>')+'</td></tr>';
   }).join('');
   return '<p style="color:var(--muted);margin:0 0 10px">Everything you buy and use up. Raw materials (ice cream, powder, packets) are bought as they come and taken off by the Recipes. Use unit <b>g</b> for anything weighed (then you can buy it in tub, kg or g), or <b>pack</b>, <b>pcs</b> and so on. Mark the cups and plates so the Variance tab can turn missing ones into missing sales. Cost is per unit and updates when you add a purchase.</p>'
     + '<div class="tbl"><table class="whtbl mat"><thead><tr><th>Name</th><th class="c">Unit</th><th class="n">Cost / unit</th><th class="n">Low at</th><th class="c">Raw<br><small>material</small></th><th class="n">Tub size (g)</th><th class="c">Cup / plate<br><small>counted daily</small></th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div><button class="btn primary sm" data-act="addmat">+ Add material</button>';
