@@ -2655,7 +2655,7 @@ document.addEventListener('click', function(e){
     case 'payok': if (S.pay === 'cash' && !(parseFloat(S.tendered) >= billTotal())) break; finishSale(d.pr === '1' ? 'print' : 'confirm'); break;
     case 'closerec': S.receipt = null; break;
     case 'view': S.receipt = d.id; break;
-    case 'print': var prs = byId(db.sales, S.receipt); if (prs) audit('Sales', 'Receipt printed', 'Bill #' + prs.no + ' · AED ' + money(prs.total)); if (window.hposPrint && prs){ printBill(prs); return; } document.body.classList.add('pr'); try { window.print(); } catch(err){ toast('Printing is not available here'); } document.body.classList.remove('pr'); return;
+    case 'print': var prs = byId(db.sales, S.receipt); if (prs) audit('Sales', 'Receipt printed', 'Bill #' + prs.no + ' · AED ' + money(prs.total)); if (window.hposPrint && prs){ printBill(prs); S.receipt = null; render(); return; } document.body.classList.add('pr'); try { window.print(); } catch(err){ toast('Printing is not available here'); } document.body.classList.remove('pr'); S.receipt = null; render(); return;
     case 'range': S.range = d.id; break;
     case 'addout':
       var coa = parseFloat(document.getElementById('co_a').value);
@@ -2745,7 +2745,7 @@ document.addEventListener('click', function(e){
     case 'ledbill': S.ledx = null; S.receipt = d.id; break;
     case 'pview': S.pview = d.id; break;
     case 'pviewclose': S.pview = null; break;
-    case 'pvprint': var pvp = byId(db.pur.list, S.pview); if (pvp){ var pvb = document.getElementById('pvbox'); printHtml('<div style="color:var(--ink);padding:8mm;max-width:130mm">' + (pvb ? pvb.innerHTML : '') + '</div>'); } return;
+    case 'pvprint': var pvp = byId(db.pur.list, S.pview); if (pvp){ var pvb = document.getElementById('pvbox'); printHtml('<div style="color:var(--ink);padding:8mm;max-width:130mm">' + (pvb ? pvb.innerHTML : '') + '</div>'); S.pview = null; render(); } return;
     case 'pvimg':
       var pvi = byId(db.pur.list, S.pview); if (!pvi) return;
       xVoucherImage(pvi, function(blob){
@@ -2755,7 +2755,7 @@ document.addEventListener('click', function(e){
         var a3 = document.createElement('a'); a3.href = URL.createObjectURL(blob); a3.download = name; document.body.appendChild(a3); a3.click(); setTimeout(function(){ URL.revokeObjectURL(a3.href); a3.remove(); }, 1500); toast('Image saved');
       }, {rows:pVoucherRows(pvi), amt:pvi.total, ref:pRef(pvi), title:'Purchase voucher'});
       return;
-    case 'xvprint': var xve = byId(db.exp.items, S.xview); if (xve){ var xvb = document.getElementById('xvbox'); printHtml('<div style="color:var(--ink);padding:8mm;max-width:130mm">' + (xvb ? xvb.innerHTML : '') + '</div>'); } return;
+    case 'xvprint': var xve = byId(db.exp.items, S.xview); if (xve){ var xvb = document.getElementById('xvbox'); printHtml('<div style="color:var(--ink);padding:8mm;max-width:130mm">' + (xvb ? xvb.innerHTML : '') + '</div>'); S.xview = null; render(); } return;
     case 'xvimg':
       var xvi = byId(db.exp.items, S.xview); if (!xvi) return;
       xVoucherImage(xvi, function(blob){
