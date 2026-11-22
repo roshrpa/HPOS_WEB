@@ -620,7 +620,7 @@ function invDaily(){
   }
   return '<div class="seg" style="margin-bottom:10px;display:inline-flex"><button data-act="dayuse" data-v="-1" aria-label="Previous day">\u25c0</button><button data-act="dayuse" data-v="0" aria-pressed="'+(day===today())+'">'+esc(lab(day))+'</button><button data-act="dayuse" data-v="1" aria-label="Next day">\u25b6</button></div>'
     + '<p style="color:var(--muted);margin:0 0 10px">Cups, plates and bowls used by the sales on each day, next to what should be in stock now. Voided bills are not counted.</p>'
-    + '<div class="dgrid">' + block('Cups, plates and bowls', true) + block('Lids', false) + '</div>';
+    + '<div class="dgrid">' + block('Cups, plates and bowls', true) + block('Other materials (ice cream, powder, boxes, packets)', false) + '</div>';
 }
 function invOver(){
   var E = expectedMap();
@@ -634,7 +634,7 @@ function invOver(){
     return '<div class="tbl"><h3>'+title+' <small>'+list.length+' items</small></h3><table class="whtbl dut"><thead><tr><th>Material</th><th class="n">On hand</th><th class="n">Used since count</th><th class="n">Last count</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   }
   return '<p style="color:var(--muted);margin:0 0 10px">What should be on the shelf now = last count + purchases − waste − what the sales used. Compare it with a real count to find missing stock.</p>'
-    + '<div class="dgrid">'+block('Cups, plates and bowls', true)+block('Lids and others', false)+'</div>';
+    + '<div class="dgrid">'+block('Cups, plates and bowls', true)+block('Other materials', false)+'</div>';
 }
 function invBuy(){
   var buy = db.inv.purchases.slice(-12).reverse().map(function(p){ var m = mat(p.m);
@@ -660,7 +660,7 @@ function invCount(){
   var done = S.lastCount ? byId(db.inv.counts, S.lastCount) : null;
   return (done ? '<div class="card" style="background:var(--done-bg)"><b>Count saved.</b> See the Variance tab for the result. '+done.lines.filter(function(l){ return l.diff < 0; }).length+' item(s) short.</div>' : '')
     + '<p style="color:var(--muted);margin:0 0 10px">Count what is physically there (cups, lids, tubs, milk) and type it in. Leave a row empty to skip it. Do this at closing time, ideally by someone other than the person at the counter.</p>'
-    + '<div class="dgrid">'+block('Cups, plates and bowls', true)+block('Lids and others', false)+'</div>'
+    + '<div class="dgrid">'+block('Cups, plates and bowls', true)+block('Other materials', false)+'</div>'
     + '<button class="btn primary" style="margin-top:12px" data-act="savecount">Save count</button>';
 }
 function invVar(){
