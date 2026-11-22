@@ -2277,7 +2277,7 @@ function receiptText(s){
   if (s.discount > 0) L.push(lr('Subtotal', money(s.subtotal)), lr('Discount', '-' + money(s.discount)));
   if (hasVat) L.push(lr('Subtotal excl. VAT', money(s.total - s.vat)), lr('VAT ' + num(s.vatRate) + '%', money(s.vat)));
   L.push(lr('TOTAL AED', money(s.total)), '');
-  if (s.pay === 'credit'){ L.push(lr('ON CREDIT', money(s.total)), 'Customer: ' + (s.custName || ''), 'Phone: ' + (s.custPhone || ''), lr('Due date', s.due || ''), 'Given by: ' + (s.givenBy || '')); } else if (s.pay === 'agg'){ L.push(lr('Sold via ' + chName(s.ch), money(s.total))); if (s.ref) L.push('Order no: ' + s.ref); } else L.push(lr('Paid by ' + s.pay, money(s.pay === 'cash' ? s.tendered : s.total)));
+  if (s.pay === 'credit'){ L.push(lr('ON CREDIT', money(s.total)), 'Customer: ' + (s.custName || ''), 'Phone: ' + (s.custPhone || ''), lr('Due date', s.due || ''), 'Given by: ' + (s.givenBy || '')); if (s.credBal !== undefined) L.push(Array(W+1).join('-'), lr('TOTAL DUE FROM YOU', 'AED ' + money(s.credBal)), c('(including this bill)')); } else if (s.pay === 'agg'){ L.push(lr('Sold via ' + chName(s.ch), money(s.total))); if (s.ref) L.push('Order no: ' + s.ref); } else L.push(lr('Paid by ' + s.pay, money(s.pay === 'cash' ? s.tendered : s.total)));
   if (s.pay === 'cash') L.push(lr('Change', money(s.tendered - s.total)));
   L.push('', c('Thank you!' + (G.insta ? ' ' + G.insta : '')));
   if (s.void) L.unshift(c('*** VOID ***'));
@@ -2448,7 +2448,9 @@ function finishSale(mode){   // mode: 'confirm' (just save) or 'print' (save and
   db.counter++;
   var cs = S.creditSel || {}, s = {cust:cs.cust || '', custName:cs.name || '', custPhone:cs.phone || '', givenBy:cs.givenBy || '', due:cs.due || '', by:curName(), uid:S.uid, id:uuid(), dev:sync.dev || '', no:db.counter, t:Date.now(), day:today(), lines:S.cart.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty, orig:l.orig, mod:l.mod, modBy:l.modBy, modWhy:l.modWhy}; }), subtotal:totalOf(S.cart), discount:discAmt(), discReason:S.disc ? S.disc.reason : '', discNote:S.disc ? S.disc.note : '', discBy:S.disc ? S.disc.by : '', total:billTotal(), pay:S.pay, ch:S.pay === 'agg' ? S.ch : '', ref:S.pay === 'agg' ? String(S.ref || '').trim() : '', tendered:S.pay==='cash'?parseFloat(S.tendered):0, void:false, vat:vatOf(billTotal()), vatRate:setg().vat ? setg().rate : 0};
   stockMove(s.lines, -1);
-  db.sales.push(s); save();
+  db.sales.push(s);
+  if (s.pay === 'credit' && s.cust){ try { s.credBal = custBal(s.cust); } catch(e){} }   // what the customer owes after this bill, kept on the receipt
+  save();
   s.lines.forEach(function(l){ if (l.mod) audit('Sales', 'Price changed at sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty + ': AED ' + money(l.orig) + ' to AED ' + money(l.price) + '. Reason: ' + l.modWhy, {ap:l.modBy, flag:1}); });
   if (s.discount > 0) audit('Sales', 'Discount given', 'Bill #' + s.no + ' · AED ' + money(s.discount) + '. Reason: ' + s.discReason + (s.discNote ? ' – ' + s.discNote : ''), {ap:s.discBy, flag:1});
   queueEvent('sale', {cust:s.cust, custName:s.custName, custPhone:s.custPhone, givenBy:s.givenBy, due:s.due, by:s.by, discBy:s.discBy, id:s.id, no:(s.dev ? s.dev + '-' : '') + s.no, day:s.day, t:s.t, pay:s.pay, ch:s.ch, ref:s.ref, subtotal:s.subtotal, discount:s.discount, discReason:s.discReason, discNote:s.discNote, total:s.total, vat:s.vat, vatRate:s.vatRate, tendered:s.tendered, lines:s.lines});
