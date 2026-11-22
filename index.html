@@ -3689,7 +3689,7 @@ function lowStockInfo(){
       var s = shopQty(it, em); if (s === null) return;
       var tot = s + whQty(it.key);
       if (tot <= 0) o.out++;
-      else if (it.kind === 'm'){ var mm = mat(it.mid); if (mm && mm.min > 0 && tot < mm.min) o.low++; }
+      else if (it.kind === 'm'){ var mm = mat(it.mid); if (mm && mm.min > 0 && tot <= mm.min) o.low++; }
       else if (tot <= at) o.low++;
     });
   } catch(er){}
