@@ -2379,6 +2379,11 @@ function cwaSheet(){
     + '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="ccwasend" data-k="'+k+'" style="background:#25d366;border-color:#25d366;color:#fff">Send on WhatsApp</button>'+(navigator.share ? ' <button class="btn ghost" data-act="ccshare" data-k="'+k+'">Share...</button>' : '')+' <button class="btn ghost" data-act="ccwaclose">Close</button></div></div></div>';
 }
 function vSheets(){
+  if (S.dvAsk){
+    var da = S.dvAsk, ds = byId(db.sales, da.id);
+    if (ds && ds.pay === 'delivery') return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Delivery payment" style="max-width:460px"><h3>Delivery #'+ds.no+' · paid by '+(da.pay === 'card' ? 'CARD' : 'CASH')+'?</h3><p style="font-size:17px">The delivery boy collected <b>AED '+money(ds.total)+'</b> by <b>'+(da.pay === 'card' ? 'card' : 'cash')+'</b>. This adds it to the '+(da.pay === 'card' ? 'card' : 'cash')+' sales.</p><div class="btns"><button class="btn ghost" data-act="dvno">No, go back</button><button class="btn primary" data-act="dvyes">Yes, '+(da.pay === 'card' ? 'card' : 'cash')+' received</button></div></div></div>';
+    S.dvAsk = null;
+  }
   if (S.soAsk) return '<div class="scrim"><div class="sheet" role="dialog" style="max-width:460px"><h3>Sign out of this device?</h3><p>Everything is saved on the server. You will need the shop code, user name and PIN to sign in again.</p><div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="signoutno">Cancel</button><button class="btn primary" data-act="signoutyes">Sign out</button></div></div></div>';
   if (S.cwa && S.tab === 'count') return cwaSheet();
   if (S.chist && S.tab === 'count') return histSheet();
@@ -2655,8 +2660,10 @@ document.addEventListener('click', function(e){
       if (!String(S.dvPhone || '').trim() && !String(S.dvAddr || '').trim()){ toast('Type a phone number or an address'); return; }
       if (!S.dvStaff){ toast('Choose who is delivering'); return; }
       S.pay = 'delivery'; finishSale(d.pr === '1' ? 'print' : 'confirm'); break;
-    case 'dvcash': dlvSettle(d.id, 'cash'); toast('Delivery done · cash'); break;
-    case 'dvcard': dlvSettle(d.id, 'card'); toast('Delivery done · card'); break;
+    case 'dvcash': S.dvAsk = {id:d.id, pay:'cash'}; break;
+    case 'dvcard': S.dvAsk = {id:d.id, pay:'card'}; break;
+    case 'dvno': S.dvAsk = null; break;
+    case 'dvyes': if (S.dvAsk){ var dva = S.dvAsk; S.dvAsk = null; dlvSettle(dva.id, dva.pay); toast('Delivery done · ' + dva.pay); } break;
     case 'payagg':
       if (!S.cart.length) break;
       if (!String(S.ref || '').trim()){ toast('Type the ' + chName(S.ch) + ' order number'); return; }
