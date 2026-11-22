@@ -2304,6 +2304,7 @@ function cwaSheet(){
     + '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="ccwasend" data-k="'+k+'" style="background:#25d366;border-color:#25d366;color:#fff">Send on WhatsApp</button>'+(navigator.share ? ' <button class="btn ghost" data-act="ccshare" data-k="'+k+'">Share...</button>' : '')+' <button class="btn ghost" data-act="ccwaclose">Close</button></div></div></div>';
 }
 function vSheets(){
+  if (S.soAsk) return '<div class="scrim"><div class="sheet" role="dialog" style="max-width:460px"><h3>Sign out of this device?</h3><p>Everything is saved on the server. You will need the shop code, user name and PIN to sign in again.</p><div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="signoutno">Cancel</button><button class="btn primary" data-act="signoutyes">Sign out</button></div></div></div>';
   if (S.cwa && S.tab === 'count') return cwaSheet();
   if (S.chist && S.tab === 'count') return histSheet();
   if (S.xview && S.tab === 'exp') return xVoucher();
@@ -2868,7 +2869,7 @@ function audit(cat, act, detail, o){
 }
 /* Sign out: send everything to the server, then forget this device's data and go back to the shop code / user / PIN screen. */
 async function signOutDevice(){
-  if (!window.confirm('Sign out of this device?\n\nEverything is saved on the server. You will need the shop code, user name and PIN to sign in again.')) return;
+  S.soAsk = false;
   toast('Sending changes to the server…');
   try { stateDiff(); await runSync(); } catch(e){}
   if (sync.outbox.length){ toast('Some changes are not sent yet. Connect to the internet and try again.'); render(); return; }
@@ -3233,7 +3234,9 @@ document.addEventListener('click', function(e){
     case 'loginok':
       doLogin(); return;
     case 'locknow': lockNow(); break;
-    case 'signout': signOutDevice(); break;
+    case 'signout': S.soAsk = true; break;
+    case 'signoutno': S.soAsk = false; break;
+    case 'signoutyes': S.soAsk = false; render(); signOutDevice(); return;
     case 'pricechg': S.priceForm = {i:+d.i, val:'', reason:'', note:'', pin:'', perm:'price'}; break;
     case 'pricecancel': S.priceForm = null; break;
     case 'priceok':
