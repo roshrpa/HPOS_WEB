@@ -4191,11 +4191,11 @@ function vCreditSheet(total){
     + (c.given && c.given !== S.uid ? '<label class="fld" style="margin-top:10px">PIN of the person giving credit<input id="crpin" class="inp" type="password" inputmode="numeric" data-f="cr" data-k="pin" value="'+esc(c.pin)+'" autocomplete="off"></label>' : '')
     + (r.over ? '<p style="color:var(--pink-dk);margin:10px 0 0;font-size:14px">This bill goes over the credit limit (limit AED '+money(r.lim)+'). A manager must approve.</p><label class="fld" style="margin-top:6px;'+(pinNeeded('creditover') ? '' : 'display:none')+'">Manager PIN<input class="inp" type="password" inputmode="numeric" data-f="cr" data-k="opin" value="'+esc(c.opin)+'" autocomplete="off"></label>' : '')
     + '<p id="crmsg" style="color:var(--pink-dk);margin:10px 0 0;font-size:14px">'+esc(r.ok ? '' : r.msg)+'</p>'
-    + '<div class="btns"><button class="btn ghost" data-act="paycancel">Back</button><button class="btn primary" data-act="creditok"'+(r.ok ? '' : ' disabled')+'>Give on credit</button></div></div></div>';
+    + '<div class="btns"><button class="btn ghost" data-act="paycancel">Back</button><button class="btn primary" data-act="creditok" data-pr="0"'+(r.ok ? '' : ' disabled')+'>Confirm</button><button class="btn plum" data-act="creditok" data-pr="1"'+(r.ok ? '' : ' disabled')+'>Confirm &amp; print</button></div></div></div>';
 }
 function creditRefresh(){
-  var r = creditCheck(billTotal()), b = document.querySelector('[data-act=creditok]'), m = document.getElementById('crmsg');
-  if (b) b.disabled = !r.ok; if (m) m.textContent = r.ok ? '' : r.msg;
+  var r = creditCheck(billTotal()), bs = document.querySelectorAll('[data-act=creditok]'), m = document.getElementById('crmsg');
+  bs.forEach(function(b){ b.disabled = !r.ok; }); if (m) m.textContent = r.ok ? '' : r.msg;
   var need = r.over && !document.querySelector('[data-k=opin]'); if (need || (!r.over && document.querySelector('[data-k=opin]'))) render();
 }
 
@@ -4341,7 +4341,7 @@ document.addEventListener('click', function(e){
       var g = byId(db.users, c.given);
       S.creditSel = {cust:cu.id, name:cu.name, phone:cu.phone, givenBy:g.name, due:addDays(today(), creditDays())};
       var ov = r.over ? r.appr : null;
-      finishSale();
+      finishSale(d.pr === '1' ? 'print' : 'confirm');
       var sl = db.sales[db.sales.length - 1];
       audit('Credit', 'Credit sale', 'Bill #' + sl.no + ' · ' + cu.name + ' · AED ' + money(sl.total) + ' · due ' + sl.due + ' · given by ' + g.name, {ap:g.name});
       if (ov) audit('Credit', 'Credit over the limit approved', cu.name + ' · limit AED ' + money(cu.limit) + ' · balance now AED ' + money(custBal(cu.id)), {ap:ov.name, flag:1});
