@@ -885,6 +885,7 @@ async function runSync(){
     if (await cfgSync()) changed = true;
     sync.lastOk = Date.now();
     try { if (dedupeExpCats()){ save(); changed = true; } } catch(e){}
+    try { if (purgeRecipes()){ save(); changed = true; } } catch(e){}
     if (changed){ try { menuPrev = menuSnap(); setPrev = JSON.stringify(setg()); } catch(e){} renderSafe(); }   /* changes that came from the server are not audited as this user's edits */
   } catch(e){ sync.err = e.status === 401 ? 'The device token is wrong or switched off' : (e.message || 'Offline'); }
   syncBusy = false; saveSync(); paintSync();
@@ -2065,6 +2066,14 @@ function expDefault(){
 }
 if (!db.exp) db.exp = expDefault();
 /* Same-name expense categories (made by older versions on each device) are merged into one, and bills and recurring entries are pointed at it. Every device picks the same survivor (lowest id). */
+/* a material you deleted must not stay in any recipe (or in the opening-stock list) */
+function purgeRecipes(){
+  var inv = db.inv; if (!inv || !inv.materials || !inv.materials.length || !inv.recipes) return false;
+  var ids = {}; inv.materials.forEach(function(m){ ids[m.id] = 1; }); var ch = false;
+  Object.keys(inv.recipes).forEach(function(k){ var l = inv.recipes[k] || [], n = l.filter(function(x){ return ids[x.m]; }); if (n.length !== l.length){ inv.recipes[k] = n; ch = true; } });
+  if (inv.base) Object.keys(inv.base).forEach(function(k){ if (!ids[k]){ delete inv.base[k]; ch = true; } });
+  return ch;
+}
 function dedupeExpCats(){
   var cats = db.exp && db.exp.cats; if (!cats || cats.length < 2) return false;
   var nm = function(x){ return String(x || '').trim().toLowerCase(); };
@@ -2093,6 +2102,7 @@ function dedupeExpCats(){
   return true;
 }
 try { if (dedupeExpCats()) save(); } catch(e){}
+try { if (purgeRecipes()) save(); } catch(e){}
 function xCat(id){ return byId(db.exp.cats, id); }
 function xSub(c, id){ return c ? byId(c.subs, id) : null; }
 function xLabel(e){ var c = xCat(e.cat), s = xSub(c, e.sub); return (c ? c.name : 'Deleted category') + (s ? ' › ' + s.name : ''); }
