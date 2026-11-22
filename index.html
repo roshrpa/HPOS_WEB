@@ -1557,7 +1557,7 @@ var TAB_ICON = {
   rem:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M13.7 20a2 2 0 0 1-3.4 0"/>',
   settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'
 };
-function tabShown(id){ if (id === 'sale' && !saleOn()) return false; if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users','count','rem','menu'].indexOf(id) < 0) return false; if (TAB_PERM[id] && !can(TAB_PERM[id])) return false; return true; }
+function tabShown(id){ if (id === 'sale' && !saleOn()) return false; if (window.HP_DESKTOP && ['sale','sales','credit','range','settings','users','count','rem','menu','close'].indexOf(id) < 0) return false; if (TAB_PERM[id] && !can(TAB_PERM[id])) return false; return true; }
 function tabLabel(id){ var r = ''; TAB_GROUPS.forEach(function(g){ g.tabs.forEach(function(t){ if (t[0] === id) r = t[1]; }); }); return r; }
 function tabBadge(id){
   var n = 0;
