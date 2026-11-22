@@ -1732,7 +1732,6 @@ function vSale(){
     + '<div class="foot">'+(setg().vat ? '<div class="sum"><span>Subtotal (excl. VAT)</span><span>'+money(total-vat)+'</span></div><div class="sum"><span>VAT '+num(setg().rate)+'%</span><span>'+money(vat)+'</span></div>' : '')
     + (dsc > 0 ? '<div class="sum"><span>Subtotal</span><span>'+money(sub0)+'</span></div><div class="sum" style="color:var(--pink-dk);font-weight:600"><span>Discount <button class="link" style="min-height:28px" data-act="discoff">remove</button></span><span>−'+money(dsc)+'</span></div>' : '')
     + '<div class="tot"><span>Total</span><span>AED '+money(total)+'</span></div>'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px"><span style="font-weight:700;font-size:14px">Print bill</span><button role="switch" aria-checked="'+salePrintOn()+'" data-act="tgsaleprint" class="btn '+(salePrintOn()?'good':'ghost')+' sm" style="min-width:78px">'+(salePrintOn()?'On':'Off')+'</button></div>'
     + payRow
     + (has ? '<div class="row2"><button class="btn ghost sm" data-act="discopen">'+(dsc>0?'Change discount':'Discount')+'</button><button class="btn ghost sm" data-act="clear">Clear bill</button></div>' : '') + '</div></aside></div>';
 }
@@ -2369,9 +2368,9 @@ function vSheets(){
       + '<input id="tender" class="inp" type="number" inputmode="decimal" placeholder="Amount received" value="'+esc(S.tendered)+'">'
       + '<div class="quick"><button data-act="quick" data-v="'+total+'">Exact</button>'+[10,20,50,100,200,500].map(function(v){ return '<button data-act="quick" data-v="'+v+'">'+v+'</button>'; }).join('')+'</div>'
       + '<div class="change"><span>Change</span><span>AED '+(ch>=0&&!isNaN(t)?money(ch):'-')+'</span></div>'
-      + '<div class="btns"><button class="btn ghost" data-act="paycancel">Back</button><button class="btn primary" data-act="payok"'+((isNaN(t)||t<total)?' disabled':'')+'>Take payment</button></div></div></div>';
+      + '<div class="btns"><button class="btn ghost" data-act="paycancel">Back</button><button class="btn primary" data-act="payok" data-pr="0"'+((isNaN(t)||t<total)?' disabled':'')+'>Confirm</button><button class="btn plum" data-act="payok" data-pr="1"'+((isNaN(t)||t<total)?' disabled':'')+'>Confirm &amp; print</button></div></div></div>';
     return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Card payment"><h3>Card</h3><p>Charge AED '+money(total)+' on the card machine, then confirm.</p>'
-      + '<div class="btns"><button class="btn ghost" data-act="paycancel">Back</button><button class="btn plum" data-act="payok">Card approved</button></div></div></div>';
+      + '<div class="btns"><button class="btn ghost" data-act="paycancel">Back</button><button class="btn primary" data-act="payok" data-pr="0">Confirm</button><button class="btn plum" data-act="payok" data-pr="1">Confirm &amp; print</button></div></div></div>';
   }
   if (S.receipt){
     var s = byId(db.sales, S.receipt);
@@ -2413,7 +2412,7 @@ function addLine(c, item, size){
   var f = S.cart.filter(function(l){ return l.cat === c.name && l.name === item.name && l.size === label && l.price === price && !l.mod; })[0];
   if (f) f.qty++; else S.cart.push({cat:c.name, name:item.name, size:label, price:price, qty:1});
 }
-function finishSale(){
+function finishSale(mode){   // mode: 'confirm' (just save) or 'print' (save and print); neither opens the receipt preview
   if (db.day !== today()){ db.day = today(); db.counter = 0; }
   db.counter++;
   var cs = S.creditSel || {}, s = {cust:cs.cust || '', custName:cs.name || '', custPhone:cs.phone || '', givenBy:cs.givenBy || '', due:cs.due || '', by:curName(), uid:S.uid, id:uuid(), dev:sync.dev || '', no:db.counter, t:Date.now(), day:today(), lines:S.cart.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty, orig:l.orig, mod:l.mod, modBy:l.modBy, modWhy:l.modWhy}; }), subtotal:totalOf(S.cart), discount:discAmt(), discReason:S.disc ? S.disc.reason : '', discNote:S.disc ? S.disc.note : '', discBy:S.disc ? S.disc.by : '', total:billTotal(), pay:S.pay, ch:S.pay === 'agg' ? S.ch : '', ref:S.pay === 'agg' ? String(S.ref || '').trim() : '', tendered:S.pay==='cash'?parseFloat(S.tendered):0, void:false, vat:vatOf(billTotal()), vatRate:setg().vat ? setg().rate : 0};
@@ -2422,15 +2421,16 @@ function finishSale(){
   s.lines.forEach(function(l){ if (l.mod) audit('Sales', 'Price changed at sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty + ': AED ' + money(l.orig) + ' to AED ' + money(l.price) + '. Reason: ' + l.modWhy, {ap:l.modBy, flag:1}); });
   if (s.discount > 0) audit('Sales', 'Discount given', 'Bill #' + s.no + ' · AED ' + money(s.discount) + '. Reason: ' + s.discReason + (s.discNote ? ' – ' + s.discNote : ''), {ap:s.discBy, flag:1});
   queueEvent('sale', {cust:s.cust, custName:s.custName, custPhone:s.custPhone, givenBy:s.givenBy, due:s.due, by:s.by, discBy:s.discBy, id:s.id, no:(s.dev ? s.dev + '-' : '') + s.no, day:s.day, t:s.t, pay:s.pay, ch:s.ch, ref:s.ref, subtotal:s.subtotal, discount:s.discount, discReason:s.discReason, discNote:s.discNote, total:s.total, vat:s.vat, vatRate:s.vatRate, tendered:s.tendered, lines:s.lines});
-  S.disc = null; S.cart = []; S.pay = null; S.tendered = ''; S.ch = ''; S.ref = ''; S.receipt = s.id;
-  if (salePrintOn()) setTimeout(function(){ printBill(s); }, 300);
+  S.disc = null; S.cart = []; S.pay = null; S.tendered = ''; S.ch = ''; S.ref = ''; S.receipt = mode ? null : s.id;
+  if (mode === 'print') setTimeout(function(){ printBill(s); }, 300);
+  if (mode) toast(mode === 'print' ? 'Bill #' + s.no + ' saved. Printing…' : 'Bill #' + s.no + ' saved');
 }
 
 document.addEventListener('input', function(e){
   var t = e.target;
   if (t.id === 'tender'){ S.tendered = t.value; var total = billTotal(), v = parseFloat(t.value);
-    var ch = document.querySelector('.change span:last-child'), ok = document.querySelector('[data-act=payok]');
-    if (ch) ch.textContent = 'AED ' + ((!isNaN(v) && v >= total) ? money(v - total) : '-'); if (ok) ok.disabled = isNaN(v) || v < total; return; }
+    var ch = document.querySelector('.change span:last-child'), oks = document.querySelectorAll('[data-act=payok]');
+    if (ch) ch.textContent = 'AED ' + ((!isNaN(v) && v >= total) ? money(v - total) : '-'); oks.forEach(function(ok){ ok.disabled = isNaN(v) || v < total; }); return; }
   var f = t.dataset && t.dataset.f;
   if (f === 'ref'){ S.ref = t.value; return; }
   if (f === 'chset'){ var chx = chById(t.dataset.id); if (chx){ chx[t.dataset.k] = t.dataset.k === 'pct' ? (parseFloat(t.value) || 0) : t.value; save(); if (typeof menuEdited === 'function') menuEdited(); } return; }
@@ -2581,7 +2581,7 @@ document.addEventListener('click', function(e){
     case 'pay': if (S.cart.length){ S.pay = d.m; S.tendered = ''; } break;
     case 'paycancel': S.pay = null; break;
     case 'quick': S.tendered = String(d.v); break;
-    case 'payok': if (S.pay === 'cash' && !(parseFloat(S.tendered) >= billTotal())) break; finishSale(); break;
+    case 'payok': if (S.pay === 'cash' && !(parseFloat(S.tendered) >= billTotal())) break; finishSale(d.pr === '1' ? 'print' : 'confirm'); break;
     case 'closerec': S.receipt = null; break;
     case 'view': S.receipt = d.id; break;
     case 'print': var prs = byId(db.sales, S.receipt); if (prs) audit('Sales', 'Receipt printed', 'Bill #' + prs.no + ' · AED ' + money(prs.total)); if (window.hposPrint && prs){ printBill(prs); return; } document.body.classList.add('pr'); try { window.print(); } catch(err){ toast('Printing is not available here'); } document.body.classList.remove('pr'); return;
@@ -2642,8 +2642,7 @@ document.addEventListener('click', function(e){
       if (!setg().pinOn && String(setg().pin || '').length < 4){ toast('Set a PIN of at least 4 digits first'); break; }
       setg().pinOn = !setg().pinOn; S.unlocked = true; save(); break;
     case 'tgvat': db.settings.vat = !db.settings.vat; save(); break;
-    case 'tgsaleprint': try { localStorage.setItem('hpos_saleprint', salePrintOn() ? '0' : '1'); } catch(e){} break;
-    case 'tgsale': db.settings.showSale = !db.settings.showSale; if (!db.settings.showSale && S.tab === 'sale') S.tab = 'dash'; save(); break;
+        case 'tgsale': db.settings.showSale = !db.settings.showSale; if (!db.settings.showSale && S.tab === 'sale') S.tab = 'dash'; save(); break;
     case 'tgcarry': db.settings.carryOpen = !db.settings.carryOpen; save(); break;
     case 'tgwhall': db.settings.whAll = db.settings.whAll === false; save(); break;
     case 'tgzero': db.settings.allowZero = !db.settings.allowZero; save(); break;
