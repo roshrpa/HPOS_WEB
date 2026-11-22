@@ -860,7 +860,9 @@ async function runSync(){
     try { stateDiff(); } catch(e){}
     while (sync.outbox.length){
       var batch = sync.outbox.slice(0, 100);
-      try { await syncApi('/sync/push', {method:'POST', body:{events:batch}}); }
+      /* the server's sales table only knows cash/card/credit/agg: a delivery bill goes out as 'cash' with its delivery details; the other devices turn it back into 'delivery' */
+      var wire = batch.map(function(x){ return (x.type === 'sale' && x.payload && x.payload.pay === 'delivery') ? {id:x.id, type:x.type, t:x.t, payload:Object.assign({}, x.payload, {pay:'cash'})} : x; });
+      try { await syncApi('/sync/push', {method:'POST', body:{events:wire}}); }
       catch(e){
         if (e.status === 400){ sync.bad = (sync.bad || []).concat(batch).slice(-200); }   // a bad event must not block the rest
         else throw e;
@@ -1084,7 +1086,7 @@ function applyRemote(events){
     if (e.type === 'sale'){
       if (isUuid(p.id) && !byId(db.sales, p.id)){
         db.sales.push({id:p.id, no:p.no, t:p.t || e.t, day:p.day || new Date(p.t || e.t).toLocaleDateString('en-CA'), lines:p.lines || [], subtotal:p.subtotal != null ? p.subtotal : p.total, discount:p.discount || 0,
-          discReason:p.discReason || '', discNote:p.discNote || '', total:p.total, pay:p.pay, ch:p.ch || '', ref:p.ref || '', tendered:p.tendered || 0, void:false, tord:p.tord || '', ck:p.ck || '', auto:p.tord ? 1 : 0, vat:p.vat || 0, vatRate:p.vatRate || 0, remote:true, dlv:p.dlv || null, cust:p.cust || '', custName:p.custName || '', custPhone:p.custPhone || '', givenBy:p.givenBy || '', due:p.due || '', by:p.by || '', discBy:p.discBy || ''});
+          discReason:p.discReason || '', discNote:p.discNote || '', total:p.total, pay:(p.dlv && p.dlv.st === 'out' && p.pay === 'cash') ? 'delivery' : p.pay, ch:p.ch || '', ref:p.ref || '', tendered:p.tendered || 0, void:false, tord:p.tord || '', ck:p.ck || '', auto:p.tord ? 1 : 0, vat:p.vat || 0, vatRate:p.vatRate || 0, remote:true, dlv:p.dlv || null, cust:p.cust || '', custName:p.custName || '', custPhone:p.custPhone || '', givenBy:p.givenBy || '', due:p.due || '', by:p.by || '', discBy:p.discBy || ''});
         stockMove(p.lines || [], -1); changed = true;
       }
     } else if (e.type === 'sale_deliver'){
