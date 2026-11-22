@@ -2876,9 +2876,9 @@ async function signOutDevice(){
   var url = sync.url, shop = sync.shop;
   try { audit('Users and Security', 'Signed out', ''); } catch(e){}
   dirty = false; window.__out = true;
-  var keepPr = ''; try { keepPr = localStorage.getItem('hpos_printed') || ''; } catch(e){}
+  var keepPr = '', keepTh = ''; try { keepPr = localStorage.getItem('hpos_printed') || ''; keepTh = localStorage.getItem('hpos_theme') || ''; } catch(e){}
   try { localStorage.clear(); sessionStorage.clear(); localStorage.setItem(SYNC_KEY, JSON.stringify({url: url || '', shop: shop || ''})); } catch(e){}
-  try { if (keepPr) localStorage.setItem('hpos_printed', keepPr); } catch(e){}
+  try { if (keepPr) localStorage.setItem('hpos_printed', keepPr); if (keepTh) localStorage.setItem('hpos_theme', keepTh); } catch(e){}
   location.reload();
 }
 function lockNow(){ if (curUser()) audit('Users and Security', 'Locked', ''); sessPin = ''; S.uid = null; try { sessionStorage.removeItem('hp_uid'); } catch(e){} S.lu = null; S.sw = false; S.lpin = ''; S.lerr = ''; S.tab = homeTab(); }
