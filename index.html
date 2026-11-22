@@ -1023,9 +1023,9 @@ function detUuid(str){
   var x = h.map(function(n){ return ('00000000' + (n >>> 0).toString(16)).slice(-8); }).join('');
   return x.slice(0, 8) + '-' + x.slice(8, 12) + '-4' + x.slice(13, 16) + '-8' + x.slice(17, 20) + '-' + x.slice(20, 32);
 }
-function tabVoid(s, why){
-  s.void = true; s.voidReason = why; s.voidNote = ''; s.voidT = Date.now(); stockMove(s.lines, +1);
-  queueEvent('sale_cancel', {id:s.id, reason:why, note:''}, detUuid(s.id + '|cancel'));
+function tabVoid(s, why, note, by){
+  s.void = true; s.voidReason = why; s.voidNote = note || ''; s.voidT = Date.now(); if (by) s.voidBy = by; stockMove(s.lines, +1);
+  queueEvent('sale_cancel', {id:s.id, reason:why, note:note || '', by:by || ''}, detUuid(s.id + '|cancel'));
 }
 function tabCust(c){
   var ph = String((c && c.phone) || '').trim(), nm = String((c && c.name) || '').trim(), key = ph.replace(/\s|-/g, '');
@@ -1043,7 +1043,7 @@ function tabSale(o){
     var cur = mine.filter(function(s){ return !s.void && s.ck === ck; })[0];
     want = cur ? cur.id : detUuid(o.id + '|' + mine.length + '|' + ck);
   }
-  mine.filter(function(s){ return !s.void && s.id !== want; }).forEach(function(s){ tabVoid(s, o.status === 'cancelled' ? 'Cancelled on tablet' : 'Order changed on tablet'); ch = true; });
+  mine.filter(function(s){ return !s.void && s.id !== want; }).forEach(function(s){ tabVoid(s, o.status === 'cancelled' ? 'Cancelled on tablet' : 'Order changed on tablet', o.status === 'cancelled' ? (o.cancelWhy || '') : '', o.status === 'cancelled' ? (o.cancelBy || '') : ''); ch = true; });
   if (want && !byId(db.sales, want)){
     var tot = round2(o.lines.reduce(function(a, l){ return a + l.qty * l.price; }, 0)), cu = o.pay === 'credit' ? tabCust(o.credit) : null, day = o.day || new Date(o.t).toLocaleDateString('en-CA');
     var sl = {id:want, tord:o.id, ck:ck, auto:1, no:tOrderLabel(o), dev:'', t:o.t, day:day, lines:o.lines.map(function(l){ return {cat:l.cat, name:l.name, size:l.size, price:l.price, qty:l.qty}; }),
@@ -1123,7 +1123,7 @@ function applyRemote(events){
     } else if (e.type === 'test_reset'){
       if (applyTestReset(p)) changed = true;
     } else if (e.type === 'order_cancel'){
-      var o2 = tord(p.id); if (o2){ o2.status = 'cancelled'; tabSale(o2); changed = true; }
+      var o2 = tord(p.id); if (o2){ o2.status = 'cancelled'; o2.cancelWhy = p.reason || ''; o2.cancelBy = p.by || ''; tabSale(o2); changed = true; }
     } else if (e.type === 'order_done'){
       var o3 = tord(p.id); if (o3 && p.sale){ o3.legacy = true; o3.status = p.done === false ? 'new' : 'done'; db.sales.filter(function(s){ return s.tord === o3.id && s.auto && !s.void && s.id !== p.sale; }).forEach(function(s){ tabVoid(s, 'Billed at the counter'); }); changed = true; }
     }
