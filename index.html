@@ -1414,7 +1414,7 @@ function vCloseCount(date){
     return '<tr><td>'+esc(m.name)+'</td><td class="n">'+num(E[m.id].exp)+' '+esc(m.unit)+'</td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="cc" data-m="'+m.id+'" placeholder="count" value="'+esc(S.ccnt[m.id] === undefined ? '' : S.ccnt[m.id])+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
   return '<div class="tbl"><h3>Stock count at closing</h3><p style="color:var(--muted);margin:0 0 8px">Count the cups and plates on the shelf and type them in. Tomorrow morning the staff check the same numbers. A row left empty is not counted.</p>'
     + '<table><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+rows+'</tbody></table>'
-    + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap"><label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(S.cname || db.lastStaff || '')+'" autocomplete="off"></label><button class="btn plum sm" data-act="ccsave">Save count</button></div></div>';
+    + '<div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap"><label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(cntName())+'" autocomplete="off"></label><button class="btn plum sm" data-act="ccsave">Save count</button></div></div>';
 }
 function countHistHtml(){
   var all = (db.inv.counts || []).slice().sort(function(a, b){ return b.t - a.t; });
@@ -1441,7 +1441,7 @@ function countInputRows(rec){
 function vOpenCheck(date){
   if (date !== today() || !dailyMats().length) return '';
   var R = (db.days || {})[date], done = R && R.openCheck ? countRec(R.openCheck.id) : null;
-  var nameBox = '<label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(S.cname || db.lastStaff || '')+'" autocomplete="off"></label>';
+  var nameBox = '<label class="fld" style="flex:1;min-width:180px">Your name<input class="inp" data-f="ccname" value="'+esc(cntName())+'" autocomplete="off"></label>';
   if (done && S.cedit){
     return '<div class="tbl" style="border:2px solid var(--pink)"><h3>Edit today\'s count</h3><p style="color:var(--muted);margin:0 0 8px">Change only the numbers that were wrong. The change is recorded with your name and the partners are told it was edited.</p>'
       + '<table class="whtbl cnt"><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th></tr></thead><tbody>'+countInputRows(done)+'</tbody></table>'
@@ -2379,6 +2379,10 @@ function cwaSheet(){
     + '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="ccwasend" data-k="'+k+'" style="background:#25d366;border-color:#25d366;color:#fff">Send on WhatsApp</button>'+(navigator.share ? ' <button class="btn ghost" data-act="ccshare" data-k="'+k+'">Share...</button>' : '')+' <button class="btn ghost" data-act="ccwaclose">Close</button></div></div></div>';
 }
 function vSheets(){
+  if (S.cask){
+    var ckind = S.cask === 'ocsave' ? 'Morning cup count' : (S.cask === 'ccsave' ? 'Closing stock count' : 'Count correction');
+    return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Confirm count" style="max-width:480px"><h3>'+ckind+' · confirm</h3><p style="font-size:17px">I, <b>'+esc(cntName())+'</b>, have already counted the cups, plates and other items on the shelf, and the numbers are correct. I confirm this count now.</p><p style="color:var(--muted)">This is recorded with your name and the time.</p><div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="caskno">No, go back</button><button class="btn primary" data-act="caskyes">Yes, I counted. Confirm</button></div></div></div>';
+  }
   if (S.dvAsk){
     var da = S.dvAsk, ds = byId(db.sales, da.id);
     if (ds && ds.pay === 'delivery') return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Delivery payment" style="max-width:460px"><h3>Delivery #'+ds.no+' · paid by '+(da.pay === 'card' ? 'CARD' : 'CASH')+'?</h3><p style="font-size:17px">The delivery boy collected <b>AED '+money(ds.total)+'</b> by <b>'+(da.pay === 'card' ? 'card' : 'cash')+'</b>. This adds it to the '+(da.pay === 'card' ? 'card' : 'cash')+' sales.</p><div class="btns"><button class="btn ghost" data-act="dvno">No, go back</button><button class="btn primary" data-act="dvyes">Yes, '+(da.pay === 'card' ? 'card' : 'cash')+' received</button></div></div></div>';
@@ -2620,7 +2624,13 @@ document.addEventListener('click', function(e){
   var el = e.target.closest('[data-act]'); if (!el) return;
   if (el.classList.contains('scrim') && e.target !== el) return;
   var a = el.dataset.act, d = el.dataset, c;
+  if (a === 'ocsave' || a === 'ccsave' || a === 'cesave'){
+    if (!S.cok){ if (!cntName().trim()){ toast('Type your name'); return; } S.cask = a; render(); return; }
+    S.cok = false;
+  }
   switch (a){
+    case 'caskno': S.cask = null; break;
+    case 'caskyes': var ck = S.cask; S.cask = null; S.cok = true; if (ck){ var cb = document.createElement('button'); cb.dataset.act = ck; document.body.appendChild(cb); cb.click(); cb.remove(); } S.cok = false; return;
     case 'dashp': S.dp = d.v; break;
     case 'gobills': S.tab = 'sales'; break;
     case 'tordclear': db.tOrphans = {}; save(); toast('Cleared'); break;
@@ -2695,7 +2705,7 @@ document.addEventListener('click', function(e){
     case 'cedit': S.cedit = true; S.ecnt = {}; break;
     case 'cecancel': S.cedit = false; S.ecnt = {}; break;
     case 'cesave':
-      var ern = (S.cname || db.lastStaff || '').trim(); if (!ern){ toast('Type your name'); return; }
+      var ern = (cntName()).trim(); if (!ern){ toast('Type your name'); return; }
       var er = (db.days || {})[today()], erc = er && er.openCheck ? countRec(er.openCheck.id) : null; if (!erc) return;
       var ech = [];
       erc.lines.forEach(function(l){ var v = S.ecnt[l.m]; if (v === undefined || v === '') return; var c = parseFloat(v); if (isNaN(c) || c === l.counted) return; var m = mat(l.m); ech.push((m ? m.name : l.m) + ' ' + num(l.counted) + ' to ' + num(c)); l.counted = c; l.diff = c - l.expected; });
@@ -2716,15 +2726,15 @@ document.addEventListener('click', function(e){
       try { navigator.share({text: countWaText(wr2, wr2.kind === 'open' ? 'Morning cup count' : 'Stock count at closing', wr2.day || today())}).then(function(){ cwaMark(d.k); S.cwa = null; render(); }, function(){}); } catch(err){ toast('Sharing not available here'); }
       return;
     case 'ccsave':
-      var ccd = S.closeDate || today(), ccn = (S.cname || db.lastStaff || '').trim();
+      var ccd = S.closeDate || today(), ccn = (cntName()).trim();
       if (!ccn){ toast('Type your name'); return; }
       var ccr = recordCount('close', ccn, ccd, S.ccnt, false); if (!ccr){ toast('Type at least one count'); return; }
       dayRec(ccd).closeCount = {id:ccr.id, t:ccr.t, by:ccn}; audit('Stock', 'Closing stock count', ccd + ' · counted by ' + ccn + ' · ' + (countShort(ccr) ? countShort(ccr) + ' item(s) short' + (countLoss(ccr) > 0 ? ', possible unbilled AED ' + money(countLoss(ccr)) : '') : 'everything matches'), {flag: countShort(ccr) ? 1 : 0}); S.ccnt = {}; S.cstart = 0; S.ccRedo = false; S.cname = ccn; S.cwa = 'close'; save(); toast('Count saved. Now share it on WhatsApp'); break;
     case 'ocsave':
-      var ocn = (S.cname || db.lastStaff || '').trim();
+      var ocn = (cntName()).trim();
       if (!ocn){ toast('Type your name'); return; }
       var ocr = recordCount('open', ocn, today(), S.ocnt, true); if (!ocr){ toast('Nothing to check'); return; }
-      dayRec(today()).openCheck = {id:ocr.id, t:ocr.t, by:ocn}; audit('Stock', 'Morning cup count', today() + ' · counted by ' + ocn + ' · ' + (countShort(ocr) ? countShort(ocr) + ' item(s) short' : 'everything matches'), {flag: countShort(ocr) ? 1 : 0}); S.ocnt = {}; S.cstart = 0; S.cname = ocn; S.cwa = 'open'; save(); toast(countShort(ocr) ? 'Count saved. ' + countShort(ocr) + ' items are short' : 'Count saved. Everything matches'); break;
+      dayRec(today()).openCheck = {id:ocr.id, t:ocr.t, by:ocn}; audit('Stock', 'Morning cup count', today() + ' · counted by ' + ocn + ' · ' + (countShort(ocr) ? countShort(ocr) + ' item(s) short' : 'everything matches'), {flag: countShort(ocr) ? 1 : 0}); S.ocnt = {}; S.cstart = 0; S.cname = ''; S.cwa = 'open'; save(); toast(countShort(ocr) ? 'Count saved. ' + countShort(ocr) + ' items are short' : 'Count saved. Everything matches'); break;
     case 'opencheck': S.tab = 'count'; S.closeDate = today(); break;
     case 'dayprint': printHtml(dayReportHtml(S.closeDate || today()), true); return;
     case 'closeyes':
@@ -2941,6 +2951,7 @@ S.uid = null; try { S.uid = sessionStorage.getItem('hp_uid') || null; } catch(e)
 
 function hashPin(p){ var s = 'hp|' + String(p), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return 'h' + (h >>> 0).toString(36); }
 function curUser(){ var u = S.uid && byId(db.users, S.uid); return (u && u.active !== false) ? u : null; }
+function cntName(){ return S.cname || (curUser() ? curUser().name : '') || db.lastStaff || ''; }
 function curName(){ var u = curUser(); return u ? u.name : 'System'; }
 function defPerm(role, p){ if (role === 'Owner') return true; if (role !== 'Manager' && role !== 'Cashier') role = 'Cashier'; if (p === 'creditgive') return true; if (role === 'Manager') return p !== 'users' && p !== 'lock'; return p === 'sales' || p === 'reprint' || p === 'count'; }
 function roleCan(role, p){ if (role === 'Owner') return true; var r = db.perms[role]; if (r && r[p] !== undefined) return !!r[p]; return defPerm(role, p); }
