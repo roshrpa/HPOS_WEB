@@ -1258,7 +1258,7 @@ function vSettings(){
   }
   function inp(label, k, val, type){ return '<label class="fld">'+label+'<input class="inp" '+(type?'type="'+type+'" step="any" inputmode="decimal" ':'')+'data-f="set" data-k="'+k+'" value="'+esc(val)+'"></label>'; }
   var billing = '<div class="card" style="margin:0"><h3 style="margin:0 0 4px">Billing and sales</h3>'
-    + sw(G.vat, 'tgvat', 'Charge VAT', G.vat ? 'Bills and receipts show VAT and the receipt says TAX INVOICE.' : 'No VAT on bills. Receipts say RECEIPT. Use this while the shop is below the VAT registration limit.')
+    + sw(G.vat, 'tgvat', 'Charge VAT', G.vat ? 'Bills and receipts show VAT and the receipt says TAX INVOICE.' : 'No VAT on bills. Use this while the shop is below the VAT registration limit.')
     + (G.vat ? '<div style="padding:12px 0;border-bottom:1px solid var(--line,var(--line))"><div class="fgrid">'+inp('VAT rate (%)','rate',G.rate,'number')+inp('Tax registration number (TRN)','trn',G.trn)+'</div><p style="color:var(--muted);font-size:13px;margin:10px 0 0">Prices in the menu are treated as including VAT.</p></div>' : '')
     + sw(G.whAll !== false, 'tgwhall', 'Show "Move all to shop" in the Warehouse', G.whAll !== false ? 'Each category in Warehouse Overview has a button that moves its whole warehouse stock to the shop in one step.' : 'The button is hidden. Move stock one item at a time with Transfer.')
     + sw(G.allowZero, 'tgzero', 'Allow sale when item stock is 0', G.allowZero ? 'Staff can keep selling even if the stock count was not updated. Stock goes below zero so you can see it.' : 'An item with 0 stock shows Sold out and cannot be sold.')
@@ -2285,7 +2285,7 @@ function receiptText(s){
   function lr(a, b){ var sp = W - a.length - b.length; return a + Array(Math.max(1, sp) + 1).join(' ') + b; }
   var d = new Date(s.t);
   var G = setg(), hasVat = s.vat > 0;
-  L.push(c(G.shop.toUpperCase()), c(hasVat ? 'TAX INVOICE' : 'RECEIPT'));
+  L.push(c(G.shop.toUpperCase())); if (hasVat) L.push(c('TAX INVOICE'));
   if (hasVat && G.trn) L.push(c('TRN: ' + G.trn));
   if (G.addr){ var aw = String(G.addr).replace(/\s+/g, ' ').trim().split(' '), al = ''; aw.forEach(function(w){ if (al && (al + ' ' + w).length > W){ L.push(c(al)); al = w; } else al = al ? al + ' ' + w : w; }); if (al) L.push(c(al)); }
   if (G.addr2){ wrap(G.addr2, W, '').forEach(function(x){ L.push(c(x)); }); }
