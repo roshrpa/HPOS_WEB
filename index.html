@@ -557,12 +557,13 @@ if (db.stockSeed !== 1){ db.stock = {}; menu.forEach(function(c){ c.items.forEac
 function num(n){ return Math.round(n * 100) / 100; }
 /* one-time fix: untouched starting stock counts every sale (it used to start at first-open time, so earlier sales were skipped) */
 if (db.inv && db.inv.base && db.invBaseFix !== 1){ db.invBaseFix = 1; var cts = (db.inv.counts || []).map(function(c){ return c.t; }); Object.keys(db.inv.base).forEach(function(k){ var b = db.inv.base[k]; if (b && b.t && cts.indexOf(b.t) < 0) b.t = 0; }); save(); }
-function rkey(cat, size){ return ((cat === 'Mini Melts Ice Cream' || cat === 'Minimals Ice Cream') ? 'Minimelts Ice Cream' : cat) + '|' + (size || ''); }
+function recPerItem(cat){ return /catering/i.test(String(cat || '')); }   /* catering boxes differ from each other, so each box has its own recipe */
+function rkey(cat, size, name){ return ((cat === 'Mini Melts Ice Cream' || cat === 'Minimals Ice Cream') ? 'Minimelts Ice Cream' : cat) + '|' + (size || '') + (name && recPerItem(cat) ? '|' + name : ''); }
 function mat(id){ return byId(db.inv.materials, id); }
 function usageMap(asOf, B){
   var u = {}; B = B || db.inv.base;
   db.sales.forEach(function(s){ if (s.void || (asOf && s.t > asOf)) return; s.lines.forEach(function(l){
-    var r = db.inv.recipes[rkey(l.cat, l.size)]; if (!r) return;
+    var r = db.inv.recipes[rkey(l.cat, l.size, l.name)]; if (!r) return;
     r.forEach(function(x){ var b = B[x.m] || {t:0}; if (s.t > b.t) u[x.m] = (u[x.m] || 0) + x.q * l.qty; });
   }); });
   return u;
@@ -580,7 +581,7 @@ function expectedMap(asOf, B){
 function avgPriceForCup(mid){
   var rev = 0, units = 0;
   db.sales.forEach(function(s){ if (s.void) return; s.lines.forEach(function(l){
-    var r = db.inv.recipes[rkey(l.cat, l.size)]; if (!r) return;
+    var r = db.inv.recipes[rkey(l.cat, l.size, l.name)]; if (!r) return;
     r.forEach(function(x){ if (x.m === mid){ rev += l.price * l.qty; units += x.q * l.qty; } });
   }); });
   return units ? rev / units : 0;
@@ -599,7 +600,7 @@ function shiftDate(d, k){ var x = new Date(d + 'T12:00:00'); x.setDate(x.getDate
 function usedOn(day){
   var u = {};
   db.sales.forEach(function(sl){ if (sl.void || sday(sl) !== day) return; sl.lines.forEach(function(l){
-    var r = db.inv.recipes[rkey(l.cat, l.size)]; if (!r) return;
+    var r = db.inv.recipes[rkey(l.cat, l.size, l.name)]; if (!r) return;
     r.forEach(function(x){ u[x.m] = (u[x.m] || 0) + x.q * l.qty; });
   }); });
   return u;
@@ -685,16 +686,18 @@ function invVar(){
 function invRec(){
   var chips = menu.map(function(m){ return '<button class="cat" data-act="reccat" data-id="'+m.id+'" aria-pressed="'+(m.id===(S.recCat||menu[0].id))+'">'+esc(m.name)+'</button>'; }).join('');
   var c = byId(menu, S.recCat) || menu[0];
-  var cards = c.sizes.map(function(s){
-    var k = rkey(c.name, s.label), list = db.inv.recipes[k] || [];
+  var pi = recPerItem(c.name), units = [];
+  c.sizes.forEach(function(s){ if (pi) c.items.forEach(function(it){ units.push({s:s, name:it.name}); }); else units.push({s:s, name:''}); });
+  var cards = units.map(function(u){
+    var s = u.s, k = rkey(c.name, s.label, u.name), list = db.inv.recipes[k] || [];
     var rows = list.map(function(x, i){
       return '<div class="srow"><select class="inp" style="flex:1;min-width:0" data-f="rmat" data-k="'+esc(k)+'" data-i="'+i+'">'+matOpts(x.m)+'</select>'
         + '<input class="inp" style="width:72px;flex:none;text-align:center" type="number" min="0" step="any" inputmode="decimal" data-f="rqty" data-k="'+esc(k)+'" data-i="'+i+'" value="'+x.q+'" aria-label="Quantity">'
         + '<button class="btn danger sm" data-act="rmrec" data-k="'+esc(k)+'" data-i="'+i+'" aria-label="Remove">×</button></div>';
     }).join('');
-    return '<div class="card"><h3>'+esc(c.name)+(s.label?' · '+esc(s.label):'')+'</h3>'+(rows||'<p style="color:var(--muted);margin:0 0 10px">Nothing is deducted for this item.</p>')+'<button class="btn ghost sm" data-act="addrec" data-k="'+esc(k)+'">+ Add material</button></div>';
+    return '<div class="card"><h3>'+esc(u.name ? u.name : c.name)+(s.label?' · '+esc(s.label):'')+'</h3>'+(rows||'<p style="color:var(--muted);margin:0 0 10px">Nothing is deducted for this item.</p>')+'<button class="btn ghost sm" data-act="addrec" data-k="'+esc(k)+'">+ Add material</button></div>';
   }).join('');
-  return '<p style="color:var(--muted);margin:0 0 10px">What is used up each time one of these is sold (the same for every flavour in the category). Ice cream, powder and packets are raw materials: put the grams (or packs) used per sale. Cups and lids count in pieces.</p><div class="recv"><div class="rl">'+chips+'</div><div class="recg">'+cards+'</div></div>';
+  return '<p style="color:var(--muted);margin:0 0 10px">What is used up each time one of these is sold (the same for every flavour in the category; Catering Boxes have one recipe for each box). Ice cream, powder and packets are raw materials: put the grams (or packs) used per sale. Cups and lids count in pieces.</p><div class="recv"><div class="rl">'+chips+'</div><div class="recg">'+cards+'</div></div>';
 }
 function invMat(){
   var rows = db.inv.materials.filter(function(m){ return m.raw; }).concat(db.inv.materials.filter(function(m){ return !m.raw; })).map(function(m){
@@ -1295,7 +1298,7 @@ function dayData(date){
     var k = l.name + (l.size ? ' (' + l.size + ')' : '') + ' · ' + l.cat; items[k] = items[k] || {qty:0, amt:0}; items[k].qty += l.qty; items[k].amt += a;
   }); });
   var use = {};
-  ok.forEach(function(s){ s.lines.forEach(function(l){ var r = db.inv.recipes[rkey(l.cat, l.size)]; if (r) r.forEach(function(x){ use[x.m] = (use[x.m] || 0) + x.q * l.qty; }); }); });
+  ok.forEach(function(s){ s.lines.forEach(function(l){ var r = db.inv.recipes[rkey(l.cat, l.size, l.name)]; if (r) r.forEach(function(x){ use[x.m] = (use[x.m] || 0) + x.q * l.qty; }); }); });
   var times = ok.map(function(s){ return s.t; });
   return {online:onlineSplit(ok), all:all, ok:ok, voids:voids, net:net, disc:disc, gross:net + disc, vat:sum(ok, function(s){ return s.vat; }), cash:cash, card:sum(ok.filter(function(s){ return s.pay === 'card'; }), function(s){ return s.total; }), credit:sum(ok.filter(function(s){ return s.pay === 'credit'; }), function(s){ return s.total; }), cat:cat, items:items, units:units, use:use,
     first:times.length ? Math.min.apply(null, times) : 0, last:times.length ? Math.max.apply(null, times) : 0, voidTot:sum(voids, function(s){ return s.total; })};
@@ -1964,7 +1967,7 @@ function ledEntries(it){
     var b = db.inv.base[it.mid] || {t:0, q:0};
     db.inv.purchases.forEach(function(p){ if (p.m !== it.mid || p.t <= b.t || p.wh) return; push(p.t, 'in', 'Bought', p.supplier || '', 0, +p.q || 0, null, p); });
     db.inv.waste.forEach(function(w){ if (w.m !== it.mid || w.t <= b.t || w.wh) return; push(w.t, 'ad', 'Waste', w.reason || '', 0, -(+w.q || 0), null, w); });
-    db.sales.forEach(function(s){ if (s.void || s.t <= b.t) return; s.lines.forEach(function(l){ var r = db.inv.recipes[rkey(l.cat, l.size)]; if (!r) return; var q = 0; r.forEach(function(x){ if (x.m === it.mid) q += x.q * l.qty; }); if (q) push(s.t, 'sl', 'Used in sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty, 0, -q, {s:s.id}); }); });
+    db.sales.forEach(function(s){ if (s.void || s.t <= b.t) return; s.lines.forEach(function(l){ var r = db.inv.recipes[rkey(l.cat, l.size, l.name)]; if (!r) return; var q = 0; r.forEach(function(x){ if (x.m === it.mid) q += x.q * l.qty; }); if (q) push(s.t, 'sl', 'Used in sale', 'Bill #' + s.no + ' · ' + l.name + (l.size ? ' ' + l.size : '') + ' × ' + l.qty, 0, -q, {s:s.id}); }); });
   }
   E.sort(function(a, b){ return a.t - b.t; });
   return E;
