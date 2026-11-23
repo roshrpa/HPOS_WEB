@@ -1074,7 +1074,7 @@ function tabCatchUp(){   // tablet orders that came in before this version: bill
 /* Testing period: sales, tablet orders and stock go back to the starting point (stock 100 in the shop and the warehouse) */
 /* Go-live reset (from the Super Admin): everything about trading goes back to zero. Kept: users, their roles and permissions,
    menu and prices, settings, expense categories, materials, recipes, portions, channels, suppliers and customers. */
-var RESET_GONE = {sale:1, sale_deliver:1, sale_cancel:1, order:1, order_update:1, order_pay:1, order_cancel:1, order_done:1, order_delivered:1, num:1, wh_move:1, audit:1,
+var RESET_GONE = {sale:1, sale_pay:1, sale_deliver:1, sale_cancel:1, order:1, order_update:1, order_pay:1, order_cancel:1, order_done:1, order_delivered:1, num:1, wh_move:1, audit:1,
   expense:1, expense_update:1, expense_delete:1, purchase:1, pur_new:1, pur_void:1, waste:1, stock_count:1, stock_count_edit:1, credit_pay:1, cash_entry:1, cash_delete:1, cash_out:1, day_close:1, sup_pay:1};
 var RESET_COLLS = ['exp.items','pur.list','pur.pays','cpay','cash.entries','inv.purchases','inv.waste','inv.counts','days','locks','openStock','avg','cash.open','inv.base'];
 function applyTestReset(p){
@@ -1114,6 +1114,9 @@ function applyRemote(events){
     } else if (e.type === 'sale_deliver'){
       var sd = byId(db.sales, p.id);
       if (sd && sd.dlv && sd.pay === 'delivery' && (p.pay === 'cash' || p.pay === 'card')){ sd.pay = p.pay; sd.tendered = p.pay === 'cash' ? sd.total : 0; sd.dlv.st = 'done'; sd.dlv.doneT = p.t || e.t; sd.dlv.doneBy = p.by || ''; changed = true; }
+    } else if (e.type === 'sale_pay'){
+      var sp = byId(db.sales, p.id);
+      if (sp && !sp.void && (p.pay === 'cash' || p.pay === 'card') && !(sp.payChg || []).some(function(x){ return x.t === p.t; })){ payApply(sp, p.pay, p.note, p.by, p.t); changed = true; }
     } else if (e.type === 'sale_cancel'){
       var s = byId(db.sales, p.id);
       if (s && !s.void){ s.void = true; s.voidReason = p.reason || ''; s.voidNote = p.note || ''; s.voidT = e.t; stockMove(s.lines, +1); changed = true; }
@@ -1792,6 +1795,11 @@ function vSale(){
 
 function superseded(s){ return s.void && s.voidReason === 'Order changed on tablet'; }
 function wasEdited(s){ return !!s.tord && !s.void && db.sales.some(function(x){ return x.tord === s.tord && x.id !== s.id && superseded(x); }); }
+function payChangeable(s){ var R = (db.days || {})[sday(s)]; return !!s && !s.void && !s.dlv && (s.pay === 'cash' || s.pay === 'card') && sday(s) === today() && !(R && R.closed) && can('void'); }
+function payApply(s, to, note, by, t){
+  var from = s.pay; if (from === to) return false;
+  s.pay = to; s.tendered = to === 'cash' ? s.total : 0; s.payChg = s.payChg || []; s.payChg.push({from:from, to:to, note:note || '', by:by || '', t:t || Date.now()}); return true;
+}
 function billsDay(){ return S.range === 'yest' ? addDays(today(), -1) : (S.range === 'date' && S.rdate) ? S.rdate : today(); }
 function billsMonth(){ var m = today().slice(0, 7); return S.range === 'lmonth' ? addDays(m + '-01', -1).slice(0, 7) : m; }
 function periodSales(){
@@ -1813,7 +1821,7 @@ function vSales(){
     var t = new Date(s.t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
     var q = s.lines.reduce(function(a,l){ return a+l.qty; }, 0);
     var ask = S.voidAsk === s.id;
-    return '<tr class="'+(s.void?'void':'')+'"><td>#'+s.no+(wasEdited(s) ? ' <span class="pill edt">Edited</span>' : '')+'</td><td>'+t+'</td><td>'+q+' items</td><td>'+(s.void?'<span class="pill void">Cancelled</span><div style="font-size:12px;color:var(--muted);text-decoration:none;margin-top:2px">'+esc(s.voidReason||'')+'</div>':'<span class="pill '+(s.dlv && s.pay !== 'delivery' ? 'delivery' : s.pay)+'">'+(s.pay === 'agg' ? esc(chName(s.ch)) : s.dlv ? esc(payLabel(s)) : s.pay)+'</span>'+(s.dlv && s.dlv.staff ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.dlv.staff)+(s.dlv.phone ? ' · '+esc(s.dlv.phone) : '')+'</div>' : '')+(s.pay === 'agg' && s.ref ? '<div style="font-size:12px;color:var(--muted)">#'+esc(s.ref)+'</div>' : '')+(s.pay === 'credit' ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.custName || '')+'</div>' : ''))+'</td><td class="n">'+money(s.total)+'</td>'
+    return '<tr class="'+(s.void?'void':'')+'"><td>#'+s.no+(wasEdited(s) ? ' <span class="pill edt">Edited</span>' : '')+'</td><td>'+t+'</td><td>'+q+' items</td><td>'+(s.void?'<span class="pill void">Cancelled</span><div style="font-size:12px;color:var(--muted);text-decoration:none;margin-top:2px">'+esc(s.voidReason||'')+'</div>':(payChangeable(s) ? '<button class="pill '+s.pay+'" data-act="payopen" data-id="'+s.id+'" title="Change card / cash" style="border:0;cursor:pointer">'+s.pay+' ⇄</button>' : '<span class="pill '+(s.dlv && s.pay !== 'delivery' ? 'delivery' : s.pay)+'">'+(s.pay === 'agg' ? esc(chName(s.ch)) : s.dlv ? esc(payLabel(s)) : s.pay)+'</span>')+(s.payChg && s.payChg.length ? '<div style="font-size:11px;color:var(--muted)">changed from '+esc(s.payChg[0].from)+'</div>' : '')+(s.dlv && s.dlv.staff ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.dlv.staff)+(s.dlv.phone ? ' · '+esc(s.dlv.phone) : '')+'</div>' : '')+(s.pay === 'agg' && s.ref ? '<div style="font-size:12px;color:var(--muted)">#'+esc(s.ref)+'</div>' : '')+(s.pay === 'credit' ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.custName || '')+'</div>' : ''))+'</td><td class="n">'+money(s.total)+'</td>'
       + '<td class="n"><button class="btn ghost sm" data-act="view" data-id="'+s.id+'">Receipt</button> '
       + (s.void ? '' : (oldBillLocked(s) ? '<span style="color:var(--muted);font-size:12px">Owner only</span>' : '<button class="btn danger sm" data-act="voidopen" data-id="'+s.id+'">Cancel bill</button>')) + '</td></tr>';
   }).join('');
@@ -2453,6 +2461,12 @@ function vSheets(){
       + '</div><button class="btn ghost" style="width:100%" data-act="closesheet">Cancel</button></div></div>';
   }
   if (S.priceForm) return vPriceSheet();
+  if (S.payForm){
+    var pf = S.payForm, ps = byId(db.sales, pf.id);
+    if (ps) return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Change payment"><h3>Bill #'+ps.no+' · change payment</h3><p>AED '+money(ps.total)+' is now <b>'+esc(ps.pay)+'</b>. Do you want to change it to <b>'+esc(pf.to)+'</b>? Only the payment type changes: the bill number, items and stock stay the same.</p>'
+      + '<label class="fld">Comment (required)<input id="pnote" class="inp" data-f="pnote" value="'+esc(pf.note)+'" placeholder="e.g. Customer paid by card instead" autocomplete="off"></label>'
+      + '<div class="btns"><button class="btn ghost" data-act="payclose">Keep '+esc(ps.pay)+'</button><button class="btn primary" data-act="payyes"'+(pf.note.trim().length > 2 ? '' : ' disabled')+'>Change to '+esc(pf.to)+'</button></div></div></div>';
+  }
   if (S.voidForm){
     var vf = S.voidForm, vs = byId(db.sales, vf.id);
     if (vs) return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Cancel bill"><h3>Cancel bill #'+vs.no+'</h3><p>AED '+money(vs.total)+'. A reason is required and appears in the report.</p>'
@@ -2558,6 +2572,7 @@ document.addEventListener('input', function(e){
   if (f === 'vpin' && S.voidForm){ S.voidForm.pin = t.value; var vb2 = document.querySelector('[data-act=voidyes]'); if (vb2) vb2.disabled = !(reasonOk(S.voidForm) && pinOk(S.voidForm)); return; }
   if (f === 'dpin' && S.discForm){ S.discForm.pin = t.value; discRefresh(); return; }
   if (t.id === 'gatepin'){ S.gateTry = t.value; return; }
+  if (f === 'pnote' && S.payForm){ S.payForm.note = t.value; var pb = document.querySelector('[data-act=payyes]'); if (pb) pb.disabled = !(t.value.trim().length > 2); return; }
   if (f === 'vnote' && S.voidForm){ S.voidForm.note = t.value; var vb = document.querySelector('[data-act=voidyes]'); if (vb) vb.disabled = !(reasonOk(S.voidForm) && pinOk(S.voidForm)); return; }
   if (t.id === 'dval' && S.discForm){ S.discForm.val = t.value; discRefresh(); return; }
   if (f === 'dnote' && S.discForm){ S.discForm.note = t.value; discRefresh(); return; }
@@ -2945,6 +2960,15 @@ document.addEventListener('click', function(e){
     case 'syncnow': kickSync(); toast(syncOn() ? 'Syncing' : 'Not connected yet'); return;
     case 'synctest': testSync(); return;
     case 'voidopen': if (oldBillLocked(byId(db.sales, d.id))){ toast('Only the Owner can cancel a bill from an earlier day'); break; } S.voidForm = {id:d.id, reason:'', note:'', pin:'', perm:'void'}; break;
+    case 'payopen': var po = byId(db.sales, d.id); if (po && payChangeable(po)) S.payForm = {id:po.id, to:po.pay === 'cash' ? 'card' : 'cash', note:''}; else toast('This bill can no longer be changed'); break;
+    case 'payclose': S.payForm = null; break;
+    case 'payyes': var py = S.payForm && byId(db.sales, S.payForm.id);
+      if (py && payChangeable(py) && S.payForm.note.trim().length > 2){
+        var pfrom = py.pay, pnote = S.payForm.note.trim(), pby = (curUser() || {}).name || '', pt = Date.now();
+        payApply(py, S.payForm.to, pnote, pby, pt); save();
+        if (isUuid(py.id)) queueEvent('sale_pay', {id:py.id, pay:py.pay, from:pfrom, note:pnote, by:pby, t:pt}, detUuid(py.id + '|pay|' + pt));
+        audit('Sales', 'Payment changed', 'Bill #' + py.no + ' · AED ' + money(py.total) + ' · ' + pfrom + ' to ' + py.pay + '. Comment: ' + pnote, {flag:1}); toast('Bill #' + py.no + ' is now ' + py.pay);
+      } S.payForm = null; break;
     case 'voidclose': S.voidForm = null; break;
     case 'discopen': S.discForm = S.disc ? {type:S.disc.type, val:S.disc.val, reason:S.disc.reason, note:S.disc.note, pin:'', perm:'discount'} : {type:'pct', val:'', reason:'', note:'', pin:'', perm:'discount'}; break;
     case 'discclose': S.discForm = null; break;
@@ -4545,6 +4569,7 @@ function lockDateFor(a, d){
     case 'crpay': return [S.crp.date];
     case 'closeyes': return [S.closeDate || today()];
     case 'voidyes': var vs = S.voidForm && byId(db.sales, S.voidForm.id); return [vs && vs.day];
+    case 'payyes': var pys = S.payForm && byId(db.sales, S.payForm.id); return [pys && pys.day];
     case 'recpost': case 'recpostall': return [S.xm + '-01'];
   }
   return [];
