@@ -794,8 +794,10 @@ function collect(c){
   return o;
 }
 function rd4(n){ return Math.round(n * 10000) / 10000; }
+function pulledOnce(){ return !!(sync.lastSeq > 0 || sync.pulled); }
 function stateDiff(){
   if (!syncOn()) return;
+  if (!pulledOnce()) return;   /* a device that has not yet taken the server's data must not send its own as "new" */
   var sy = syState(), out = [], now = Date.now();
   SYNC_ARR.concat(SYNC_MAP).forEach(function(c){
     var cur = collect(c), H = sy.h[c] = sy.h[c] || {}, U = sy.u[c] = sy.u[c] || {}, id;
@@ -868,7 +870,7 @@ async function pullAll(){
   while (more){
     var p = await syncApi('/sync/pull?after=' + sync.lastSeq + '&limit=500');
     if (p.events.length && applyRemote(p.events)) ch = true;
-    sync.lastSeq = p.last_seq; saveSync();
+    sync.lastSeq = p.last_seq; sync.pulled = true; saveSync();
     more = p.events.length >= 500;
   }
   return ch;
@@ -879,7 +881,7 @@ async function runSync(){
   try {
     var changed0 = false;
     /* a device that has never pulled (new install, cleared data) must first take what the server already has. Otherwise its own default materials would be sent as "new" and bring back things that were deleted on the other devices. */
-    if (!sync.lastSeq){ if (await pullAll()) changed0 = true; }
+    if (!pulledOnce()){ if (await pullAll()) changed0 = true; }
     try { stateDiff(); } catch(e){}
     while (sync.outbox.length){
       var batch = sync.outbox.slice(0, 100);
