@@ -1780,6 +1780,8 @@ function wasEdited(s){ return !!s.tord && !s.void && db.sales.some(function(x){ 
 function periodSales(){
   return db.sales.filter(function(s){ return !superseded(s) && (S.range === 'all' || s.day === today()); });
 }
+/* a bill from an earlier day can be cancelled by the Owner only */
+function oldBillLocked(s){ var u = curUser(); return !!s && s.day !== today() && !(u && u.role === 'Owner'); }
 function vSales(){
   var list = periodSales(), ok = list.filter(function(s){ return !s.void; });
   var tot = ok.reduce(function(a,s){ return a + s.total; }, 0), cash = ok.filter(function(s){ return s.pay==='cash'; }).reduce(function(a,s){ return a + s.total; }, 0);
@@ -1796,7 +1798,7 @@ function vSales(){
     var ask = S.voidAsk === s.id;
     return '<tr class="'+(s.void?'void':'')+'"><td>#'+s.no+(wasEdited(s) ? ' <span class="pill edt">Edited</span>' : '')+'</td><td>'+t+'</td><td>'+q+' items</td><td>'+(s.void?'<span class="pill void">Cancelled</span><div style="font-size:12px;color:var(--muted);text-decoration:none;margin-top:2px">'+esc(s.voidReason||'')+'</div>':'<span class="pill '+(s.dlv && s.pay !== 'delivery' ? 'delivery' : s.pay)+'">'+(s.pay === 'agg' ? esc(chName(s.ch)) : s.dlv ? esc(payLabel(s)) : s.pay)+'</span>'+(s.dlv && s.dlv.staff ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.dlv.staff)+(s.dlv.phone ? ' · '+esc(s.dlv.phone) : '')+'</div>' : '')+(s.pay === 'agg' && s.ref ? '<div style="font-size:12px;color:var(--muted)">#'+esc(s.ref)+'</div>' : '')+(s.pay === 'credit' ? '<div style="font-size:12px;color:var(--muted)">'+esc(s.custName || '')+'</div>' : ''))+'</td><td class="n">'+money(s.total)+'</td>'
       + '<td class="n"><button class="btn ghost sm" data-act="view" data-id="'+s.id+'">Receipt</button> '
-      + (s.void ? '' : '<button class="btn danger sm" data-act="voidopen" data-id="'+s.id+'">Cancel bill</button>') + '</td></tr>';
+      + (s.void ? '' : (oldBillLocked(s) ? '<span style="color:var(--muted);font-size:12px">Owner only</span>' : '<button class="btn danger sm" data-act="voidopen" data-id="'+s.id+'">Cancel bill</button>')) + '</td></tr>';
   }).join('');
   function seg(id, label){ return '<button data-act="range" data-id="'+id+'" aria-pressed="'+(S.range===id)+'">'+label+'</button>'; }
   return '<div class="page"><div class="bar"><div class="seg">'+seg('today','Today')+seg('all','All')+'</div></div><div class="tiles">'+tiles+'</div>'
@@ -2923,7 +2925,7 @@ document.addEventListener('click', function(e){
     case 'resetyes': audit('Menu', 'Menu reset to original', '', {flag:1}); menu = defaultMenu(); try { localStorage.removeItem(K_MENU); } catch(err){} setTimeout(function(){ if (typeof menuEdited === 'function') menuEdited(); }, 50); S.edCat = menu[0].id; S.cat = menu[0].id; S.cart = []; S.resetAsk = false; toast('Original menu restored'); break;
     case 'syncnow': kickSync(); toast(syncOn() ? 'Syncing' : 'Not connected yet'); return;
     case 'synctest': testSync(); return;
-    case 'voidopen': S.voidForm = {id:d.id, reason:'', note:'', pin:'', perm:'void'}; break;
+    case 'voidopen': if (oldBillLocked(byId(db.sales, d.id))){ toast('Only the Owner can cancel a bill from an earlier day'); break; } S.voidForm = {id:d.id, reason:'', note:'', pin:'', perm:'void'}; break;
     case 'voidclose': S.voidForm = null; break;
     case 'discopen': S.discForm = S.disc ? {type:S.disc.type, val:S.disc.val, reason:S.disc.reason, note:S.disc.note, pin:'', perm:'discount'} : {type:'pct', val:'', reason:'', note:'', pin:'', perm:'discount'}; break;
     case 'discclose': S.discForm = null; break;
@@ -2932,6 +2934,7 @@ document.addEventListener('click', function(e){
     case 'discapply': if (S.discForm && reasonOk(S.discForm) && pinOk(S.discForm) && parseFloat(S.discForm.val) > 0){ S.disc = {type:S.discForm.type, val:S.discForm.val, reason:S.discForm.reason, note:S.discForm.note.trim(), by:apprName(S.discForm)}; S.discForm = null; toast('Discount applied'); } break;
     case 'discoff': S.disc = null; break;
     case 'voidyes': var s = S.voidForm && byId(db.sales, S.voidForm.id);
+      if (s && oldBillLocked(s)){ S.voidForm = null; toast('Only the Owner can cancel a bill from an earlier day'); break; }
       if (s && !s.void && reasonOk(S.voidForm) && pinOk(S.voidForm)){ s.void = true; s.voidBy = apprName(S.voidForm); s.voidReason = S.voidForm.reason; s.voidNote = S.voidForm.note.trim(); s.voidT = Date.now(); stockMove(s.lines, +1); save(); if (isUuid(s.id)) queueEvent('sale_cancel', {id:s.id, reason:s.voidReason, note:s.voidNote}); audit('Sales', 'Bill cancelled', 'Bill #' + s.no + ' · AED ' + money(s.total) + ' · ' + s.pay + '. Reason: ' + s.voidReason + (s.voidNote ? ' – ' + s.voidNote : ''), {ap:s.voidBy, flag:1}); toast('Bill #' + s.no + ' cancelled'); S.voidForm = null; }
       break;
   }
