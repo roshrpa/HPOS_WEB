@@ -3299,6 +3299,22 @@ function menuSnap(){
   return o;
 }
 var menuPrev = menuSnap(), setPrev = JSON.stringify(setg());
+var SET_NAMES = {notif:'Notifications', on:'on/off', every:'repeat every (min)', sound:'sound', tone:'tone', vol:'volume', tasks:'own reminders', count:'Morning cup count', close:'Day close', low:'Low stock', backup:'Backup', credit:'Credit overdue', from:'from time', days:'days'};
+function ncfgOf(c){ var keep = db.settings.notif; db.settings.notif = c; var o = ncfg(); db.settings.notif = keep; return o; }
+function readSet(v){ if (v == null || v === '') return '(empty)'; if (v === true) return 'on'; if (v === false) return 'off'; if (Array.isArray(v)) return v.length + ' item(s)'; if (typeof v === 'object') return JSON.stringify(v).slice(0, 60); return String(v).slice(0, 60); }
+/* one readable line for each value that really changed inside a settings group */
+function settingDiffs(a, b, path){
+  var out = [], k;
+  for (k in b){
+    var x = a ? a[k] : undefined, y = b[k];
+    if (JSON.stringify(x) === JSON.stringify(y)) continue;
+    var name = path + ' · ' + (SET_NAMES[k] || k);
+    if (y && typeof y === 'object' && !Array.isArray(y) && x && typeof x === 'object') out = out.concat(settingDiffs(x, y, name));
+    else if (Array.isArray(y)) out.push(name + ': ' + (Array.isArray(x) ? x.length : 0) + ' to ' + y.length);
+    else out.push(name + ': ' + readSet(x) + ' to ' + readSet(y));
+  }
+  return out;
+}
 function auditDiffs(){
   var m = menuSnap(), k;
   for (k in m){ if (!(k in menuPrev)){ if (!/\(off\)$/.test(k)) audit('Menu', 'Item or size added', k + ' at AED ' + money(m[k])); } else if (m[k] !== menuPrev[k]){ if (/\(off\)$/.test(k)) audit('Menu', m[k] ? 'Item switched off' : 'Item switched on', k.replace(' (off)', '')); else audit('Menu', 'Price changed', k + ': AED ' + money(menuPrev[k]) + ' to AED ' + money(m[k]), {flag:1}); } }
@@ -3307,7 +3323,11 @@ function auditDiffs(){
   var sNow = JSON.stringify(setg());
   if (sNow !== setPrev){
     var a = JSON.parse(setPrev), b = JSON.parse(sNow), key;
-    for (key in b){ if (key === 'pin' || key === 'pinOn') continue; if (key === 'logo') continue; if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) audit('Settings', 'Setting changed', key + ': ' + String(a[key] == null ? '(empty)' : a[key]).slice(0, 60) + ' to ' + String(b[key]).slice(0, 60)); }
+    for (key in b){ if (key === 'pin' || key === 'pinOn') continue; if (key === 'logo') continue; if (JSON.stringify(a[key]) !== JSON.stringify(b[key])){
+        if (key === 'notif'){ settingDiffs(ncfgOf(a[key]), ncfgOf(b[key]), 'Notifications').forEach(function(t){ audit('Settings', 'Setting changed', t); }); }   /* only what really differs, defaults filled in */
+        else if (a[key] && b[key] && typeof b[key] === 'object' && !Array.isArray(b[key])){ settingDiffs(a[key], b[key], SET_NAMES[key] || key).forEach(function(t){ audit('Settings', 'Setting changed', t); }); }
+        else audit('Settings', 'Setting changed', key + ': ' + readSet(a[key]) + ' to ' + readSet(b[key]));
+      } }
     setPrev = sNow;
   }
 }
