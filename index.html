@@ -551,7 +551,7 @@ if (!db.settings) db.settings = {pinOn:false, pin:'1234', shop:'Hollywood Ice Cr
 if (db.settings.carryOpen === undefined) db.settings.carryOpen = true;
 if (db.settings.showSale === undefined) db.settings.showSale = false;
 function saleOn(){ return !!window.HP_DESKTOP || !!(db.settings && db.settings.showSale); }
-function homeTab(){ return saleOn() ? 'sale' : 'dash'; }
+function homeTab(){ var h = ''; try { TAB_GROUPS.forEach(function(g){ g.tabs.forEach(function(t){ if (!h && tabShown(t[0])) h = t[0]; }); }); } catch(e){} return h || (saleOn() ? 'sale' : 'dash'); }
 /* Test start: every menu item begins with 100 in stock (runs once per browser) */
 if (db.stockSeed !== 1){ db.stock = {}; menu.forEach(function(c){ c.items.forEach(function(it0){ db.stock[skey(c.name, it0.name)] = 0; }); }); db.stockSeed = 1; save(); }
 function num(n){ return Math.round(n * 100) / 100; }
