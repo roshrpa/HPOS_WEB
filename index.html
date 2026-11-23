@@ -557,7 +557,7 @@ if (db.stockSeed !== 1){ db.stock = {}; menu.forEach(function(c){ c.items.forEac
 function num(n){ return Math.round(n * 100) / 100; }
 /* one-time fix: untouched starting stock counts every sale (it used to start at first-open time, so earlier sales were skipped) */
 if (db.inv && db.inv.base && db.invBaseFix !== 1){ db.invBaseFix = 1; var cts = (db.inv.counts || []).map(function(c){ return c.t; }); Object.keys(db.inv.base).forEach(function(k){ var b = db.inv.base[k]; if (b && b.t && cts.indexOf(b.t) < 0) b.t = 0; }); save(); }
-function recPerItem(cat){ return /catering/i.test(String(cat || '')); }   /* catering boxes differ from each other, so each box has its own recipe */
+function recPerItem(cat){ return /catering|combo/i.test(String(cat || '')); }   /* catering boxes and combo offers differ from each other, so each one has its own recipe */
 function rkey(cat, size, name){ return ((cat === 'Mini Melts Ice Cream' || cat === 'Minimals Ice Cream') ? 'Minimelts Ice Cream' : cat) + '|' + (size || '') + (name && recPerItem(cat) ? '|' + name : ''); }
 function mat(id){ return byId(db.inv.materials, id); }
 function usageMap(asOf, B){
@@ -697,7 +697,7 @@ function invRec(){
     }).join('');
     return '<div class="card"><h3>'+esc(u.name ? u.name : c.name)+(s.label?' · '+esc(s.label):'')+'</h3>'+(rows||'<p style="color:var(--muted);margin:0 0 10px">Nothing is deducted for this item.</p>')+'<button class="btn ghost sm" data-act="addrec" data-k="'+esc(k)+'">+ Add material</button></div>';
   }).join('');
-  return '<p style="color:var(--muted);margin:0 0 10px">What is used up each time one of these is sold (the same for every flavour in the category; Catering Boxes have one recipe for each box). Ice cream, powder and packets are raw materials: put the grams (or packs) used per sale. Cups and lids count in pieces.</p><div class="recv"><div class="rl">'+chips+'</div><div class="recg">'+cards+'</div></div>';
+  return '<p style="color:var(--muted);margin:0 0 10px">What is used up each time one of these is sold (the same for every flavour in the category; Catering Boxes and Combo Offers have one recipe for each box or combo). Ice cream, powder and packets are raw materials: put the grams (or packs) used per sale. Cups and lids count in pieces.</p><div class="recv"><div class="rl">'+chips+'</div><div class="recg">'+cards+'</div></div>';
 }
 function matUsedIn(id){
   var out = []; Object.keys(db.inv.recipes || {}).forEach(function(k){ if ((db.inv.recipes[k] || []).some(function(x){ return x.m === id; })) out.push(k.split('|').filter(function(x, i){ return x || i === 0; }).join(' · ')); }); return out;
