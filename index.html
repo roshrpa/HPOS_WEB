@@ -863,10 +863,23 @@ async function syncApi(path, o){
     throw e;
   } finally { clearTimeout(to); }
 }
+async function pullAll(){
+  var more = true, ch = false;
+  while (more){
+    var p = await syncApi('/sync/pull?after=' + sync.lastSeq + '&limit=500');
+    if (p.events.length && applyRemote(p.events)) ch = true;
+    sync.lastSeq = p.last_seq; saveSync();
+    more = p.events.length >= 500;
+  }
+  return ch;
+}
 async function runSync(){
   if (!syncOn() || syncBusy) return;
   syncBusy = true; sync.err = ''; paintSync();
   try {
+    var changed0 = false;
+    /* a device that has never pulled (new install, cleared data) must first take what the server already has. Otherwise its own default materials would be sent as "new" and bring back things that were deleted on the other devices. */
+    if (!sync.lastSeq){ if (await pullAll()) changed0 = true; }
     try { stateDiff(); } catch(e){}
     while (sync.outbox.length){
       var batch = sync.outbox.slice(0, 100);
@@ -879,13 +892,8 @@ async function runSync(){
       }
       sync.outbox.splice(0, batch.length); saveSync();
     }
-    var more = true, changed = false;
-    while (more){
-      var p = await syncApi('/sync/pull?after=' + sync.lastSeq + '&limit=500');
-      if (p.events.length && applyRemote(p.events)) changed = true;
-      sync.lastSeq = p.last_seq; saveSync();
-      more = p.events.length >= 500;
-    }
+    var changed = changed0;
+    if (await pullAll()) changed = true;
     if (tabCatchUp()) changed = true;
     try { var us = await syncApi('/users'); if (us && us.users && us.users.length && us.ver !== sync.uver){ applyServerUsers(us.users, us.ver); changed = true; } }
     catch(e){ if (e.status === 401) throw e; }
