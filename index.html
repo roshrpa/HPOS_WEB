@@ -4998,6 +4998,9 @@ function rgNums(){
     diff:hasC ? round2(parseFloat(g.counted) - expected) : null, cardDiff:hasK ? round2(parseFloat(g.card) - (card + cpCard)) : null, voidTot:sum(voids, function(s){ return s.total; })};
 }
 function vtime(t){ return new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
+function voidItems(s){ return (s.lines || []).map(function(l){ return l.qty + ' x ' + l.name + (l.size ? ' (' + l.size + ')' : '') + ' - AED ' + money(l.qty * l.price); }); }
+function voidPay(s){ return s.pay === 'agg' ? chName(s.ch) : (s.pay || ''); }
+function voidInfo(s){ return 'Bill time ' + fdate(s.t) + (s.voidT ? ' · cancelled ' + fdate(s.voidT) : '') + (s.voidBy ? ' by ' + s.voidBy : '') + ' · paid by ' + voidPay(s) + (s.discount > 0 ? ' · discount AED ' + money(s.discount) : ''); }
 function voidWhy(s){ return (s.voidReason || 'No reason given') + (s.voidNote ? ' (' + s.voidNote + ')' : ''); }
 function rgText(N){
   var L = ['Report ' + fdate(new Date(N.g.from).getTime()) + ' to ' + fdate(new Date(N.g.to).getTime()) + ' - ' + setg().shop, ''];
@@ -5008,7 +5011,7 @@ function rgText(N){
   if (N.diff !== null) L.push('Cash counted: ' + money(parseFloat(N.g.counted)) + ' (' + diffText(N.diff) + ')');
   if (N.cardDiff !== null) L.push('Card machine total: ' + money(parseFloat(N.g.card)) + ' (' + diffText(N.cardDiff) + ')');
   L.push('', 'By category and item:'); Object.keys(N.cat).forEach(function(k){ L.push('  ' + k + ': ' + N.cat[k].qty + ' items, AED ' + money(N.cat[k].amt)); itmList(N, k).forEach(function(i){ L.push('      ' + i.n + ': ' + i.qty + ', AED ' + money(i.amt)); }); });
-  if (N.voids.length){ L.push('', 'Cancelled bills: ' + N.voids.length + ' (AED ' + money(N.voidTot) + ')'); N.voids.forEach(function(s){ L.push('  #' + s.no + ' ' + vtime(s.t) + ' - AED ' + money(s.total) + ' - ' + voidWhy(s) + (s.voidBy ? ' - by ' + s.voidBy : '')); }); }
+  if (N.voids.length){ L.push('', 'Cancelled bills: ' + N.voids.length + ' (AED ' + money(N.voidTot) + ')'); N.voids.forEach(function(s){ L.push('  #' + s.no + ' - AED ' + money(s.total), '    Reason: ' + voidWhy(s), '    ' + voidInfo(s)); voidItems(s).forEach(function(x){ L.push('    ' + x); }); }); }
   if (N.exps.length){ L.push('', 'Cash expenses:'); N.exps.forEach(function(e){ L.push('  AED ' + money(e.amt) + ' - ' + xLabel(e)); }); }
   if (N.g.note) L.push('', 'Note: ' + N.g.note);
   return L.join('\n');
@@ -5039,7 +5042,7 @@ function rgPrintHtml(N){
     + sec('Payments', T) + kv([['Cash', 'AED ' + money(N.cash)], ['Card', 'AED ' + money(N.card)], N.credit > 0 ? ['Credit', 'AED ' + money(N.credit)] : null].concat(N.online.map(function(o){ return [esc(o.name) + ' (paid later)', 'AED ' + money(o.amt)]; })).concat([['Total', 'AED ' + money(N.net), true]])) + '</div>'
     + '<div style="flex:1">' + sec('Drawer check', '#c0182f') + drawer + '</div></div>'
     + sec('Sales by category and item') + catTbl
-    + (N.voids.length ? sec('Cancelled bills', '#c0182f') + '<table style="width:100%;border-collapse:collapse"><tbody>' + N.voids.map(function(s){ return '<tr><td style="' + td + '">#' + s.no + ' · ' + vtime(s.t) + '</td><td style="' + td + '">' + esc(voidWhy(s)) + (s.voidBy ? ' <span style="color:' + MUT + '">· ' + esc(s.voidBy) + '</span>' : '') + '</td><td style="' + tr + '">' + money(s.total) + '</td></tr>'; }).join('') + '</tbody></table>' : '')
+    + (N.voids.length ? sec('Cancelled bills', '#c0182f') + '<table style="width:100%;border-collapse:collapse"><tbody>' + N.voids.map(function(s){ return '<tr><td style="' + td + ';vertical-align:top">#' + s.no + '</td><td style="' + td + '"><b>' + esc(voidWhy(s)) + '</b><br><span style="color:' + MUT + '">' + esc(voidInfo(s)) + '</span><br>' + voidItems(s).map(esc).join('<br>') + '</td><td style="' + tr + ';vertical-align:top">' + money(s.total) + '</td></tr>'; }).join('') + '</tbody></table>' : '')
     + sec('Expenses', '#f2b01e') + expTbl
     + (g.note ? sec('Reason / note', '#c0182f') + '<div style="font-size:12px;white-space:pre-wrap">' + esc(g.note) + '</div>' : '')
     + '<div style="display:flex;gap:30px;margin-top:34px;font-size:11px;color:' + MUT + '"><div style="flex:1;border-top:1px solid var(--line);padding-top:4px">Prepared by</div><div style="flex:1;border-top:1px solid var(--line);padding-top:4px">Checked by</div></div>'
@@ -5073,7 +5076,7 @@ function vRange(){
     + '<label class="fld" style="display:block;margin-top:12px"><span style="display:block;font-size:14px;font-weight:700;margin-bottom:6px">Why is it more or less? Write the reason <span style="font-weight:400;color:var(--muted)">(printed on the report)</span></span><textarea class="inp" data-f="rg" data-k="note" rows="5" style="font-family:inherit;font-size:14px;min-height:120px;height:auto;padding:10px 12px;line-height:1.4;resize:vertical" placeholder="Staff: explain here if the cash is more or less than it should be">' + esc(g.note) + '</textarea></label>'
     + '<div class="btns" style="justify-content:flex-start;margin-top:10px"><button class="btn plum sm" data-act="rgsavechk"' + (N.diff === null ? ' disabled style="opacity:.5"' : '') + '>Save this check</button><span style="color:var(--muted);font-size:12.5px;align-self:center">Records who counted, when, the amount and the reason in the Audit.</span></div>'
     + drawerChecksHtml() + '</div>'
-    + (N.voids.length ? '<div class="card"><h3>Cancelled bills <span style="font-weight:400;color:var(--muted);font-size:13px">' + N.voids.length + ' · AED ' + money(N.voidTot) + '</span></h3><table class="tbl" style="width:100%">' + N.voids.map(function(s){ return '<tr><td style="vertical-align:top">#' + s.no + '<br><span style="color:var(--muted);font-size:12px">' + vtime(s.t) + '</span></td><td>' + esc(voidWhy(s)) + (s.voidBy ? '<br><span style="color:var(--muted);font-size:12px">Cancelled by ' + esc(s.voidBy) + '</span>' : '') + '</td><td class="n" style="vertical-align:top">' + money(s.total) + '</td></tr>'; }).join('') + '</table></div>' : '')
+    + (N.voids.length ? '<div class="card"><h3>Cancelled bills <span style="font-weight:400;color:var(--muted);font-size:13px">' + N.voids.length + ' · AED ' + money(N.voidTot) + '</span></h3><table class="tbl" style="width:100%">' + N.voids.map(function(s){ return '<tr><td style="vertical-align:top">#' + s.no + '</td><td><b>' + esc(voidWhy(s)) + '</b><br><span style="color:var(--muted);font-size:12px">' + esc(voidInfo(s)) + '</span><div style="font-size:13px;margin-top:3px">' + voidItems(s).map(esc).join('<br>') + '</div></td><td class="n" style="vertical-align:top">' + money(s.total) + '</td></tr>'; }).join('') + '</table></div>' : '')
     + '<div class="card"><h3>By category and item</h3><table class="tbl" style="width:100%">' + catRows + '</table></div>'
     + '<div class="card"><h3>Cash expenses in this period</h3>' + (expRows ? '<table class="tbl" style="width:100%">' + expRows + row('<b>Total</b>', '<b>' + money(N.expOut) + '</b>') + '</table>' : '<p style="margin:0;color:var(--muted)">No expenses were recorded for this period.</p>') + '</div>'
     + '</div></div>';
