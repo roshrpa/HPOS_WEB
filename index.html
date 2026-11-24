@@ -2973,8 +2973,8 @@ document.addEventListener('click', function(e){
     case 'dhclose': S.dhOpen = false; break;
     case 'dhclear': S.dh = {from:'', to:'', diff:false}; break;
     case 'dhdiff': S.dh = S.dh || {}; S.dh.diff = !S.dh.diff; break;
-    case 'dhcsv': var dr0 = [['Saved', 'By', 'Counted', 'Should be', 'Result', 'Period checked', 'Reason']]; dhRows().forEach(function(x){ dr0.push([auditTime(x.t), x.by, x.counted, x.should, x.res, x.period, x.why]); }); csvDownload('drawer-checks.csv', dr0); break;
-    case 'dhprint': printHtml('<h2 style="font-family:sans-serif">Drawer check history · ' + esc(setg().shop) + '</h2><table style="width:100%;border-collapse:collapse;font:12px sans-serif"><tr>' + ['Saved','By','Counted','Should be','Result','Period checked','Reason'].map(function(h){ return '<th style="text-align:left;border-bottom:2px solid #000;padding:4px">' + h + '</th>'; }).join('') + '</tr>' + dhRows().map(function(x){ return '<tr>' + [auditTime(x.t), x.by, x.counted, x.should, x.res, x.period, x.why].map(function(v){ return '<td style="border-bottom:1px solid #ccc;padding:4px">' + esc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>'); break;
+    case 'dhcsv': var dr0 = [['Saved', 'By', 'Counted', 'Should be', 'Result', 'Status', 'Period checked', 'Reason']]; dhRows().forEach(function(x){ dr0.push([auditTime(x.t), x.by, x.counted, x.should, x.res, x.st, x.period, x.why]); }); csvDownload('drawer-checks.csv', dr0); break;
+    case 'dhprint': printHtml('<h2 style="font-family:sans-serif">Drawer check history · ' + esc(setg().shop) + '</h2><table style="width:100%;border-collapse:collapse;font:12px sans-serif"><tr>' + ['Saved','By','Counted','Should be','Result','Status','Period checked','Reason'].map(function(h){ return '<th style="text-align:left;border-bottom:2px solid #000;padding:4px">' + h + '</th>'; }).join('') + '</tr>' + dhRows().map(function(x){ return '<tr>' + [auditTime(x.t), x.by, x.counted, x.should, x.res, x.st, x.period, x.why].map(function(v){ return '<td style="border-bottom:1px solid #ccc;padding:4px">' + esc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>'); break;
     case 'sdtoday': S.rdate2 = today(); if (!S.rdate) S.rdate = today(); S.range = 'date'; break;
     case 'payopen': var po = byId(db.sales, d.id); if (po && payChangeable(po)) S.payForm = {id:po.id, to:po.pay === 'cash' ? 'card' : 'cash', note:''}; else toast('This bill can no longer be changed'); break;
     case 'payclose': S.payForm = null; break;
@@ -3543,7 +3543,7 @@ function takenToLabel(R, live){ var k = (!live && R.closed) ? (R.closed.takenTo 
 function cashKindLabel(k){ var f = CASH_KINDS.filter(function(x){ return x[0] === k; })[0]; return f ? f[1].replace(/ \(.*\)$/, '') : k; }
 function entryRows(e){
   var r = [], a = e.amt, L = cashKindLabel(e.kind), n = e.note ? ' · ' + e.note : '';
-  if (e.kind === 'cnt') r.push({acct:'drawer', amt:0, set:a, label:'Cash counted at a drawer check' + n});
+  if (e.kind === 'cnt') r.push({acct:'drawer', amt:0, set:a, nt:n, label:'Cash counted at a drawer check' + n});
   else if (e.kind === 'in') r.push({acct:'drawer', amt:a, label:'Cash in' + n});
   else if (e.kind === 'out') r.push({acct:'drawer', amt:-a, label:'Cash out' + n});
   else if (e.kind === 'cap') r.push({acct:e.acct, amt:a, label:'Owner capital' + n});
@@ -3610,7 +3610,7 @@ function ledgerView(acct, m){
   for (i = 0; i < all.length; i++){
     var r = all[i];
     if (start === null && r.date.slice(0, 7) >= m) start = round2(bal);
-    if (r.set !== undefined){ r.amt = round2(r.set - bal); r.label = 'Cash counted · AED ' + money(r.set) + (Math.abs(r.amt) < 0.005 ? ' (matched the system)' : ' (system had AED ' + money(bal) + ')'); bal = r.set; } else bal += r.amt;
+    if (r.set !== undefined){ r.amt = round2(r.set - bal); r.label = (Math.abs(r.amt) < 0.005 ? 'Cash counted · AED ' + money(r.set) + ' (matched the system)' : 'Cash ' + (r.amt > 0 ? 'over' : 'short') + ' · counted AED ' + money(r.set) + ' (system had AED ' + money(bal) + ')') + (r.nt || ''); bal = r.set; } else bal += r.amt;
     r.bal = round2(bal); if (r.date.slice(0, 7) === m) out.push(r);
   }
   if (start === null) start = round2(bal);
@@ -5069,8 +5069,8 @@ function mmBox(lbl, d){
   return '<div style="margin-top:10px;padding:10px 14px;border-radius:12px;font-weight:700;font-size:16px;background:' + bg + ';color:' + col + ';border:1.5px solid ' + col + '">' + lbl + ': ' + (ok ? 'Matches' : (d > 0 ? 'Over by AED ' + money(d) : 'Short by AED ' + money(-d))) + '</div>';
 }
 function dhParse(r){
-  var m = /Counted AED ([\d,.\-]+) · should be ([\d,.\-]+) · (matches|over by [\d,.\-]+|short by [\d,.\-]+) · (.*?)(?: · reason: (.*))?$/.exec(r.d || '');
-  return {t:r.t, by:r.u, counted:m ? m[1] : '', should:m ? m[2] : '', res:m ? m[3] : '', period:m ? m[4] : (r.d || ''), why:m && m[5] ? m[5] : '', bad:!!r.flag};
+  var m = /Counted AED ([\d,.\-]+) · should be ([\d,.\-]+) · (matches|over by [\d,.\-]+|short by [\d,.\-]+)(?: · (drawer updated|record only))? · (.*?)(?: · reason: (.*))?$/.exec(r.d || '');
+  return {t:r.t, by:r.u, counted:m ? m[1] : '', should:m ? m[2] : '', res:m ? m[3] : '', st:m && m[4] ? (m[4] === 'record only' ? 'Open' : 'Drawer updated') : '', period:m ? m[5] : (r.d || ''), why:m && m[6] ? m[6] : '', bad:!!r.flag};
 }
 function dhRows(){
   var f = S.dh || {}, a = f.from ? new Date(f.from + 'T00:00:00').getTime() : 0, b = f.to ? new Date(f.to + 'T23:59:59').getTime() : Infinity;
@@ -5081,8 +5081,8 @@ function dhSheet(){
   return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Drawer check history" style="max-width:1000px;width:96vw;max-height:92vh;overflow:auto"><h3>Drawer check history</h3>'
     + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><label style="font-weight:600;font-size:13px">From <input class="inp" type="date" data-f="dh" data-k="from" value="' + esc(f.from || '') + '" style="width:auto"></label><label style="font-weight:600;font-size:13px">To <input class="inp" type="date" data-f="dh" data-k="to" value="' + esc(f.to || '') + '" style="width:auto"></label>'
     + '<button class="btn ' + (f.diff ? 'primary' : 'ghost') + ' sm" data-act="dhdiff" aria-pressed="' + !!f.diff + '">Over / short only</button><button class="btn ghost sm" data-act="dhclear">Clear</button><span class="sp" style="flex:1"></span><button class="btn ghost sm" data-act="dhcsv">CSV</button><button class="btn ghost sm" data-act="dhprint">Print</button></div>'
-    + '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="' + th + '">Saved</th><th style="' + th + '">By</th><th style="' + th + ';text-align:right">Counted</th><th style="' + th + ';text-align:right">Should be</th><th style="' + th + '">Result</th><th style="' + th + '">Period checked</th><th style="' + th + '">Reason</th></tr></thead><tbody>'
-    + (L.length ? L.map(function(x){ return '<tr style="' + (x.res !== 'matches' ? 'color:#c0182f' : '') + '"><td style="' + td + ';white-space:nowrap">' + auditTime(x.t) + '</td><td style="' + td + '">' + esc(x.by) + '</td><td style="' + td + ';text-align:right">' + esc(x.counted) + '</td><td style="' + td + ';text-align:right">' + esc(x.should) + '</td><td style="' + td + '">' + esc(x.res) + '</td><td style="' + td + '">' + esc(x.period) + '</td><td style="' + td + '">' + esc(x.why) + '</td></tr>'; }).join('') : '<tr><td colspan="7" style="' + td + '">No drawer checks found.</td></tr>')
+    + '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="' + th + '">Saved</th><th style="' + th + '">By</th><th style="' + th + ';text-align:right">Counted</th><th style="' + th + ';text-align:right">Should be</th><th style="' + th + '">Result</th><th style="' + th + '">Status</th><th style="' + th + '">Period checked</th><th style="' + th + '">Reason</th></tr></thead><tbody>'
+    + (L.length ? L.map(function(x){ return '<tr style="' + (x.res !== 'matches' ? 'color:#c0182f' : '') + '"><td style="' + td + ';white-space:nowrap">' + auditTime(x.t) + '</td><td style="' + td + '">' + esc(x.by) + '</td><td style="' + td + ';text-align:right">' + esc(x.counted) + '</td><td style="' + td + ';text-align:right">' + esc(x.should) + '</td><td style="' + td + '">' + esc(x.res) + '</td><td style="' + td + '">' + esc(x.st) + '</td><td style="' + td + '">' + esc(x.period) + '</td><td style="' + td + '">' + esc(x.why) + '</td></tr>'; }).join('') : '<tr><td colspan="8" style="' + td + '">No drawer checks found.</td></tr>')
     + '</tbody></table><p style="color:var(--muted);font-size:12px;margin:8px 0 0">' + L.length + ' check' + (L.length === 1 ? '' : 's') + '.</p><div class="btns" style="margin-top:12px"><button class="btn primary" data-act="dhclose">Close</button></div></div></div>';
 }
 function drawerChecksHtml(){
@@ -5107,7 +5107,11 @@ function vRange(){
     + '<table class="tbl" style="width:100%;margin-top:10px">' + row('Cash in the drawer at the start <span style="color:var(--muted)">(' + esc(fdate(new Date(g.from).getTime())) + ')</span>', money(N.open)) + row('+ Cash sales', money(N.cash)) + (N.other ? row('+/− Other cash in / out', money(N.other)) : '') + row('− Cash expenses', money(N.expOut)) + row('<b>Should be in the drawer now</b>', '<b>' + money(N.expected) + '</b>') + (N.diff !== null ? row('Counted', money(parseFloat(g.counted))) : '') + '</table>'
     + (N.diff !== null ? mmBox('Cash', N.diff) : '<p style="margin:10px 0 0;color:var(--muted);font-size:13px">Type the cash you counted to see if it matches.</p>')
     + '<label class="fld" style="display:block;margin-top:12px"><span style="display:block;font-size:14px;font-weight:700;margin-bottom:6px">Why is it more or less? Write the reason <span style="font-weight:400;color:var(--muted)">(printed on the report)</span></span><textarea class="inp" data-f="rg" data-k="note" rows="5" style="font-family:inherit;font-size:14px;min-height:120px;height:auto;padding:10px 12px;line-height:1.4;resize:vertical" placeholder="Staff: explain here if the cash is more or less than it should be">' + esc(g.note) + '</textarea></label>'
-    + '<div class="btns" style="justify-content:flex-start;margin-top:10px"><button class="btn plum sm" data-act="rgsavechk"' + (N.diff === null ? ' disabled style="opacity:.5"' : '') + '>Save this check</button><span style="color:var(--muted);font-size:12.5px;align-self:center">Records who counted, when, the amount and the reason in the Audit.</span></div>'
+    + (function(){
+      var dis = function(on){ return on ? '' : ' disabled style="opacity:.5"'; }, rsn = String(g.note || '').trim().length > 2, own = !!(curUser() && curUser().role === 'Owner');
+      if (N.diff === null || N.diff === 0) return '<div class="btns" style="justify-content:flex-start;margin-top:10px"><button class="btn plum sm" data-act="rgsavechk"' + dis(N.diff === 0) + '>Save this check</button><span style="color:var(--muted);font-size:12.5px;align-self:center">Records who counted, when and the amount in the Audit.</span></div>';
+      return '<div class="btns" style="justify-content:flex-start;margin-top:10px;flex-wrap:wrap"><button class="btn plum sm" data-act="rgsavechk"' + dis(rsn) + '>Record only</button>' + (own ? '<button class="btn ghost sm" data-act="rgsavechk2"' + dis(rsn) + '>Record and update drawer</button>' : '') + '<span style="color:var(--muted);font-size:12.5px;align-self:center">' + (rsn ? '<b>Record only</b> keeps the drawer balance as it is and lists the difference as open in the history.' + (own ? ' <b>Update drawer</b> (Owner) makes the counted cash the new drawer balance.' : ' Only the Owner can update the drawer balance.') : 'Write the reason for the difference first.') + '</span></div>';
+    })()
     + drawerChecksHtml() + '</div>'
     + (N.voids.length ? '<div class="card"><h3>Cancelled bills <span style="font-weight:400;color:var(--muted);font-size:13px">' + N.voids.length + ' · AED ' + money(N.voidTot) + '</span></h3><table class="tbl" style="width:100%">' + N.voids.map(function(s){ return '<tr><td style="vertical-align:top">#' + s.no + '</td><td><b>' + esc(voidWhy(s)) + '</b><br><span style="color:var(--muted);font-size:12px">' + esc(voidInfo(s)) + '</span><div style="font-size:13px;margin-top:3px">' + voidItems(s).map(esc).join('<br>') + '</div></td><td class="n" style="vertical-align:top">' + money(s.total) + '</td></tr>'; }).join('') + '</table></div>' : '')
     + '<div class="card"><h3>By category and item</h3><table class="tbl" style="width:100%">' + catRows + '</table></div>'
@@ -5129,13 +5133,16 @@ document.addEventListener('click', function(ev){
     else if (v === 'month'){ s.setDate(1); g.from = rgLocal(s.getTime()); g.to = rgLocal(Date.now()); }
     else g.to = rgLocal(Date.now());
     render();
-  } else if (a === 'rgsavechk'){
+  } else if (a === 'rgsavechk' || a === 'rgsavechk2'){
     var NN = rgNums(); if (NN.diff === null){ toast('Type the cash you counted first'); return; }
+    var upd = a === 'rgsavechk2' && NN.diff !== 0;
+    if (NN.diff !== 0 && String(g.note || '').trim().length < 3){ toast('Write the reason first'); return; }
+    if (upd && !(curUser() && curUser().role === 'Owner')){ toast('Only the Owner can update the drawer balance'); return; }
     var dd = NN.diff === 0 ? 'matches' : (NN.diff > 0 ? 'over by ' + money(NN.diff) : 'short by ' + money(-NN.diff));
-    audit('Cash', 'Drawer counted', 'Counted AED ' + money(parseFloat(g.counted)) + ' · should be ' + money(NN.expected) + ' · ' + dd + ' · ' + fdate(new Date(g.from).getTime()) + ' to ' + fdate(new Date(g.to).getTime()) + (g.note ? ' · reason: ' + g.note : ''), {flag:NN.diff !== 0});
+    audit('Cash', 'Drawer counted', 'Counted AED ' + money(parseFloat(g.counted)) + ' · should be ' + money(NN.expected) + ' · ' + dd + (NN.diff !== 0 ? ' · ' + (upd ? 'drawer updated' : 'record only') : '') + ' · ' + fdate(new Date(g.from).getTime()) + ' to ' + fdate(new Date(g.to).getTime()) + (g.note ? ' · reason: ' + g.note : ''), {flag:NN.diff !== 0});
     var cn = round2(parseFloat(g.counted)), ct = Math.min(Date.now(), new Date(g.to).getTime() + 59999);
-    if (!isNaN(cn) && !isNaN(ct)){ var ce2 = {id:uid('c'), t:ct, date:new Date(ct).toLocaleDateString('en-CA'), kind:'cnt', acct:'drawer', amt:cn, fee:0, ch:'', est:0, note:'', by:(curUser() || {}).name || ''}; db.cash.entries.push(ce2); queueEvent('cash_entry', ce2); save(); }
-    toast('Check saved. The drawer now starts from AED ' + money(cn)); render();
+    if (upd && !isNaN(cn) && !isNaN(ct)){ var ce2 = {id:uid('c'), t:ct, date:new Date(ct).toLocaleDateString('en-CA'), kind:'cnt', acct:'drawer', amt:cn, fee:0, ch:'', est:0, note:String(g.note || '').trim(), by:(curUser() || {}).name || ''}; db.cash.entries.push(ce2); queueEvent('cash_entry', ce2); save(); }
+    toast(upd ? 'Saved. The drawer is now AED ' + money(cn) : (NN.diff === 0 ? 'Check saved' : 'Recorded. The drawer balance was not changed')); render();
   } else if (a === 'rgcopy'){
     var txt = rgText(rgNums()); try { navigator.clipboard.writeText(txt).then(function(){ toast('Report copied'); }, function(){ toast('Copy not allowed here'); }); } catch(e){ toast('Copy not allowed here'); }
   } else if (a === 'rgprint'){
