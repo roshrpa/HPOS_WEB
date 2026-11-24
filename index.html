@@ -1795,7 +1795,7 @@ function vSale(){
 
 function superseded(s){ return s.void && s.voidReason === 'Order changed on tablet'; }
 function wasEdited(s){ return !!s.tord && !s.void && db.sales.some(function(x){ return x.tord === s.tord && x.id !== s.id && superseded(x); }); }
-function payChangeable(s){ var R = (db.days || {})[sday(s)]; return !!s && !s.void && !s.dlv && (s.pay === 'cash' || s.pay === 'card') && sday(s) === today() && !(R && R.closed) && can('void'); }
+function payChangeable(s){ var u = curUser(); return !!s && !s.void && !s.dlv && (s.pay === 'cash' || s.pay === 'card') && (sday(s) === today() ? can('void') : !!(u && u.role === 'Owner')); }
 function payApply(s, to, note, by, t){
   var from = s.pay; if (from === to) return false;
   s.pay = to; s.tendered = to === 'cash' ? s.total : 0; s.payChg = s.payChg || []; s.payChg.push({from:from, to:to, note:note || '', by:by || '', t:t || Date.now()}); return true;
