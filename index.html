@@ -3085,6 +3085,7 @@ function vLogin(){
       + (S.lerr ? '<p style="color:var(--pink-dk);margin:10px 0 0">'+esc(S.lerr)+'</p>' : '')
       + '<div class="btns"><button class="btn primary" data-act="loginok">Open POS</button></div>' : '')
     + (one ? '<p style="margin:14px 0 0"><a href="#" data-act="loginsw" style="color:var(--muted);font-size:14px">Not '+esc(last.name)+'? Switch user</a></p>' : '')
+    + (sync.url || sync.token ? '<p style="margin:12px 0 0"><a href="#" data-act="loginrefresh" style="color:var(--muted);font-size:13px">Name not here, or cannot sign in? Get the users from the server</a></p>' : '')
     + '</div></div>';
 }
 /* ----- server login: users live on the server, a device gets its own token when a user signs in ----- */
@@ -3132,6 +3133,15 @@ function finishSignIn(u, auditAct){
   audit('Users and Security', auditAct, ''); kickSync(); render();
 }
 function srvFail(e){ S.srv.busy = false; S.lpin = ''; S.lerr = e.net ? 'Cannot reach the server. Check the internet and try again.' : (e.message || 'Could not sign in'); render(); }
+/* The user list on a device is only a copy of the server's list. If it is old (a person is missing or a removed user is still shown), fetch it again by signing in with name and PIN. It is cleared only when the server answers, so a counter that is offline is never locked out. */
+async function refreshUsers(){
+  S.lerr = ''; toast('Checking the server...');
+  try {
+    var r = await srvCall('/auth/status?shop=' + encodeURIComponent(sync.shop || ''));
+    if (!r.ok){ toast('The server did not answer. Try again in a moment.'); return; }
+    db.users = []; save(); S.srv.st = ''; S.lu = null; S.sw = false; S.lpin = ''; render();
+  } catch(e){ toast('Cannot reach the server. Check the internet and try again.'); }
+}
 async function doLogin(){
   var lu = byId(db.users, S.lu); if (!lu) return;
   if (!/^\d+$/.test(S.lpin)){ S.lerr = 'Enter your PIN.'; render(); return; }
@@ -3430,6 +3440,7 @@ document.addEventListener('click', function(e){
       return;
     case 'srvretry': S.srv.st = ''; render(); return;
     case 'srvlocal': S.srv.st = 'local'; break;
+    case 'loginrefresh': refreshUsers(); break;
     case 'loginsw': S.sw = true; S.lu = null; S.lpin = ''; S.lerr = ''; break;
     case 'loginpick': S.lu = d.id; S.lpin = ''; S.lerr = ''; break;
     case 'loginok':
