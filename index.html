@@ -684,7 +684,7 @@ function invVar(){
   }).join('') + '</div>';
 }
 function invRec(){
-  var chips = menu.map(function(m){ return '<button class="cat" data-act="reccat" data-id="'+m.id+'" aria-pressed="'+(m.id===(S.recCat||menu[0].id))+'">'+esc(m.name)+'</button>'; }).join('');
+  var chips = menu.map(function(m){ var im = src(m.img) || (m.items[0] && src(m.items[0].img)); return '<button class="cat" data-act="reccat" data-id="'+m.id+'" aria-pressed="'+(m.id===(S.recCat||menu[0].id))+'">'+(im?'<img src="'+esc(im)+'" alt="">':'')+esc(m.name)+'</button>'; }).join('');
   var c = byId(menu, S.recCat) || menu[0];
   var pi = recPerItem(c.name), units = [];
   c.sizes.forEach(function(s){ if (pi) c.items.forEach(function(it){ units.push({s:s, name:it.name}); }); else units.push({s:s, name:''}); });
