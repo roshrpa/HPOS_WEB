@@ -1361,10 +1361,9 @@ function closeText(date){
 
 /* ---------- Daily cup and plate count (closing count and next morning check) ---------- */
 function dailyMats(){ return db.inv.materials.filter(function(m){ return m.cup; }); }
-/* Cup counts only verify the shelf. They never change the stock the system holds (db.inv.base); this map is the reference the next cup count is compared against. */
+/* Cup counts only verify the shelf. "Should be" is always the stock the system holds (db.inv.base + stock in + purchases - waste - sales); a count is never the starting point of the next one. Only the Stock count tab (Save count) corrects the system stock. */
 function vBaseMap(){
   var m = {}; db.inv.materials.forEach(function(x){ m[x.id] = db.inv.base[x.id] || {t:0, q:0}; });
-  (db.inv.counts || []).forEach(function(r){ if (!r.kind) return; r.lines.forEach(function(l){ var b = m[l.m]; if (!b || r.t >= b.t) m[l.m] = {t:r.t, q:l.counted}; }); });
   return m;
 }
 /* A damage entered after a cup count that already found those cups missing must not be taken off the next count's reference a second time. */
@@ -1391,11 +1390,10 @@ function countRec(id){ return id ? byId(db.inv.counts, id) : null; }
 /* Should be on a recent count is worked out again from today's bills and recipes (a bill cancelled after the count, a recipe added later), so it matches what the system says now. What was counted never changes and nothing stored is rewritten. Counts older than 3 days stay as they were saved. */
 function cview(rec){
   if (!rec || !rec.lines || !rec.kind || Date.now() - rec.t > 3 * 864e5) return rec;
-  var B = {}; db.inv.materials.forEach(function(m){ B[m.id] = db.inv.base[m.id] || {t:0, q:0}; });
-  (db.inv.counts || []).slice().sort(function(a, b){ return a.t - b.t; }).forEach(function(r){ if (!r.kind || r.t >= rec.t) return; r.lines.forEach(function(l){ B[l.m] = {t:r.t, q:l.counted}; }); });
+  var B = vBaseMap();
   var E = expectedMap(rec.t, B), any = false, k;
   var lines = rec.lines.map(function(l){
-    if (!E[l.m]) return l;
+    if (!E[l.m] || B[l.m].t > rec.t) return l;
     var ne = num(E[l.m].exp); if (ne === num(l.expected)) return l;
     any = true; var n = {}; for (k in l) n[k] = l[k]; n.was = num(l.expected); n.expected = ne; n.diff = num(l.counted - ne); return n; });
   if (!any) return rec;
