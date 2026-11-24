@@ -678,7 +678,7 @@ function invVar(){
     var loss = c.lines.filter(function(l){ return l.diff < 0; }).reduce(function(a,l){ return a - l.diff * l.cost; }, 0);
     var chip = short.length ? '<span class="pill void">'+short.length+' different</span>' : '<span class="pill cash">All match</span>';
     return '<div class="tbl"><h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>Count of '+fdate(c.t)+'</span><small>'+(c.kind ? (c.kind === 'close' ? 'closing count' : 'opening check') : '')+(c.by ? ' · '+esc(c.by) : '')+'</small><span style="flex:1"></span>'+chip+'</h3>'
-      + (c.lines.some(function(l){ return l.adj; }) ? '<div style="color:var(--muted);font-size:13px;padding:6px 16px">Should be lowered after this count: '+c.lines.filter(function(l){ return l.adj; }).map(function(l){ var m = mat(l.m); return esc((m ? m.name : l.m) + ' (bill ' + l.adj + ' cancelled)'); }).join(', ')+'</div>' : '')
+      + (c.lines.some(function(l){ return l.was !== undefined; }) ? '<div style="color:var(--muted);font-size:13px;padding:6px 16px">Should be updated with today\'s bills and recipes: '+c.lines.filter(function(l){ return l.was !== undefined; }).map(function(l){ var m = mat(l.m); return esc((m ? m.name : l.m) + ' ' + num(l.was) + ' \u2192 ' + num(l.expected)); }).join(', ')+'</div>' : '')
       + (cupUnits ? '<div class="vwarn">'+num(cupUnits)+' cups or plates are missing compared with what the sales used. About AED '+money(est)+' of sales may not have been rung up.</div>' : '')
       + (short.length ? table(short) : '')
       + '<details class="vall"><summary>'+(short.length ? 'Show all '+c.lines.length+(c.lines.length === 1 ? ' item' : ' items') : 'Show the '+c.lines.length+(c.lines.length === 1 ? ' counted item' : ' counted items'))+'</summary>'+table(c.lines)+'</details>'
@@ -1388,16 +1388,16 @@ function recordCount(kind, by, day, vals, fill){
   db.inv.counts.push(rec); queueEvent('stock_count', rec); db.lastStaff = by; return rec;
 }
 function countRec(id){ return id ? byId(db.inv.counts, id) : null; }
-/* A bill cancelled after a count was saved: the count keeps what was counted, but 'Should be' drops by what that bill had used, so the difference is true. Display only, nothing stored changes. */
+/* Should be on a recent count is worked out again from today's bills and recipes (a bill cancelled after the count, a recipe added later), so it matches what the system says now. What was counted never changes and nothing stored is rewritten. Counts older than 3 days stay as they were saved. */
 function cview(rec){
-  if (!rec || !rec.lines) return rec;
-  var vs = db.sales.filter(function(s){ return s.void && s.voidT && s.voidT > rec.t && s.t <= rec.t; });
-  if (!vs.length) return rec;
-  var prev = {}; (db.inv.counts || []).forEach(function(r){ if (!r.kind || r.t >= rec.t) return; r.lines.forEach(function(l){ if (prev[l.m] === undefined || r.t >= prev[l.m]) prev[l.m] = r.t; }); });
-  var add = {}, nos = {};
-  vs.forEach(function(s){ s.lines.forEach(function(l){ var r = db.inv.recipes[rkey(l.cat, l.size, l.name)]; if (!r) return;
-    r.forEach(function(x){ var bt = prev[x.m] !== undefined ? prev[x.m] : ((db.inv.base[x.m] || {}).t || 0); if (s.t <= bt) return; add[x.m] = (add[x.m] || 0) + x.q * l.qty; (nos[x.m] = nos[x.m] || {})['#' + s.no] = 1; }); }); });
-  var any = false, k, lines = rec.lines.map(function(l){ if (!add[l.m]) return l; any = true; var n = {}; for (k in l) n[k] = l[k]; n.expected = num(l.expected + add[l.m]); n.diff = num(l.counted - n.expected); n.adj = Object.keys(nos[l.m]).join(', '); return n; });
+  if (!rec || !rec.lines || !rec.kind || Date.now() - rec.t > 3 * 864e5) return rec;
+  var B = {}; db.inv.materials.forEach(function(m){ B[m.id] = db.inv.base[m.id] || {t:0, q:0}; });
+  (db.inv.counts || []).slice().sort(function(a, b){ return a.t - b.t; }).forEach(function(r){ if (!r.kind || r.t >= rec.t) return; r.lines.forEach(function(l){ B[l.m] = {t:r.t, q:l.counted}; }); });
+  var E = expectedMap(rec.t, B), any = false, k;
+  var lines = rec.lines.map(function(l){
+    if (!E[l.m]) return l;
+    var ne = num(E[l.m].exp); if (ne === num(l.expected)) return l;
+    any = true; var n = {}; for (k in l) n[k] = l[k]; n.was = num(l.expected); n.expected = ne; n.diff = num(l.counted - ne); return n; });
   if (!any) return rec;
   var c = {}; for (k in rec) c[k] = rec[k]; c.lines = lines; return c;
 }
