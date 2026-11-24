@@ -1474,7 +1474,7 @@ function vCount(){
   return '<div class="page cntpg"><p style="color:var(--muted);margin:0 0 10px">One count a day, in the morning. If you made a mistake, press Edit count and fix it.</p>'+vOpenCheck(date)+countHistHtml()+'</div>';
 }
 function countInputRows(rec){
-  var E = expectedMap(S.cstart || 0, vBaseMap());
+  rec = cview(rec); var E = expectedMap(S.cstart || 0, vBaseMap());
   return dailyMats().map(function(m){
     var l = rec ? rec.lines.filter(function(x){ return x.m === m.id; })[0] : null, exp = l ? l.expected : E[m.id].exp, st = rec ? S.ecnt : S.ocnt, cur = st[m.id];
     return '<tr><td class="nm">'+esc(m.name)+'</td><td class="n">'+num(exp)+' <small>'+esc(m.unit)+'</small></td><td class="n"><input class="inp" type="number" min="0" step="any" inputmode="decimal" data-f="'+(rec ? 'ec' : 'oc')+'" data-m="'+m.id+'" placeholder="'+num(exp)+'" value="'+esc(cur === undefined ? (rec && l ? num(l.counted) : '') : cur)+'" aria-label="Counted '+esc(m.name)+'"></td></tr>'; }).join('');
@@ -2778,8 +2778,8 @@ document.addEventListener('click', function(e){
     case 'cesave':
       var ern = (cntName()).trim(); if (!ern){ toast('Type your name'); return; }
       var er = (db.days || {})[today()], erc = er && er.openCheck ? countRec(er.openCheck.id) : null; if (!erc) return;
-      var ech = [];
-      erc.lines.forEach(function(l){ var v = S.ecnt[l.m]; if (v === undefined || v === '') return; var c = parseFloat(v); if (isNaN(c) || c === l.counted) return; var m = mat(l.m); ech.push((m ? m.name : l.m) + ' ' + num(l.counted) + ' to ' + num(c)); l.counted = c; l.diff = c - l.expected; });
+      var ech = [], cvx = {}; cview(erc).lines.forEach(function(x){ cvx[x.m] = x.expected; });
+      erc.lines.forEach(function(l){ var v = S.ecnt[l.m]; if (v === undefined || v === '') return; var c = parseFloat(v); if (isNaN(c) || c === l.counted) return; var m = mat(l.m); ech.push((m ? m.name : l.m) + ' ' + num(l.counted) + ' to ' + num(c)); l.counted = c; if (cvx[l.m] !== undefined) l.expected = cvx[l.m]; l.diff = c - l.expected; });
       if (!ech.length){ toast('Nothing was changed'); S.cedit = false; S.ecnt = {}; break; }
       erc.edits = erc.edits || []; erc.edits.push({t:Date.now(), by:ern, ch:ech}); queueEvent('stock_count_edit', {id:erc.id, by:ern, t:Date.now(), lines:erc.lines});
       er.openCheck.shared = null; er.openCheck.edited = {t:Date.now(), by:ern};
