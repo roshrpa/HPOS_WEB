@@ -2466,6 +2466,7 @@ function vSheets(){
       + '</div><button class="btn ghost" style="width:100%" data-act="closesheet">Cancel</button></div></div>';
   }
   if (S.priceForm) return vPriceSheet();
+  if (S.dhOpen) return dhSheet();
   if (S.payForm){
     var pf = S.payForm, ps = byId(db.sales, pf.id);
     if (ps) return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Change payment"><h3>Bill #'+ps.no+' · change payment</h3><p>AED '+money(ps.total)+' is now <b>'+esc(ps.pay)+'</b>. Do you want to change it to <b>'+esc(pf.to)+'</b>? Only the payment type changes: the bill number, items and stock stay the same.</p>'
@@ -2623,6 +2624,7 @@ function discRefresh(){
 }
 document.addEventListener('change', function(e){
   var t = e.target;
+  if (t && t.dataset && t.dataset.f === 'dh'){ S.dh = S.dh || {}; S.dh[t.dataset.k] = t.value; render(); return; }
   if (t && t.dataset && t.dataset.f === 'sdate'){ if (t.dataset.k === 'to') S.rdate2 = t.value; else S.rdate = t.value; if (S.rdate || S.rdate2) S.range = 'date'; else S.range = 'today'; render(); return; }
   if (t.dataset && t.dataset.f === 'logo' && t.files && t.files[0]){
     var fr = new FileReader(); fr.onload = function(){ var im = new Image(); im.onload = function(){
@@ -2967,6 +2969,12 @@ document.addEventListener('click', function(e){
     case 'syncnow': kickSync(); toast(syncOn() ? 'Syncing' : 'Not connected yet'); return;
     case 'synctest': testSync(); return;
     case 'voidopen': if (oldBillLocked(byId(db.sales, d.id))){ toast('Only the Owner can cancel a bill from an earlier day'); break; } S.voidForm = {id:d.id, reason:'', note:'', pin:'', perm:'void'}; break;
+    case 'dhopen': S.dhOpen = true; S.dh = S.dh || {from:'', to:'', diff:false}; break;
+    case 'dhclose': S.dhOpen = false; break;
+    case 'dhclear': S.dh = {from:'', to:'', diff:false}; break;
+    case 'dhdiff': S.dh = S.dh || {}; S.dh.diff = !S.dh.diff; break;
+    case 'dhcsv': var dr0 = [['Saved', 'By', 'Counted', 'Should be', 'Result', 'Period checked', 'Reason']]; dhRows().forEach(function(x){ dr0.push([auditTime(x.t), x.by, x.counted, x.should, x.res, x.period, x.why]); }); csvDownload('drawer-checks.csv', dr0); break;
+    case 'dhprint': printHtml('<h2 style="font-family:sans-serif">Drawer check history · ' + esc(setg().shop) + '</h2><table style="width:100%;border-collapse:collapse;font:12px sans-serif"><tr>' + ['Saved','By','Counted','Should be','Result','Period checked','Reason'].map(function(h){ return '<th style="text-align:left;border-bottom:2px solid #000;padding:4px">' + h + '</th>'; }).join('') + '</tr>' + dhRows().map(function(x){ return '<tr>' + [auditTime(x.t), x.by, x.counted, x.should, x.res, x.period, x.why].map(function(v){ return '<td style="border-bottom:1px solid #ccc;padding:4px">' + esc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>'); break;
     case 'sdtoday': S.rdate2 = today(); if (!S.rdate) S.rdate = today(); S.range = 'date'; break;
     case 'payopen': var po = byId(db.sales, d.id); if (po && payChangeable(po)) S.payForm = {id:po.id, to:po.pay === 'cash' ? 'card' : 'cash', note:''}; else toast('This bill can no longer be changed'); break;
     case 'payclose': S.payForm = null; break;
@@ -5060,11 +5068,28 @@ function mmBox(lbl, d){
   var ok = d === 0, col = ok ? '#0b7a4b' : '#c0182f', bg = ok ? '#e6f6ee' : '#fdecef';
   return '<div style="margin-top:10px;padding:10px 14px;border-radius:12px;font-weight:700;font-size:16px;background:' + bg + ';color:' + col + ';border:1.5px solid ' + col + '">' + lbl + ': ' + (ok ? 'Matches' : (d > 0 ? 'Over by AED ' + money(d) : 'Short by AED ' + money(-d))) + '</div>';
 }
+function dhParse(r){
+  var m = /Counted AED ([\d,.\-]+) · should be ([\d,.\-]+) · (matches|over by [\d,.\-]+|short by [\d,.\-]+) · (.*?)(?: · reason: (.*))?$/.exec(r.d || '');
+  return {t:r.t, by:r.u, counted:m ? m[1] : '', should:m ? m[2] : '', res:m ? m[3] : '', period:m ? m[4] : (r.d || ''), why:m && m[5] ? m[5] : '', bad:!!r.flag};
+}
+function dhRows(){
+  var f = S.dh || {}, a = f.from ? new Date(f.from + 'T00:00:00').getTime() : 0, b = f.to ? new Date(f.to + 'T23:59:59').getTime() : Infinity;
+  return db.audit.filter(function(r){ return r.cat === 'Cash' && r.act === 'Drawer counted' && r.t >= a && r.t <= b; }).map(dhParse).filter(function(x){ return !f.diff || x.res !== 'matches'; }).sort(function(x, y){ return y.t - x.t; });
+}
+function dhSheet(){
+  var f = S.dh || {}, L = dhRows(), th = 'text-align:left;padding:6px 8px;border-bottom:2px solid var(--line);font-size:12px;color:var(--muted)', td = 'padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top';
+  return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Drawer check history" style="max-width:1000px;width:96vw;max-height:92vh;overflow:auto"><h3>Drawer check history</h3>'
+    + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><label style="font-weight:600;font-size:13px">From <input class="inp" type="date" data-f="dh" data-k="from" value="' + esc(f.from || '') + '" style="width:auto"></label><label style="font-weight:600;font-size:13px">To <input class="inp" type="date" data-f="dh" data-k="to" value="' + esc(f.to || '') + '" style="width:auto"></label>'
+    + '<button class="btn ' + (f.diff ? 'primary' : 'ghost') + ' sm" data-act="dhdiff" aria-pressed="' + !!f.diff + '">Over / short only</button><button class="btn ghost sm" data-act="dhclear">Clear</button><span class="sp" style="flex:1"></span><button class="btn ghost sm" data-act="dhcsv">CSV</button><button class="btn ghost sm" data-act="dhprint">Print</button></div>'
+    + '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="' + th + '">Saved</th><th style="' + th + '">By</th><th style="' + th + ';text-align:right">Counted</th><th style="' + th + ';text-align:right">Should be</th><th style="' + th + '">Result</th><th style="' + th + '">Period checked</th><th style="' + th + '">Reason</th></tr></thead><tbody>'
+    + (L.length ? L.map(function(x){ return '<tr style="' + (x.res !== 'matches' ? 'color:#c0182f' : '') + '"><td style="' + td + ';white-space:nowrap">' + auditTime(x.t) + '</td><td style="' + td + '">' + esc(x.by) + '</td><td style="' + td + ';text-align:right">' + esc(x.counted) + '</td><td style="' + td + ';text-align:right">' + esc(x.should) + '</td><td style="' + td + '">' + esc(x.res) + '</td><td style="' + td + '">' + esc(x.period) + '</td><td style="' + td + '">' + esc(x.why) + '</td></tr>'; }).join('') : '<tr><td colspan="7" style="' + td + '">No drawer checks found.</td></tr>')
+    + '</tbody></table><p style="color:var(--muted);font-size:12px;margin:8px 0 0">' + L.length + ' check' + (L.length === 1 ? '' : 's') + '.</p><div class="btns" style="margin-top:12px"><button class="btn primary" data-act="dhclose">Close</button></div></div></div>';
+}
 function drawerChecksHtml(){
   var L = db.audit.filter(function(r){ return r.cat === 'Cash' && r.act === 'Drawer counted'; }).slice(-5).reverse();
   if (!L.length) return '';
   return '<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:8px"><div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px">Recent drawer checks</div>' + L.map(function(r){
-    return '<div style="font-size:12.5px;padding:3px 0;' + (r.flag ? 'color:#c0182f' : '') + '"><b>' + esc(r.u) + '</b> · ' + auditTime(r.t) + '<br><span style="color:var(--muted)">' + esc(r.d) + '</span></div>'; }).join('') + '</div>';
+    return '<div style="font-size:12.5px;padding:3px 0;' + (r.flag ? 'color:#c0182f' : '') + '"><b>' + esc(r.u) + '</b> · ' + auditTime(r.t) + '<br><span style="color:var(--muted)">' + esc(r.d) + '</span></div>'; }).join('') + '<button class="btn ghost sm" data-act="dhopen" style="margin-top:8px">View all history</button></div>';
 }
 function vRange(){
   var N = rgNums(), g = N.g;
