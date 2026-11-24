@@ -1636,7 +1636,9 @@ function headInfo(){
 }
 
 /* ---------- Notifications: bell + reminder popup ---------- */
-var N_DEF = {on:true, every:30, count:{on:true, from:'08:00'}, close:{on:true, from:'22:00'}, low:{on:false}, backup:{on:true}, credit:{on:true}};
+var N_DEF = {on:true, every:30, count:{on:true, from:'08:00', roles:['Manager','Cashier']}, close:{on:true, from:'22:00'}, low:{on:false, roles:['Owner','Manager']}, backup:{on:false, roles:['Owner']}, credit:{on:true, roles:['Owner','Manager']}};
+/* who a reminder is for: the roles ticked on the Reminders page (a custom role that is not Owner/Manager/Cashier follows its permissions only) */
+function nFor(roles, u){ return !roles || !u || ['Owner','Manager','Cashier'].indexOf(u.role) < 0 || roles.indexOf(u.role) >= 0; }
 function ncfg(){ var c = (db.settings && db.settings.notif) || {}, d = N_DEF, o = {on: c.on !== false, every: parseInt(c.every, 10) || d.every, tasks: Array.isArray(c.tasks) ? c.tasks : [], sound: c.sound !== false, tone: ['bell','chime','beep'].indexOf(c.tone) >= 0 ? c.tone : 'bell', vol: ['low','med','high'].indexOf(c.vol) >= 0 ? c.vol : 'med'};
   ['count','close','low','backup','credit'].forEach(function(k){ o[k] = Object.assign({}, d[k], c[k] || {}); }); return o; }
 /* sound for the reminder popup (made in the browser, no sound files) */
@@ -1661,16 +1663,16 @@ function nowHM(){ var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':
 function nList(){
   var c = ncfg(), out = [], u = curUser(); if (!u || !c.on) return out;
   var hm = nowHM();
-  if (c.count.on && can('count') && openCheckPending() && hm >= c.count.from) out.push({key:'count', ic:'inv', title:'Morning cup count not done', sub:'Count the cups and plates for today.', tone:'warn', go:function(){ S.tab = 'count'; S.closeDate = today(); }});
-  var lw = c.low.on && can('stock') ? lowStockInfo() : {out:0,low:0}, ls = lw.out + lw.low;
+  if (c.count.on && can('count') && nFor(c.count.roles, u) && openCheckPending() && hm >= c.count.from) out.push({key:'count', ic:'inv', title:'Morning cup count not done', sub:'Count the cups and plates for today.', tone:'warn', go:function(){ S.tab = 'count'; S.closeDate = today(); }});
+  var lw = c.low.on && can('stock') && nFor(c.low.roles, u) ? lowStockInfo() : {out:0,low:0}, ls = lw.out + lw.low;
   if (ls > 0) out.push({key:'low', ic:'stock', title:lowText(lw), sub:'Open the warehouse.', tone:lw.out ? 'bad' : 'warn', go:function(){ S.tab = 'stock'; }});
-  if (c.backup.on && u.role === 'Owner'){ var age = db.lastBackup ? Math.floor((Date.now() - db.lastBackup) / 864e5) : 999;
+  if (c.backup.on && u.role === 'Owner' && nFor(c.backup.roles, u)){ var age = db.lastBackup ? Math.floor((Date.now() - db.lastBackup) / 864e5) : 999;
     if (age >= 7) out.push({key:'backup', ic:'audit', title:db.lastBackup ? 'No backup for ' + age + ' days' : 'No backup downloaded yet', sub:'Download a backup in Settings.', tone:'', go:function(){ S.tab = 'settings'; }}); }
-  var st = c.credit.on && can('credit') ? creditStats() : null;
+  var st = c.credit.on && can('credit') && nFor(c.credit.roles, u) ? creditStats() : null;
   if (st && st.nod) out.push({key:'credit', ic:'credit', title:'Credit overdue · AED ' + money(st.od), sub:st.nod + ' customer' + (st.nod > 1 ? 's' : ''), tone:'bad', go:function(){ S.tab = 'credit'; S.cc = null; S.ct = 'over'; }});
   var wd = new Date().getDay(), dn = (dayRec(today()).ntDone) || {};
   c.tasks.forEach(function(tk){
-    if (tk.on === false || !tk.title || hm < (tk.from || '00:00') || (tk.days && tk.days.length && tk.days.indexOf(wd) < 0) || dn[tk.id]) return;
+    if (tk.on === false || !tk.title || !nFor(tk.roles, u) || hm < (tk.from || '00:00') || (tk.days && tk.days.length && tk.days.indexOf(wd) < 0) || dn[tk.id]) return;
     out.push({key:'t:' + tk.id, ic:'audit', title:tk.title, sub:'Scheduled task · from ' + (tk.from || '00:00'), tone:'', task:tk.id});
   });
   return out;
@@ -1707,6 +1709,7 @@ function nPanel(){
   return '<div class="npanel"><div class="nph"><b>Notifications</b><span style="display:flex;gap:6px"><button class="btn ghost sm" data-act="nsettings">Settings</button><button class="btn ghost sm" data-act="nbell" aria-label="Close" style="width:34px;padding:0">×</button></span></div>'
     + (l.length ? l.map(function(x){ return '<div class="npi ' + x.tone + '"><div><b>' + esc(x.title) + '</b><small>' + esc(x.sub) + (sn[x.key] > now ? ' · snoozed' : '') + '</small></div><button class="btn primary sm" data-act="ngo" data-k="' + x.key + '">' + (x.task ? 'Done' : 'Open') + '</button></div>'; }).join('') : '<div class="npe">All clear. Nothing needs you right now.</div>') + '</div>';
 }
+function rr(k, roles, id){ var rl = ['Owner','Manager','Cashier'], cur = roles || rl; return '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0 2px"><small style="color:var(--muted)">Show to</small>' + rl.map(function(r){ var on = cur.indexOf(r) >= 0; return '<button class="btn ' + (on ? 'primary' : 'ghost') + ' sm" data-act="ntrole" data-k="' + k + '"' + (id ? ' data-id="' + id + '"' : '') + ' data-r="' + r + '" aria-pressed="' + on + '" style="padding:0 10px">' + r + '</button>'; }).join('') + '</div>'; }
 function nCard(){
   var c = ncfg();
   function sw(on, act, k, title, hint, time){ return '<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)"><div style="flex:1"><b>' + title + '</b><div style="color:var(--muted);font-size:13px;margin-top:2px">' + hint + '</div></div>'
@@ -1720,10 +1723,10 @@ function nCard(){
     + '<select class="inp" style="width:110px" data-f="nset" data-k="vol" aria-label="Volume">' + [['low','Soft'],['med','Medium'],['high','Loud']].map(function(o){ return '<option value="' + o[0] + '"' + (c.vol === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'
     + '<button class="btn ghost sm" data-act="ntest">Test</button>'
     + '<button role="switch" aria-checked="' + c.sound + '" data-act="ntg" data-k="sound" class="btn ' + (c.sound ? 'good' : 'ghost') + ' sm" style="min-width:70px">' + (c.sound ? 'On' : 'Off') + '</button></div>'
-    + sw(c.count.on, 'ntg', 'count', 'Morning cup count', 'Remind from this time until the count is done.', c.count.from)
-    + sw(c.low.on, 'ntg', 'low', 'Low stock', 'Remind while any item is low in the warehouse.')
-    + sw(c.backup.on, 'ntg', 'backup', 'Backup', 'Owner only. Remind when there is no backup for 7 days.')
-    + sw(c.credit.on, 'ntg', 'credit', 'Credit overdue', 'Remind while any customer is overdue.')
+    + sw(c.count.on, 'ntg', 'count', 'Morning cup count', 'Remind from this time until the count is done.', c.count.from) + rr('count', c.count.roles)
+    + sw(c.low.on, 'ntg', 'low', 'Low stock', 'Remind while any item is low in the warehouse.') + rr('low', c.low.roles)
+    + sw(c.backup.on, 'ntg', 'backup', 'Backup', 'Remind the Owner when no backup was downloaded for 7 days. The server also keeps its own backups.')
+    + sw(c.credit.on, 'ntg', 'credit', 'Credit overdue', 'Remind while any customer is overdue.') + rr('credit', c.credit.roles)
     + '</div>';
 }
 function nTasksCard(){
@@ -1732,7 +1735,7 @@ function nTasksCard(){
     + (c.tasks.length ? c.tasks.map(function(tk){ var dl = ['S','M','T','W','T','F','S'];
         return '<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="inp" style="flex:1;min-width:150px" placeholder="e.g. Clean the freezer" data-f="nt" data-id="' + tk.id + '" data-k="title" value="' + esc(tk.title || '') + '"><input class="inp" type="time" style="width:132px" data-f="nt" data-id="' + tk.id + '" data-k="from" value="' + esc(tk.from || '09:00') + '">'
           + '<button class="btn ' + (tk.on !== false ? 'good' : 'ghost') + ' sm" data-act="nttog" data-id="' + tk.id + '" style="min-width:60px">' + (tk.on !== false ? 'On' : 'Off') + '</button><button class="btn ghost sm" data-act="ntdel" data-id="' + tk.id + '" aria-label="Delete">×</button></div>'
-          + '<div style="display:flex;gap:5px;margin-top:8px">' + dl.map(function(l, i){ var on = !tk.days || !tk.days.length || tk.days.indexOf(i) >= 0; return '<button class="btn ' + (on ? 'primary' : 'ghost') + ' sm" data-act="ntday" data-id="' + tk.id + '" data-d="' + i + '" style="min-width:34px;padding:0 8px">' + l + '</button>'; }).join('') + '</div></div>'; }).join('') : '<div style="color:var(--muted);font-size:13px;padding:6px 0">No tasks yet.</div>')
+          + rr('t', tk.roles, tk.id) + '<div style="display:flex;gap:5px;margin-top:8px">' + dl.map(function(l, i){ var on = !tk.days || !tk.days.length || tk.days.indexOf(i) >= 0; return '<button class="btn ' + (on ? 'primary' : 'ghost') + ' sm" data-act="ntday" data-id="' + tk.id + '" data-d="' + i + '" style="min-width:34px;padding:0 8px">' + l + '</button>'; }).join('') + '</div></div>'; }).join('') : '<div style="color:var(--muted);font-size:13px;padding:6px 0">No tasks yet.</div>')
     + '<div class="btns" style="margin-top:10px"><button class="btn ghost sm" data-act="ntadd">+ Add task</button></div>'
     + '</div>';
 }
@@ -2689,6 +2692,8 @@ document.addEventListener('click', function(e){
     case 'ngo': nGo(el.dataset.k); return;
     case 'nsettings': S.nopen = false; S.tab = 'rem'; break;
     case 'ntest': var tc = ncfg(); nBeep(tc.tone, tc.vol); return;
+    case 'ntrole': var nr = d.r, nc2 = ncfg(), tgt = d.id ? nc2.tasks.filter(function(x){ return x.id === d.id; })[0] : nc2[d.k];
+      if (tgt){ var cur2 = (tgt.roles || ['Owner','Manager','Cashier']).slice(), ix = cur2.indexOf(nr); if (ix >= 0) cur2.splice(ix, 1); else cur2.push(nr); tgt.roles = cur2; db.settings.notif = nc2; save(); nBadge(); } break;
     case 'ntg': var nk = el.dataset.k; db.settings.notif = ncfg(); if (nk === 'on') db.settings.notif.on = !db.settings.notif.on; else if (nk === 'sound') db.settings.notif.sound = !db.settings.notif.sound; else db.settings.notif[nk].on = !db.settings.notif[nk].on; save(); break;
     case 'theme': setTheme(themeDark() ? 'light' : 'dark'); break;
     case 'sbtoggle': S.sbOpen = !S.sbOpen; break;
