@@ -1803,10 +1803,12 @@ function payApply(s, to, note, by, t){
   var from = s.pay; if (from === to) return false;
   s.pay = to; s.tendered = to === 'cash' ? s.total : 0; s.payChg = s.payChg || []; s.payChg.push({from:from, to:to, note:note || '', by:by || '', t:t || Date.now()}); return true;
 }
+function billsFrom(){ return S.rdate || S.rdate2 || today(); }
+function billsTo(){ var t = S.rdate2 || today(); return t < billsFrom() ? billsFrom() : t; }
 function billsDay(){ return S.range === 'yest' ? addDays(today(), -1) : (S.range === 'date' && S.rdate) ? S.rdate : today(); }
 function billsMonth(){ var m = today().slice(0, 7); return S.range === 'lmonth' ? addDays(m + '-01', -1).slice(0, 7) : m; }
 function periodSales(){
-  return db.sales.filter(function(s){ return !superseded(s) && (S.range === 'all' || (S.range === 'month' || S.range === 'lmonth' ? sday(s).slice(0, 7) === billsMonth() : sday(s) === billsDay())); });
+  return db.sales.filter(function(s){ return !superseded(s) && (S.range === 'all' || (S.range === 'month' || S.range === 'lmonth' ? sday(s).slice(0, 7) === billsMonth() : S.range === 'date' ? (sday(s) >= billsFrom() && sday(s) <= billsTo()) : sday(s) === billsDay())); });
 }
 /* a bill from an earlier day can be cancelled by the Owner only */
 function oldBillLocked(s){ var u = curUser(); return !!s && s.day !== today() && !(u && u.role === 'Owner'); }
@@ -1829,7 +1831,7 @@ function vSales(){
       + (s.void ? '' : (oldBillLocked(s) ? '<span style="color:var(--muted);font-size:12px">Owner only</span>' : '<button class="btn danger sm" data-act="voidopen" data-id="'+s.id+'">Cancel bill</button>')) + '</td></tr>';
   }).join('');
   function seg(id, label){ return '<button data-act="range" data-id="'+id+'" aria-pressed="'+(S.range===id)+'">'+label+'</button>'; }
-  return '<div class="page"><div class="bar" style="flex-wrap:wrap;align-items:center;gap:10px"><div class="seg">'+seg('today','Today')+seg('yest','Yesterday')+seg('month','This month')+seg('lmonth','Last month')+'</div><span style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600">Date<input class="inp" type="date" data-f="sdate" max="'+today()+'" value="'+(S.range === 'date' ? esc(S.rdate || '') : '')+'" style="width:auto;margin:0"></span>'+(S.range === 'month' || S.range === 'lmonth' ? '<span style="color:var(--muted);font-size:13px">Showing '+esc(billsMonth())+'</span>' : (S.range === 'date' || S.range === 'yest' ? '<span style="color:var(--muted);font-size:13px">Showing '+esc(billsDay())+'</span>' : ''))+'</div><div class="tiles">'+tiles+'</div>'
+  return '<div class="page"><div class="bar" style="flex-wrap:wrap;align-items:center;gap:10px"><div class="seg">'+seg('today','Today')+seg('yest','Yesterday')+seg('month','This month')+seg('lmonth','Last month')+'</div><span style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;flex-wrap:wrap">From<input class="inp" type="date" data-f="sdate" data-k="from" max="'+today()+'" value="'+(S.range === 'date' ? esc(S.rdate || '') : '')+'" style="width:auto;margin:0">To<input class="inp" type="date" data-f="sdate" data-k="to" max="'+today()+'" value="'+(S.range === 'date' ? esc(S.rdate2 || '') : '')+'" style="width:auto;margin:0"><button class="btn ghost sm" data-act="sdtoday" title="Set To = today">Today</button></span>'+(S.range === 'month' || S.range === 'lmonth' ? '<span style="color:var(--muted);font-size:13px">Showing '+esc(billsMonth())+'</span>' : (S.range === 'date' ? '<span style="color:var(--muted);font-size:13px">Showing '+esc(billsFrom())+(billsTo() !== billsFrom() ? ' to '+esc(billsTo()) : '')+'</span>' : (S.range === 'yest' ? '<span style="color:var(--muted);font-size:13px">Showing '+esc(billsDay())+'</span>' : '')))+'</div><div class="tiles">'+tiles+'</div>'
     + (dOut.length ? '<div class="tbl"><h3>Out for delivery ('+dOut.length+')</h3><table><thead><tr><th>No.</th><th>Time</th><th>Customer</th><th>By</th><th class="n">AED</th><th></th></tr></thead><tbody>'+dOut.map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+fdate(s.t)+'</td><td>'+esc(s.dlv.phone || '')+'<div style="font-size:12px;color:var(--muted)">'+esc(s.dlv.addr || '')+'</div></td><td>'+esc(s.dlv.staff || '')+'</td><td class="n">'+money(s.total)+'</td><td class="n"><button class="btn primary sm" data-act="dvcash" data-id="'+esc(s.id)+'">Cash</button> <button class="btn plum sm" data-act="dvcard" data-id="'+esc(s.id)+'">Card</button></td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + '<div class="tbl"><h3>Top items</h3><table><tbody>'+(topRows||'<tr><td>No sales yet.</td></tr>')+'</tbody></table></div>'
     + (voids.length ? '<div class="tbl"><h3>Cancelled bills</h3><table><thead><tr><th>No.</th><th>Time</th><th>Reason</th><th class="n">AED</th></tr></thead><tbody>'+voids.slice().reverse().map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+fdate(s.voidT || s.t)+'</td><td>'+esc(s.voidReason||'')+(s.voidNote?' <span style="color:var(--muted)">· '+esc(s.voidNote)+'</span>':'')+'</td><td class="n">'+money(s.total)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '')
@@ -2621,7 +2623,7 @@ function discRefresh(){
 }
 document.addEventListener('change', function(e){
   var t = e.target;
-  if (t && t.dataset && t.dataset.f === 'sdate'){ if (t.value){ S.rdate = t.value; S.range = 'date'; } else { S.range = 'today'; } render(); return; }
+  if (t && t.dataset && t.dataset.f === 'sdate'){ if (t.dataset.k === 'to') S.rdate2 = t.value; else S.rdate = t.value; if (S.rdate || S.rdate2) S.range = 'date'; else S.range = 'today'; render(); return; }
   if (t.dataset && t.dataset.f === 'logo' && t.files && t.files[0]){
     var fr = new FileReader(); fr.onload = function(){ var im = new Image(); im.onload = function(){
       var sc = Math.min(1, 480 / im.width, 240 / im.height), cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(im.width * sc)); cv.height = Math.max(1, Math.round(im.height * sc));
@@ -2742,7 +2744,7 @@ document.addEventListener('click', function(e){
     case 'closerec': S.receipt = null; break;
     case 'view': S.receipt = d.id; break;
     case 'print': var prs = byId(db.sales, S.receipt); if (prs) audit('Sales', 'Receipt printed', 'Bill #' + prs.no + ' · AED ' + money(prs.total)); if (window.hposPrint && prs){ printBill(prs); S.receipt = null; render(); return; } document.body.classList.add('pr'); try { window.print(); } catch(err){ toast('Printing is not available here'); } document.body.classList.remove('pr'); S.receipt = null; render(); return;
-    case 'range': S.range = d.id; break;
+    case 'range': S.range = d.id; if (d.id !== 'date'){ S.rdate = S.rdate2 = ''; } break;
     case 'addout':
       var coa = parseFloat(document.getElementById('co_a').value);
       if (!(coa > 0)){ toast('Enter the amount'); return; }
@@ -2965,6 +2967,7 @@ document.addEventListener('click', function(e){
     case 'syncnow': kickSync(); toast(syncOn() ? 'Syncing' : 'Not connected yet'); return;
     case 'synctest': testSync(); return;
     case 'voidopen': if (oldBillLocked(byId(db.sales, d.id))){ toast('Only the Owner can cancel a bill from an earlier day'); break; } S.voidForm = {id:d.id, reason:'', note:'', pin:'', perm:'void'}; break;
+    case 'sdtoday': S.rdate2 = today(); if (!S.rdate) S.rdate = today(); S.range = 'date'; break;
     case 'payopen': var po = byId(db.sales, d.id); if (po && payChangeable(po)) S.payForm = {id:po.id, to:po.pay === 'cash' ? 'card' : 'cash', note:''}; else toast('This bill can no longer be changed'); break;
     case 'payclose': S.payForm = null; break;
     case 'payyes': var py = S.payForm && byId(db.sales, S.payForm.id);
