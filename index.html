@@ -2061,7 +2061,7 @@ function ledView(){
   var fq = function(q){ return it.g ? gmQty(q, itTub(it)) : num(q); }, E = ledEntries(it), pick = function(e){ return L.loc === 'wh' ? e.wh : L.loc === 'shop' ? e.sh : e.wh + e.sh; };
   var close = L.loc === 'wh' ? whQty(it.key) : L.loc === 'shop' ? (shopQty(it) || 0) : whQty(it.key) + (shopQty(it) || 0);
   var after = 0, inRange = [], tin = 0, tout = 0;
-  E.forEach(function(e){ var d = pick(e); if (e.t > tTo) after += d; else if (e.t >= tFrom) inRange.push({e:e, d:d}); });
+  E.forEach(function(e){ var d = pick(e); if (e.t > tTo) after += d; else if (e.t >= tFrom && (L.loc === 'all' || d !== 0)) inRange.push({e:e, d:d}); });
   var closeAt = num(close - after), net = inRange.reduce(function(a, r){ return a + r.d; }, 0), open = num(closeAt - net), bal = open;
   var rowsE = [];
   var rows = inRange.map(function(r){
@@ -2640,6 +2640,8 @@ function discRefresh(){
   var nw = document.getElementById('dnew'); if (nw) nw.textContent = 'AED ' + money(sb - dam);
   var ap = document.querySelector('[data-act=discapply]'); if (ap) ap.disabled = !(dv > 0 && reasonOk(df) && pinOk(df));
 }
+/* typing a date year by year fires change on the way (0002, 0020, 0202...); ignore those so the screen is not redrawn under the typing */
+document.addEventListener('change', function(e){ var t = e.target; if (t && t.type === 'date' && t.value && !/^(19[9]\d|20\d\d|21\d\d)-/.test(t.value)) e.stopImmediatePropagation(); }, true);
 document.addEventListener('change', function(e){
   var t = e.target;
   if (t && t.dataset && t.dataset.f === 'dh'){ S.dh = S.dh || {}; S.dh[t.dataset.k] = t.value; render(); return; }
