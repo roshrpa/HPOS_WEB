@@ -666,6 +666,7 @@ function invCount(){
 function invVar(){
   if (!db.inv.counts.length) return '<div class="empty">No stock count yet. Do one in the Stock count tab.</div>';
   return '<div class="vgrid">' + db.inv.counts.slice().reverse().map(function(c){
+    c = cview(c);
     var short = c.lines.filter(function(l){ return l.diff !== 0; });
     function trow(l){
       var m = mat(l.m), cls = l.diff < 0 ? 'dn' : (l.diff > 0 ? 'up' : '');
@@ -677,6 +678,7 @@ function invVar(){
     var loss = c.lines.filter(function(l){ return l.diff < 0; }).reduce(function(a,l){ return a - l.diff * l.cost; }, 0);
     var chip = short.length ? '<span class="pill void">'+short.length+' different</span>' : '<span class="pill cash">All match</span>';
     return '<div class="tbl"><h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>Count of '+fdate(c.t)+'</span><small>'+(c.kind ? (c.kind === 'close' ? 'closing count' : 'opening check') : '')+(c.by ? ' · '+esc(c.by) : '')+'</small><span style="flex:1"></span>'+chip+'</h3>'
+      + (c.lines.some(function(l){ return l.adj; }) ? '<div style="color:var(--muted);font-size:13px;padding:6px 16px">Should be lowered after this count: '+c.lines.filter(function(l){ return l.adj; }).map(function(l){ var m = mat(l.m); return esc((m ? m.name : l.m) + ' (bill ' + l.adj + ' cancelled)'); }).join(', ')+'</div>' : '')
       + (cupUnits ? '<div class="vwarn">'+num(cupUnits)+' cups or plates are missing compared with what the sales used. About AED '+money(est)+' of sales may not have been rung up.</div>' : '')
       + (short.length ? table(short) : '')
       + '<details class="vall"><summary>'+(short.length ? 'Show all '+c.lines.length+(c.lines.length === 1 ? ' item' : ' items') : 'Show the '+c.lines.length+(c.lines.length === 1 ? ' counted item' : ' counted items'))+'</summary>'+table(c.lines)+'</details>'
@@ -1386,8 +1388,21 @@ function recordCount(kind, by, day, vals, fill){
   db.inv.counts.push(rec); queueEvent('stock_count', rec); db.lastStaff = by; return rec;
 }
 function countRec(id){ return id ? byId(db.inv.counts, id) : null; }
-function countShort(rec){ return rec ? rec.lines.filter(function(l){ return num(l.diff) < 0; }).length : 0; }
-function countLoss(rec){ return rec ? rec.lines.filter(function(l){ return l.cup && num(l.diff) < 0; }).reduce(function(a, l){ return a - l.diff * l.avg; }, 0) : 0; }
+/* A bill cancelled after a count was saved: the count keeps what was counted, but 'Should be' drops by what that bill had used, so the difference is true. Display only, nothing stored changes. */
+function cview(rec){
+  if (!rec || !rec.lines) return rec;
+  var vs = db.sales.filter(function(s){ return s.void && s.voidT && s.voidT > rec.t && s.t <= rec.t; });
+  if (!vs.length) return rec;
+  var prev = {}; (db.inv.counts || []).forEach(function(r){ if (!r.kind || r.t >= rec.t) return; r.lines.forEach(function(l){ if (prev[l.m] === undefined || r.t >= prev[l.m]) prev[l.m] = r.t; }); });
+  var add = {}, nos = {};
+  vs.forEach(function(s){ s.lines.forEach(function(l){ var r = db.inv.recipes[rkey(l.cat, l.size, l.name)]; if (!r) return;
+    r.forEach(function(x){ var bt = prev[x.m] !== undefined ? prev[x.m] : ((db.inv.base[x.m] || {}).t || 0); if (s.t <= bt) return; add[x.m] = (add[x.m] || 0) + x.q * l.qty; (nos[x.m] = nos[x.m] || {})['#' + s.no] = 1; }); }); });
+  var any = false, k, lines = rec.lines.map(function(l){ if (!add[l.m]) return l; any = true; var n = {}; for (k in l) n[k] = l[k]; n.expected = num(l.expected + add[l.m]); n.diff = num(l.counted - n.expected); n.adj = Object.keys(nos[l.m]).join(', '); return n; });
+  if (!any) return rec;
+  var c = {}; for (k in rec) c[k] = rec[k]; c.lines = lines; return c;
+}
+function countShort(rec){ rec = cview(rec); return rec ? rec.lines.filter(function(l){ return num(l.diff) < 0; }).length : 0; }
+function countLoss(rec){ rec = cview(rec); return rec ? rec.lines.filter(function(l){ return l.cup && num(l.diff) < 0; }).reduce(function(a, l){ return a - l.diff * l.avg; }, 0) : 0; }
 function lastCloseCount(){
   var ks = Object.keys(db.days || {}).filter(function(k){ return k < today() && db.days[k].closeCount; }).sort();
   return ks.length ? {day:ks[ks.length - 1], rec:countRec(db.days[ks[ks.length - 1]].closeCount.id)} : null;
@@ -1410,16 +1425,18 @@ function healCounts(){
   return ch;
 }
 function countTable(rec){
-  if (!rec) return '';
+  rec = cview(rec); if (!rec) return '';
   var rows = rec.lines.map(function(l){ var m = mat(l.m), d = num(l.diff);
     return '<tr><td>'+esc(m ? m.name : l.m)+'</td><td class="n">'+num(l.expected)+'</td><td class="n">'+num(l.counted)+'</td><td class="n" style="'+(d < 0 ? 'color:var(--pink-dk);font-weight:700' : (d > 0 ? 'color:var(--done);font-weight:700' : ''))+'">'+(d > 0 ? '+' : '')+d+'</td></tr>'; }).join('');
   return '<table style="margin-top:8px"><thead><tr><th>Material</th><th class="n">Should be</th><th class="n">Counted</th><th class="n">Difference</th></tr></thead><tbody>'+rows+'</tbody></table>';
 }
 function countSummary(rec){
+  rec = cview(rec);
   var sh = countShort(rec), loss = countLoss(rec);
   return 'Counted by <b>'+esc(rec.by || '-')+'</b> at '+fdate(rec.t)+' · '+(sh ? '<span style="background:var(--pink-dk);color:#fff;font-weight:800;padding:2px 10px;border-radius:99px">'+sh+(sh === 1 ? ' item' : ' items')+' short</span>' : '<span style="color:var(--done);font-weight:700">everything matches</span>')+(loss > 0 ? ' · possible unbilled sales about AED '+money(loss) : '');
 }
 function countWaText(rec, title, date){
+  rec = cview(rec);
   var sh = rec.lines.filter(function(l){ return num(l.diff) !== 0; }), loss = countLoss(rec);
   var t = '*Hollywood Ice Creams* - ' + title + '\n' + date + ' · counted by ' + (rec.by || '-') + ' at ' + fdate(rec.t) + '\n\n';
   if (rec.edits && rec.edits.length){ var le = rec.edits[rec.edits.length - 1]; t += '✏️ *EDITED* by ' + le.by + ' at ' + fdate(le.t) + ': ' + le.ch.join(', ') + '\n\n'; }
@@ -1529,7 +1546,7 @@ function dayReportHtml(date){
     + (dayExp.length ? '<div style="font-size:11px;text-align:right;margin-top:3px">Total AED '+money(T.all)+' · counter cash '+money(T.cash)+' · bank '+money(T.bank)+'</div>' : '')
     + (useRows ? sec('Cups, lids and plates used') + tbl(['Material','>Used'], useRows, '') : '')
     + (function(){ var cr = countRec(R.closeCount && R.closeCount.id), orr = countRec(R.openCheck && R.openCheck.id), h = '';
-        function ct(rec){ return tbl(['Material','>Should be','>Counted','>Difference'], rec.lines.map(function(l){ var m = mat(l.m), d = num(l.diff); return '<tr><td style="'+td+'">'+esc(m ? m.name : l.m)+'</td><td style="'+tr+'">'+num(l.expected)+'</td><td style="'+tr+'">'+num(l.counted)+'</td><td style="'+tr+(d < 0 ? ';font-weight:700' : '')+'">'+(d > 0 ? '+' : '')+d+'</td></tr>'; }).join(''), ''); }
+        function ct(rec){ rec = cview(rec); return tbl(['Material','>Should be','>Counted','>Difference'], rec.lines.map(function(l){ var m = mat(l.m), d = num(l.diff); return '<tr><td style="'+td+'">'+esc(m ? m.name : l.m)+'</td><td style="'+tr+'">'+num(l.expected)+'</td><td style="'+tr+'">'+num(l.counted)+'</td><td style="'+tr+(d < 0 ? ';font-weight:700' : '')+'">'+(d > 0 ? '+' : '')+d+'</td></tr>'; }).join(''), ''); }
         function cl(rec){ return '<div style="font-size:11px;margin-bottom:3px">Counted by '+esc(rec.by || '-')+' at '+esc(fdate(rec.t))+' \u00b7 '+(countShort(rec) ? countShort(rec)+' items short' : 'everything matches')+(countLoss(rec) > 0 ? ' \u00b7 possible unbilled sales about AED '+money(countLoss(rec)) : '')+'</div>'; }
         if (cr) h += sec('Cups and plates count at closing') + cl(cr) + ct(cr);
         if (orr) h += sec('Morning cup count') + cl(orr) + ct(orr);
@@ -2408,6 +2425,7 @@ function cwaRec(k){ if (String(k).charAt(0) === 'h'){ var id = +String(k).slice(
 function cwaSheet(){
   var k = S.cwa, rec = cwaRec(k), title = rec && rec.kind === 'open' ? 'Morning cup count' : 'Stock count at closing';
   if (!rec) return '';
+  rec = cview(rec);
   var bad = rec.lines.filter(function(l){ return num(l.diff) !== 0; }), sh = countShort(rec), loss = countLoss(rec);
   var banner = !bad.length ? '<div style="background:var(--done-bg);color:var(--done);border-radius:12px;padding:12px 14px;font-weight:800;font-size:16px">Everything matches</div>'
     : '<div style="background:var(--pink-dk);color:#fff;border-radius:12px;padding:12px 14px"><div style="font-weight:800;font-size:17px">'+(sh ? sh+(sh === 1 ? ' item' : ' items')+' short' : 'Extra items found')+'</div>'+(loss > 0 ? '<div style="font-weight:700;margin-top:2px">Possible unbilled sales about AED '+money(loss)+'</div>' : '')+'</div>';
