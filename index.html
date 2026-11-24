@@ -3887,7 +3887,7 @@ function recentBills(){
   if (!L.length) return '<div class="empty">No bills yet.</div>';
   return '<div class="tblwrap"><table class="dtbl"><thead><tr><th>Bill</th><th>Time</th><th>Items</th><th>Payment</th><th>Status</th><th class="n">Total</th><th></th></tr></thead><tbody>' + L.map(function(s){
     var q = s.lines.reduce(function(a, l){ return a + l.qty; }, 0), pay = payLabel(s);
-    return '<tr><td><b>#'+esc(String(s.dev ? s.dev + '-' + s.no : s.no))+'</b></td><td>'+new Date(s.t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'})+'</td><td>'+q+' item'+(q === 1 ? '' : 's')+'</td><td>'+pay+(s.custName ? ' · '+esc(s.custName) : '')+'</td><td>'+(s.void ? '<span class="st bad"><i></i>Cancelled</span>' : '<span class="st ok"><i></i>Paid</span>')+'</td><td class="n">'+money(s.total)+'</td><td class="n"><button class="btn sm ghost" data-act="view" data-id="'+esc(s.id)+'">View</button></td></tr>';
+    return '<tr><td><b>#'+esc(String(s.dev ? s.dev + '-' + s.no : s.no))+'</b></td><td>'+fdate(s.t)+'</td><td>'+q+' item'+(q === 1 ? '' : 's')+'</td><td>'+pay+(s.custName ? ' · '+esc(s.custName) : '')+'</td><td>'+(s.void ? '<span class="st bad"><i></i>Cancelled</span>' : '<span class="st ok"><i></i>Paid</span>')+'</td><td class="n">'+money(s.total)+'</td><td class="n"><button class="btn sm ghost" data-act="view" data-id="'+esc(s.id)+'">View</button></td></tr>';
   }).join('') + '</tbody></table></div>';
 }
 function vDash(){
