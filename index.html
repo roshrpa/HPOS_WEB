@@ -405,7 +405,7 @@ var uidn = 0;
 function uid(p){ return p + (++uidn) + Math.random().toString(36).slice(2,5); }
 function sizes(list){ return list.map(function(s){ return {id:uid('s'), label:s[0], price:s[1]}; }); }
 function it(name, ar, img, o){ o = o || {}; return {id:uid('i'), name:name, ar:ar||'', img:img||'', desc:o.desc||'', tag:o.tag||'', off:false, prices:o.prices||null}; }
-function cat(name, ar, img, sz, items){ return {id:uid('c'), name:name, ar:ar||'', img:img||'', sizes:sizes(sz), items:items}; }
+function cat(name, ar, img, sz, items){ return {id:uid('c'), name:name, ar:ar||'', img:img||'', sizes:sizes(sz), items:items, recItem:/catering|combo/i.test(String(name || ''))}; }
 
 function defaultMenu(){
   var m = [];
@@ -557,7 +557,26 @@ if (db.stockSeed !== 1){ db.stock = {}; menu.forEach(function(c){ c.items.forEac
 function num(n){ return Math.round(n * 100) / 100; }
 /* one-time fix: untouched starting stock counts every sale (it used to start at first-open time, so earlier sales were skipped) */
 if (db.inv && db.inv.base && db.invBaseFix !== 1){ db.invBaseFix = 1; var cts = (db.inv.counts || []).map(function(c){ return c.t; }); Object.keys(db.inv.base).forEach(function(k){ var b = db.inv.base[k]; if (b && b.t && cts.indexOf(b.t) < 0) b.t = 0; }); save(); }
-function recPerItem(cat){ return /catering|combo/i.test(String(cat || '')); }   /* catering boxes and combo offers differ from each other, so each one has its own recipe */
+/* Each menu category has a switch (recItem): ON = every item has its own recipe (combos, boxes), OFF = one recipe per size for the whole category. Categories made before the switch existed get it once from their old name rule (combo / catering) and keep it from then on. */
+function recPerItem(cat){
+  var c = null; try { c = menu.filter(function(x){ return x.name === cat; })[0]; } catch(e){}
+  if (c && typeof c.recItem === 'boolean') return c.recItem;
+  return /catering|combo/i.test(String(cat || ''));
+}
+function stampRec(){ try { menu.forEach(function(c){ if (typeof c.recItem !== 'boolean') c.recItem = /catering|combo/i.test(String(c.name || '')); }); } catch(e){} }
+stampRec();
+function recBase(name){ return (name === 'Mini Melts Ice Cream' || name === 'Minimals Ice Cream') ? 'Minimelts Ice Cream' : name; }
+function recHas(c){ var b = recBase(c.name) + '|', R = db.inv.recipes || {}; return Object.keys(R).some(function(k){ return k.indexOf(b) === 0 && (R[k] || []).length; }); }
+/* switching copies the recipes over, nothing is deleted, so turning it back restores them */
+function recSwitch(c, to){
+  var R = db.inv.recipes = db.inv.recipes || {}, b = recBase(c.name), cp = function(l){ return l.map(function(x){ return {m:x.m, q:x.q}; }); };
+  c.sizes.forEach(function(sz){
+    var sk = b + '|' + (sz.label || '');
+    if (to){ var l = R[sk]; if (l && l.length) c.items.forEach(function(it){ var ik = sk + '|' + it.name; if (!R[ik] || !R[ik].length) R[ik] = cp(l); }); }
+    else if (!R[sk] || !R[sk].length){ var f = null; c.items.forEach(function(it){ var l2 = R[sk + '|' + it.name]; if (!f && l2 && l2.length) f = l2; }); if (f) R[sk] = cp(f); }
+  });
+  c.recItem = to; save(); saveMenu();
+}
 function rkey(cat, size, name){ return ((cat === 'Mini Melts Ice Cream' || cat === 'Minimals Ice Cream') ? 'Minimelts Ice Cream' : cat) + '|' + (size || '') + (name && recPerItem(cat) ? '|' + name : ''); }
 function mat(id){ return byId(db.inv.materials, id); }
 function usageMap(asOf, B){
@@ -912,7 +931,7 @@ async function runSync(){
 }
 var IS_POS_APP = true;
 function applyServerMenu(list){
-  menu = list; dirty = true; flushMenu(); try { pruneStock(); } catch(e){}
+  menu = list; stampRec(); dirty = true; flushMenu(); try { pruneStock(); } catch(e){}
   try { menuPrev = menuSnap(); } catch(e){}   /* a menu that arrived from another device is not this user's edit */
   if (!byId(menu, S.edCat)) S.edCat = menu[0].id;
   if (S.cat && !byId(menu, S.cat)) S.cat = menu[0].id;
@@ -1260,7 +1279,8 @@ function vMenu(){
     + '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="pickimg" data-id="">Change picture</button>'
     + (c.img ? '<button class="btn ghost sm" data-act="noimg" data-id="">Remove</button>' : '')
     + '<button class="btn ghost sm" data-act="catup"'+(menu.indexOf(c)===0?' disabled':'')+'>Move up</button><button class="btn ghost sm" data-act="catdown"'+(menu.indexOf(c)===menu.length-1?' disabled':'')+'>Move down</button></div></div>'
-    + '<div class="fgrid" style="margin-top:12px">'+fld('Name','<input class="inp" data-f="cname" value="'+esc(c.name)+'">')+fld('Arabic name','<input class="inp ar" data-f="car" value="'+esc(c.ar)+'">')+'</div></div>'
+    + '<div class="fgrid" style="margin-top:12px">'+fld('Name','<input class="inp" data-f="cname" value="'+esc(c.name)+'">')+fld('Arabic name','<input class="inp ar" data-f="car" value="'+esc(c.ar)+'">')+'</div>'
+    + '<label style="display:flex;gap:10px;align-items:flex-start;margin-top:14px;cursor:pointer"><input type="checkbox" data-f="crec"'+(recPerItem(c.name)?' checked':'')+' style="margin-top:3px"><span><b>Separate recipe for each item</b><br><small style="color:var(--muted)">On: Usage &amp; count \u2192 Recipes shows a card for every item (combos, boxes). Off: one recipe per size, the same for every item in this category.</small></span></label></div>'
     + '<div class="card"><h3>Sizes and prices (AED)</h3>'+sizesHtml+'<button class="btn ghost sm" data-act="addsize">+ Add size</button>'
     + '<p style="color:var(--muted);font-size:13px;margin:10px 0 0">These prices apply to every item. To give one item a different price, type it in that item below. Leave the size name blank if the category has only one size.</p></div>'
     + chPricesCard(c)
@@ -2436,6 +2456,13 @@ function cwaSheet(){
     + '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="ccwasend" data-k="'+k+'" style="background:#25d366;border-color:#25d366;color:#fff">Send on WhatsApp</button>'+(navigator.share ? ' <button class="btn ghost" data-act="ccshare" data-k="'+k+'">Share...</button>' : '')+' <button class="btn ghost" data-act="ccwaclose">Close</button></div></div></div>';
 }
 function vSheets(){
+  if (S.recSw){
+    var rw = S.recSw, rcat = byId(menu, rw.id); if (!rcat){ S.recSw = null; }
+    else return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Change recipe type" style="max-width:480px"><h3>'+esc(rcat.name)+' \u00b7 recipes in use</h3>'
+      + '<p style="font-size:16px">This category already has recipes. '+(rw.to ? 'Each item will get its own copy of the size recipe, so the stock used stays the same today. Edit them one by one afterwards.' : 'The whole category will use one recipe per size. If the items have different recipes, the first item\u2019s recipe is used for all of them.')+'</p>'
+      + '<p style="color:var(--muted)">Nothing is deleted, turning it back restores the other recipes. Bills sold earlier are counted with the recipe that applies now, so stock figures for earlier days can change'+(rw.to ? ' only if you edit the item recipes' : ' if the items had different recipes')+'.</p>'
+      + '<div class="btns" style="margin-top:12px"><button class="btn ghost" data-act="recswno">Cancel</button><button class="btn primary" data-act="recswyes">'+(rw.to ? 'Turn on and copy recipes' : 'Turn off')+'</button></div></div></div>';
+  }
   if (S.cask){
     var ckind = S.cask === 'ocsave' ? 'Morning cup count' : (S.cask === 'ccsave' ? 'Closing stock count' : 'Count correction');
     return '<div class="scrim"><div class="sheet" role="dialog" aria-label="Confirm count" style="max-width:480px"><h3>'+ckind+' · confirm</h3><p style="font-size:17px">I, <b>'+esc(cntName())+'</b>, have already counted the cups, plates and other items on the shelf, and the numbers are correct. I confirm this count now.</p><p style="color:var(--muted)">This is recorded with your name and the time.</p><div class="btns" style="margin-top:16px"><button class="btn ghost" data-act="caskno">No, go back</button><button class="btn primary" data-act="caskyes">Yes, I counted. Confirm</button></div></div></div>';
@@ -2668,6 +2695,7 @@ document.addEventListener('change', function(e){
   if (t.dataset && t.dataset.f === 'munit'){ render(); }
   if (t.dataset && t.dataset.f === 'choff'){ var it1 = byId(edCat().items, t.dataset.id), ce1 = S.chedit || (chans()[0] || {}).id; if (it1 && ce1){ it1.chOff = it1.chOff || {}; if (t.checked) it1.chOff[ce1] = 1; else delete it1.chOff[ce1]; saveMenu(); } }
   if (t.dataset && t.dataset.f === 'ctrack'){ edCat().track = t.checked; saveMenu(); pruneStock(); render(); return; }
+  if (t.dataset && t.dataset.f === 'crec'){ var rc = edCat(), rto = !!t.checked; if (rto === recPerItem(rc.name)) return; if (recHas(rc)) S.recSw = {id:rc.id, to:rto}; else recSwitch(rc, rto); render(); return; }
   if (t.dataset && t.dataset.f === 'ioff'){ byId(edCat().items, t.dataset.id).off = t.checked; saveMenu(); }
   if (t.id === 'file' && t.files && t.files[0]) readPicture(t.files[0]);
 });
@@ -2955,6 +2983,8 @@ document.addEventListener('click', function(e){
       });
       if (!lines.length){ toast('Type at least one count'); return; }
       var rec = {id:now, t:now, lines:lines}; db.inv.counts.push(rec); queueEvent('stock_count', rec); S.lastCount = rec.id; S.cnt = {}; save(); break;
+    case 'recswno': S.recSw = null; break;
+    case 'recswyes': var rsc = S.recSw && byId(menu, S.recSw.id); if (rsc) recSwitch(rsc, S.recSw.to); S.recSw = null; toast('Recipes updated'); break;
     case 'edcat': S.edCat = d.id; S.del = null; break;
     case 'addcat': c = cat('New category', '', '', [['', 0]], []); menu.push(c); S.edCat = c.id; saveMenu(); break;
     case 'catup': c = edCat(); var i0 = menu.indexOf(c); if (i0 > 0) swap(menu, i0, i0 - 1); saveMenu(); break;
