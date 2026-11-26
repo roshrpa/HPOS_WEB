@@ -1869,6 +1869,7 @@ function vSales(){
   return '<div class="page"><div class="bar" style="flex-wrap:wrap;align-items:center;gap:10px"><div class="seg">'+seg('today','Today')+seg('yest','Yesterday')+seg('month','This month')+seg('lmonth','Last month')+'</div><span style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;flex-wrap:wrap">From<input class="inp" type="date" data-f="sdate" data-k="from" max="'+today()+'" value="'+(S.range === 'date' ? esc(S.rdate || '') : '')+'" style="width:auto;margin:0">To<input class="inp" type="date" data-f="sdate" data-k="to" max="'+today()+'" value="'+(S.range === 'date' ? esc(S.rdate2 || '') : '')+'" style="width:auto;margin:0"><button class="btn ghost sm" data-act="sdtoday" title="Set To = today">Today</button></span>'+(S.range === 'month' || S.range === 'lmonth' ? '<span style="color:var(--muted);font-size:13px">Showing '+esc(billsMonth())+'</span>' : (S.range === 'date' ? '<span style="color:var(--muted);font-size:13px">Showing '+esc(billsFrom())+(billsTo() !== billsFrom() ? ' to '+esc(billsTo()) : '')+'</span>' : (S.range === 'yest' ? '<span style="color:var(--muted);font-size:13px">Showing '+esc(billsDay())+'</span>' : '')))+'</div><div class="tiles">'+tiles+'</div>'
     + (dOut.length ? '<div class="tbl"><h3>Out for delivery ('+dOut.length+')</h3><table><thead><tr><th>No.</th><th>Time</th><th>Customer</th><th>By</th><th class="n">AED</th><th></th></tr></thead><tbody>'+dOut.map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+fdate(s.t)+'</td><td>'+esc(s.dlv.phone || '')+'<div style="font-size:12px;color:var(--muted)">'+esc(s.dlv.addr || '')+'</div></td><td>'+esc(s.dlv.staff || '')+'</td><td class="n">'+money(s.total)+'</td><td class="n"><button class="btn primary sm" data-act="dvcash" data-id="'+esc(s.id)+'">Cash</button> <button class="btn plum sm" data-act="dvcard" data-id="'+esc(s.id)+'">Card</button></td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + '<div class="tbl"><h3>Top items</h3><table><tbody>'+(topRows||'<tr><td>No sales yet.</td></tr>')+'</tbody></table></div>'
+    + sizeCard(ok)
     + (voids.length ? '<div class="tbl"><h3>Cancelled bills</h3><table><thead><tr><th>No.</th><th>Time</th><th>Reason</th><th class="n">AED</th></tr></thead><tbody>'+voids.slice().reverse().map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+fdate(s.voidT || s.t)+'</td><td>'+esc(s.voidReason||'')+(s.voidNote?' <span style="color:var(--muted)">· '+esc(s.voidNote)+'</span>':'')+'</td><td class="n">'+money(s.total)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + (ok.some(function(s){ return s.discount > 0; }) ? '<div class="tbl"><h3>Discounts given</h3><table><thead><tr><th>No.</th><th>Time</th><th>Reason</th><th class="n">Before</th><th class="n">Discount</th></tr></thead><tbody>'+ok.filter(function(s){ return s.discount > 0; }).reverse().map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+fdate(s.t)+'</td><td>'+esc(s.discReason||'')+(s.discNote?' <span style="color:var(--muted)">· '+esc(s.discNote)+'</span>':'')+'</td><td class="n">'+money(s.subtotal)+'</td><td class="n">'+money(s.discount)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + '<div class="tbl"><h3>Bills</h3><table><thead><tr><th>No.</th><th>Time</th><th>Items</th><th>Payment</th><th class="n">AED</th><th></th></tr></thead><tbody>'+(rows||'<tr><td colspan="6">No bills yet.</td></tr>')+'</tbody></table></div></div>';
@@ -5046,6 +5047,27 @@ function rgState(){
   return S.rg;
 }
 function itmList(N, k){ var o = (N.itm || {})[k] || {}; return Object.keys(o).sort(function(a, b){ return o[b].amt - o[a].amt; }).map(function(n){ return {n:n, qty:o[n].qty, amt:o[n].amt}; }); }
+/* Units and AED per category and size (S / M / L), every flavour together. Cancelled bills are not passed in. */
+function sizeSales(list){
+  var m = {}, order = {}, so = {};
+  menu.forEach(function(c, i){ order[c.name] = i; so[c.name] = {}; c.sizes.forEach(function(z, j){ so[c.name][z.label || ''] = j; }); });
+  (list || []).forEach(function(sl){ (sl.lines || []).forEach(function(l){
+    var k = l.cat + '\u0001' + (l.size || ''); m[k] = m[k] || {cat:l.cat, size:l.size || '', qty:0, amt:0}; m[k].qty += l.qty; m[k].amt += l.qty * l.price; }); });
+  return Object.keys(m).map(function(k){ return m[k]; }).sort(function(a, b){
+    var ca = order[a.cat] === undefined ? 999 : order[a.cat], cb = order[b.cat] === undefined ? 999 : order[b.cat];
+    if (ca !== cb) return ca - cb; if (a.cat !== b.cat) return a.cat < b.cat ? -1 : 1;
+    var sa = (so[a.cat] || {})[a.size], sb = (so[b.cat] || {})[b.size]; return (sa === undefined ? 99 : sa) - (sb === undefined ? 99 : sb); });
+}
+function sizeLabel(r){ return r.size || 'one size'; }
+function sizeRowsHtml(rows, cls){   /* cls 'scr' = app tables */
+  var last = ''; return rows.map(function(r){ var first = r.cat !== last; last = r.cat;
+    return '<tr><td>' + (first ? '<b>' + esc(r.cat) + '</b>' : '') + '</td><td>' + esc(sizeLabel(r)) + '</td><td class="n">' + r.qty + '</td><td class="n">' + money(r.amt) + '</td></tr>'; }).join('');
+}
+function sizeCard(list, title){
+  var rows = sizeSales(list);
+  return '<div class="tbl"><h3>' + (title || 'Sales by size') + ' <small style="font-weight:400;color:var(--muted)">all flavours together</small></h3>'
+    + (rows.length ? '<table><thead><tr><th>Category</th><th>Size</th><th class="n">Qty</th><th class="n">AED</th></tr></thead><tbody>' + sizeRowsHtml(rows) + '</tbody></table>' : '<p style="padding:12px 16px;margin:0;color:var(--muted)">No sales.</p>') + '</div>';
+}
 function rgNums(){
   var g = rgState(), a = new Date(g.from).getTime(), b = new Date(g.to).getTime() + 59999; if (isNaN(a)) a = 0; if (isNaN(b)) b = Date.now();
   var inR = function(t){ return t >= a && t <= b; };
@@ -5086,6 +5108,7 @@ function rgText(N){
   if (N.diff !== null) L.push('Cash counted: ' + money(parseFloat(N.g.counted)) + ' (' + diffText(N.diff) + ')');
   if (N.cardDiff !== null) L.push('Card machine total: ' + money(parseFloat(N.g.card)) + ' (' + diffText(N.cardDiff) + ')');
   L.push('', 'By category and item:'); Object.keys(N.cat).forEach(function(k){ L.push('  ' + k + ': ' + N.cat[k].qty + ' items, AED ' + money(N.cat[k].amt)); itmList(N, k).forEach(function(i){ L.push('      ' + i.n + ': ' + i.qty + ', AED ' + money(i.amt)); }); });
+  var szr = sizeSales(N.ok); if (szr.length){ L.push('', 'By size (all flavours together):'); var lc = ''; szr.forEach(function(r){ if (r.cat !== lc){ L.push('  ' + r.cat); lc = r.cat; } L.push('      ' + sizeLabel(r) + ': ' + r.qty + ', AED ' + money(r.amt)); }); }
   if (N.voids.length){ L.push('', 'Cancelled bills: ' + N.voids.length + ' (AED ' + money(N.voidTot) + ')'); N.voids.forEach(function(s){ L.push('  #' + s.no + ' - AED ' + money(s.total), '    Reason: ' + voidWhy(s), '    ' + voidInfo(s)); voidItems(s).forEach(function(x){ L.push('    ' + x); }); }); }
   if (N.exps.length){ L.push('', 'Cash expenses:'); N.exps.forEach(function(e){ L.push('  AED ' + money(e.amt) + ' - ' + xLabel(e)); }); }
   if (N.g.note) L.push('', 'Note: ' + N.g.note);
@@ -5117,6 +5140,7 @@ function rgPrintHtml(N){
     + sec('Payments', T) + kv([['Cash', 'AED ' + money(N.cash)], ['Card', 'AED ' + money(N.card)], N.credit > 0 ? ['Credit', 'AED ' + money(N.credit)] : null].concat(N.online.map(function(o){ return [esc(o.name) + ' (paid later)', 'AED ' + money(o.amt)]; })).concat([['Total', 'AED ' + money(N.net), true]])) + '</div>'
     + '<div style="flex:1">' + sec('Drawer check', '#c0182f') + drawer + '</div></div>'
     + sec('Sales by category and item') + catTbl
+    + (function(){ var rr = sizeSales(N.ok); if (!rr.length) return ''; var lc = ''; return sec('Sales by size (all flavours together)') + '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="' + td + ';text-align:left;color:' + MUT + '">Category</th><th style="' + td + ';text-align:left;color:' + MUT + '">Size</th><th style="' + td + ';text-align:right;color:' + MUT + '">Qty</th><th style="' + td + ';text-align:right;color:' + MUT + '">AED</th></tr></thead><tbody>' + rr.map(function(r){ var f = r.cat !== lc; lc = r.cat; return '<tr><td style="' + td + '">' + (f ? '<b>' + esc(r.cat) + '</b>' : '') + '</td><td style="' + td + '">' + esc(sizeLabel(r)) + '</td><td style="' + tr + '">' + r.qty + '</td><td style="' + tr + '">' + money(r.amt) + '</td></tr>'; }).join('') + '</tbody></table>'; })()
     + (N.voids.length ? sec('Cancelled bills', '#c0182f') + '<table style="width:100%;border-collapse:collapse"><tbody>' + N.voids.map(function(s){ return '<tr><td style="' + td + ';vertical-align:top">#' + s.no + '</td><td style="' + td + '"><b>' + esc(voidWhy(s)) + '</b><br><span style="color:' + MUT + '">' + esc(voidInfo(s)) + '</span><br>' + voidItems(s).map(esc).join('<br>') + '</td><td style="' + tr + ';vertical-align:top">' + money(s.total) + '</td></tr>'; }).join('') + '</tbody></table>' : '')
     + sec('Expenses', '#f2b01e') + expTbl
     + (g.note ? sec('Reason / note', '#c0182f') + '<div style="font-size:12px;white-space:pre-wrap">' + esc(g.note) + '</div>' : '')
@@ -5174,6 +5198,7 @@ function vRange(){
     + drawerChecksHtml() + '</div>'
     + (N.voids.length ? '<div class="card"><h3>Cancelled bills <span style="font-weight:400;color:var(--muted);font-size:13px">' + N.voids.length + ' · AED ' + money(N.voidTot) + '</span></h3><table class="tbl" style="width:100%">' + N.voids.map(function(s){ return '<tr><td style="vertical-align:top">#' + s.no + '</td><td><b>' + esc(voidWhy(s)) + '</b><br><span style="color:var(--muted);font-size:12px">' + esc(voidInfo(s)) + '</span><div style="font-size:13px;margin-top:3px">' + voidItems(s).map(esc).join('<br>') + '</div></td><td class="n" style="vertical-align:top">' + money(s.total) + '</td></tr>'; }).join('') + '</table></div>' : '')
     + '<div class="card"><h3>By category and item</h3><table class="tbl" style="width:100%">' + catRows + '</table></div>'
+    + '<div class="card"><h3>Sales by size <span style="font-weight:400;color:var(--muted);font-size:13px">all flavours together</span></h3>' + (sizeSales(N.ok).length ? '<table class="tbl" style="width:100%"><thead><tr><th style="text-align:left">Category</th><th style="text-align:left">Size</th><th class="n">Qty</th><th class="n">AED</th></tr></thead><tbody>' + sizeRowsHtml(sizeSales(N.ok)) + '</tbody></table>' : '<p style="margin:0;color:var(--muted)">No sales.</p>') + '</div>'
     + '<div class="card"><h3>Cash expenses in this period</h3>' + (expRows ? '<table class="tbl" style="width:100%">' + expRows + row('<b>Total</b>', '<b>' + money(N.expOut) + '</b>') + '</table>' : '<p style="margin:0;color:var(--muted)">No expenses were recorded for this period.</p>') + '</div>'
     + '</div></div>';
 }
