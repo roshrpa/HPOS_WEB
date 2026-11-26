@@ -1868,8 +1868,8 @@ function vSales(){
   function seg(id, label){ return '<button data-act="range" data-id="'+id+'" aria-pressed="'+(S.range===id)+'">'+label+'</button>'; }
   return '<div class="page"><div class="bar" style="flex-wrap:wrap;align-items:center;gap:10px"><div class="seg">'+seg('today','Today')+seg('yest','Yesterday')+seg('month','This month')+seg('lmonth','Last month')+'</div><span style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;flex-wrap:wrap">From<input class="inp" type="date" data-f="sdate" data-k="from" max="'+today()+'" value="'+(S.range === 'date' ? esc(S.rdate || '') : '')+'" style="width:auto;margin:0">To<input class="inp" type="date" data-f="sdate" data-k="to" max="'+today()+'" value="'+(S.range === 'date' ? esc(S.rdate2 || '') : '')+'" style="width:auto;margin:0"><button class="btn ghost sm" data-act="sdtoday" title="Set To = today">Today</button></span>'+(S.range === 'month' || S.range === 'lmonth' ? '<span style="color:var(--muted);font-size:13px">Showing '+esc(billsMonth())+'</span>' : (S.range === 'date' ? '<span style="color:var(--muted);font-size:13px">Showing '+esc(billsFrom())+(billsTo() !== billsFrom() ? ' to '+esc(billsTo()) : '')+'</span>' : (S.range === 'yest' ? '<span style="color:var(--muted);font-size:13px">Showing '+esc(billsDay())+'</span>' : '')))+'</div><div class="tiles">'+tiles+'</div>'
     + (dOut.length ? '<div class="tbl"><h3>Out for delivery ('+dOut.length+')</h3><table><thead><tr><th>No.</th><th>Time</th><th>Customer</th><th>By</th><th class="n">AED</th><th></th></tr></thead><tbody>'+dOut.map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+fdate(s.t)+'</td><td>'+esc(s.dlv.phone || '')+'<div style="font-size:12px;color:var(--muted)">'+esc(s.dlv.addr || '')+'</div></td><td>'+esc(s.dlv.staff || '')+'</td><td class="n">'+money(s.total)+'</td><td class="n"><button class="btn primary sm" data-act="dvcash" data-id="'+esc(s.id)+'">Cash</button> <button class="btn plum sm" data-act="dvcard" data-id="'+esc(s.id)+'">Card</button></td></tr>'; }).join('')+'</tbody></table></div>' : '')
-    + '<div class="tbl"><h3>Top items</h3><table><tbody>'+(topRows||'<tr><td>No sales yet.</td></tr>')+'</tbody></table></div>'
-    + sizeCard(ok)
+    + '<div class="dgrid"><div class="tbl"><h3>Top items</h3><table><tbody>'+(topRows||'<tr><td>No sales yet.</td></tr>')+'</tbody></table></div>'
+    + sizeCard(ok) + '</div>'
     + (voids.length ? '<div class="tbl"><h3>Cancelled bills</h3><table><thead><tr><th>No.</th><th>Time</th><th>Reason</th><th class="n">AED</th></tr></thead><tbody>'+voids.slice().reverse().map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+fdate(s.voidT || s.t)+'</td><td>'+esc(s.voidReason||'')+(s.voidNote?' <span style="color:var(--muted)">· '+esc(s.voidNote)+'</span>':'')+'</td><td class="n">'+money(s.total)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + (ok.some(function(s){ return s.discount > 0; }) ? '<div class="tbl"><h3>Discounts given</h3><table><thead><tr><th>No.</th><th>Time</th><th>Reason</th><th class="n">Before</th><th class="n">Discount</th></tr></thead><tbody>'+ok.filter(function(s){ return s.discount > 0; }).reverse().map(function(s){ return '<tr><td>#'+s.no+'</td><td>'+fdate(s.t)+'</td><td>'+esc(s.discReason||'')+(s.discNote?' <span style="color:var(--muted)">· '+esc(s.discNote)+'</span>':'')+'</td><td class="n">'+money(s.subtotal)+'</td><td class="n">'+money(s.discount)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '')
     + '<div class="tbl"><h3>Bills</h3><table><thead><tr><th>No.</th><th>Time</th><th>Items</th><th>Payment</th><th class="n">AED</th><th></th></tr></thead><tbody>'+(rows||'<tr><td colspan="6">No bills yet.</td></tr>')+'</tbody></table></div></div>';
@@ -5059,14 +5059,17 @@ function sizeSales(list){
     var sa = (so[a.cat] || {})[a.size], sb = (so[b.cat] || {})[b.size]; return (sa === undefined ? 99 : sa) - (sb === undefined ? 99 : sb); });
 }
 function sizeLabel(r){ return r.size || 'one size'; }
-function sizeRowsHtml(rows, cls){   /* cls 'scr' = app tables */
-  var last = ''; return rows.map(function(r){ var first = r.cat !== last; last = r.cat;
-    return '<tr><td>' + (first ? '<b>' + esc(r.cat) + '</b>' : '') + '</td><td>' + esc(sizeLabel(r)) + '</td><td class="n">' + r.qty + '</td><td class="n">' + money(r.amt) + '</td></tr>'; }).join('');
+function sizeRowsHtml(rows){   /* a header line per category with its total, then one line per size */
+  var g = [], cur = null; rows.forEach(function(r){ if (!cur || cur.cat !== r.cat){ cur = {cat:r.cat, qty:0, amt:0, list:[]}; g.push(cur); } cur.qty += r.qty; cur.amt += r.amt; cur.list.push(r); });
+  return g.map(function(c){
+    return '<tr style="background:var(--soft)"><td><b>' + esc(c.cat) + '</b></td><td class="n"><b>' + c.qty + '</b></td><td class="n"><b>' + money(c.amt) + '</b></td></tr>'
+      + c.list.map(function(r){ return '<tr><td style="padding-left:26px;color:var(--muted)">' + esc(sizeLabel(r)) + '</td><td class="n">' + r.qty + '</td><td class="n">' + money(r.amt) + '</td></tr>'; }).join('');
+  }).join('');
 }
 function sizeCard(list, title){
   var rows = sizeSales(list);
   return '<div class="tbl"><h3>' + (title || 'Sales by size') + ' <small style="font-weight:400;color:var(--muted)">all flavours together</small></h3>'
-    + (rows.length ? '<table><thead><tr><th>Category</th><th>Size</th><th class="n">Qty</th><th class="n">AED</th></tr></thead><tbody>' + sizeRowsHtml(rows) + '</tbody></table>' : '<p style="padding:12px 16px;margin:0;color:var(--muted)">No sales.</p>') + '</div>';
+    + (rows.length ? '<table><thead><tr><th>Category / size</th><th class="n">Qty</th><th class="n">AED</th></tr></thead><tbody>' + sizeRowsHtml(rows) + '</tbody></table>' : '<p style="padding:12px 16px;margin:0;color:var(--muted)">No sales.</p>') + '</div>';
 }
 function rgNums(){
   var g = rgState(), a = new Date(g.from).getTime(), b = new Date(g.to).getTime() + 59999; if (isNaN(a)) a = 0; if (isNaN(b)) b = Date.now();
@@ -5198,7 +5201,7 @@ function vRange(){
     + drawerChecksHtml() + '</div>'
     + (N.voids.length ? '<div class="card"><h3>Cancelled bills <span style="font-weight:400;color:var(--muted);font-size:13px">' + N.voids.length + ' · AED ' + money(N.voidTot) + '</span></h3><table class="tbl" style="width:100%">' + N.voids.map(function(s){ return '<tr><td style="vertical-align:top">#' + s.no + '</td><td><b>' + esc(voidWhy(s)) + '</b><br><span style="color:var(--muted);font-size:12px">' + esc(voidInfo(s)) + '</span><div style="font-size:13px;margin-top:3px">' + voidItems(s).map(esc).join('<br>') + '</div></td><td class="n" style="vertical-align:top">' + money(s.total) + '</td></tr>'; }).join('') + '</table></div>' : '')
     + '<div class="card"><h3>By category and item</h3><table class="tbl" style="width:100%">' + catRows + '</table></div>'
-    + '<div class="card"><h3>Sales by size <span style="font-weight:400;color:var(--muted);font-size:13px">all flavours together</span></h3>' + (sizeSales(N.ok).length ? '<table class="tbl" style="width:100%"><thead><tr><th style="text-align:left">Category</th><th style="text-align:left">Size</th><th class="n">Qty</th><th class="n">AED</th></tr></thead><tbody>' + sizeRowsHtml(sizeSales(N.ok)) + '</tbody></table>' : '<p style="margin:0;color:var(--muted)">No sales.</p>') + '</div>'
+    + '<div class="card"><h3>Sales by size <span style="font-weight:400;color:var(--muted);font-size:13px">all flavours together</span></h3>' + (sizeSales(N.ok).length ? '<table class="tbl" style="width:100%"><thead><tr><th style="text-align:left">Category / size</th><th class="n">Qty</th><th class="n">AED</th></tr></thead><tbody>' + sizeRowsHtml(sizeSales(N.ok)) + '</tbody></table>' : '<p style="margin:0;color:var(--muted)">No sales.</p>') + '</div>'
     + '<div class="card"><h3>Cash expenses in this period</h3>' + (expRows ? '<table class="tbl" style="width:100%">' + expRows + row('<b>Total</b>', '<b>' + money(N.expOut) + '</b>') + '</table>' : '<p style="margin:0;color:var(--muted)">No expenses were recorded for this period.</p>') + '</div>'
     + '</div></div>';
 }
